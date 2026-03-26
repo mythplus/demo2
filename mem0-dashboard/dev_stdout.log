@@ -1,0 +1,23 @@
+
+> mem0-dashboard@0.1.0 dev
+> next dev
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3000
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 3s
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 5.6s (650 modules)
+ ✓ Compiled in 228ms (331 modules)
+ ○ Compiling / ...
+ ✓ Compiled / in 851ms (757 modules)
+ GET / 200 in 1019ms
+ ○ Compiling /memories ...
+ ✓ Compiled /users in 1437ms (884 modules)
+ ✓ Compiled /settings in 448ms (914 modules)
+ GET / 200 in 97ms
+ ✓ Compiled in 982ms (925 modules)
+ GET /settings 200 in 166ms
+ GET / 200 in 73ms

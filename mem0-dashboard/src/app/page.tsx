@@ -85,6 +85,15 @@ export default function DashboardPage() {
     fetchData();
   }, []);
 
+  // 连接断开时自动重试
+  useEffect(() => {
+    if (connectionStatus !== "disconnected") return;
+    const retryInterval = setInterval(() => {
+      fetchData();
+    }, 10000); // 每 10 秒重试一次
+    return () => clearInterval(retryInterval);
+  }, [connectionStatus]);
+
   // 统计数据
   const totalMemories = memories.length;
   const uniqueUsers = new Set(memories.map((m) => m.user_id).filter(Boolean));
