@@ -1,0 +1,356 @@
+"use client";
+
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  Brain,
+  Users,
+  TrendingUp,
+  Activity,
+  Plus,
+  Search,
+  ArrowRight,
+  Clock,
+} from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { AddMemoryDialog } from "@/components/memories/add-memory-dialog";
+import { mem0Api } from "@/lib/api";
+import type { Memory, ConnectionStatus } from "@/lib/api";
+
+// 统计卡片组件
+function StatsCard({
+  title,
+  value,
+  description,
+  icon: Icon,
+  trend,
+}: {
+  title: string;
+  value: string | number;
+  description: string;
+  icon: React.ElementType;
+  trend?: string;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value}</div>
+        <p className="text-xs text-muted-foreground">
+          {trend && <span className="text-green-600 mr-1">{trend}</span>}
+          {description}
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function DashboardPage() {
+  const [memories, setMemories] = useState<Memory[]>([]);
+  const [connectionStatus, setConnectionStatus] =
+    useState<ConnectionStatus>("checking");
+  const [loading, setLoading] = useState(true);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const isConnected = await mem0Api.healthCheck();
+      setConnectionStatus(isConnected ? "connected" : "disconnected");
+
+      if (isConnected) {
+        const data = await mem0Api.getMemories();
+        setMemories(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error("获取数据失败:", error);
+      setConnectionStatus("disconnected");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // 统计数据
+  const totalMemories = memories.length;
+  const uniqueUsers = new Set(memories.map((m) => m.user_id).filter(Boolean));
+  const uniqueUserCount = uniqueUsers.size;
+
+  // 今日新增
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayMemories = memories.filter((m) => {
+    if (!m.created_at) return false;
+    return new Date(m.created_at) >= today;
+  });
+
+  // 最近记忆（按时间排序）
+  const recentMemories = [...memories]
+    .sort((a, b) => {
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return timeB - timeA;
+    })
+    .slice(0, 5);
+
+  // 用户记忆排行
+  const userMemoryCount = new Map<string, number>();
+  memories.forEach((m) => {
+    if (m.user_id) {
+      userMemoryCount.set(
+        m.user_id,
+        (userMemoryCount.get(m.user_id) || 0) + 1
+      );
+    }
+  });
+  const topUsers = Array.from(userMemoryCount.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+
+  return (
+    <div className="space-y-6">
+      {/* 连接状态提示 */}
+      {connectionStatus === "disconnected" && (
+        <Card className="border-destructive">
+          <CardContent className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-3 w-3 rounded-full bg-red-500" />
+              <div>
+                <p className="text-sm font-medium text-destructive">
+                  无法连接到 Mem0 API Server
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  请确保已运行{" "}
+                  <code className="rounded bg-muted px-1">
+                    mem0 server start --port 8080
+                  </code>
+                </p>
+              </div>
+            </div>
+            <Link href="/settings">
+              <Button variant="outline" size="sm">
+                前往设置
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
+      {connectionStatus === "checking" && (
+        <Card>
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="h-3 w-3 animate-pulse rounded-full bg-yellow-500" />
+            <p className="text-sm text-muted-foreground">
+              正在检查 API 连接状态...
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 统计卡片 */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <StatsCard
+          title="记忆总数"
+          value={loading ? "..." : totalMemories}
+          description="所有存储的记忆条目"
+          icon={Brain}
+        />
+        <StatsCard
+          title="用户总数"
+          value={loading ? "..." : uniqueUserCount}
+          description="拥有记忆的独立用户"
+          icon={Users}
+        />
+        <StatsCard
+          title="今日新增"
+          value={loading ? "..." : todayMemories.length}
+          description="今日新增记忆数量"
+          icon={TrendingUp}
+          trend={todayMemories.length > 0 ? `+${todayMemories.length}` : undefined}
+        />
+        <StatsCard
+          title="系统状态"
+          value={
+            connectionStatus === "connected"
+              ? "正常"
+              : connectionStatus === "checking"
+              ? "检查中"
+              : "离线"
+          }
+          description="API Server 连接状态"
+          icon={Activity}
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* 最近记忆 - 占 2 列 */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>最近记忆</CardTitle>
+              <CardDescription>最近添加的记忆条目</CardDescription>
+            </div>
+            <Link href="/memories">
+              <Button variant="ghost" size="sm">
+                查看全部
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="h-14 animate-pulse rounded-md bg-muted"
+                  />
+                ))}
+              </div>
+            ) : recentMemories.length > 0 ? (
+              <div className="space-y-3">
+                {recentMemories.map((memory) => (
+                  <Link
+                    key={memory.id}
+                    href="/memories"
+                    className="flex items-start justify-between rounded-lg border p-3 transition-colors hover:bg-accent/50"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm truncate">{memory.memory}</p>
+                      <div className="mt-1 flex items-center gap-2">
+                        {memory.user_id && (
+                          <Badge variant="secondary" className="text-xs">
+                            {memory.user_id}
+                          </Badge>
+                        )}
+                        {memory.created_at && (
+                          <span className="text-xs text-muted-foreground">
+                            <Clock className="mr-1 inline h-3 w-3" />
+                            {new Date(memory.created_at).toLocaleString(
+                              "zh-CN"
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <Brain className="mb-3 h-12 w-12 text-muted-foreground/50" />
+                <p className="text-sm text-muted-foreground">暂无记忆数据</p>
+                <p className="text-xs text-muted-foreground">
+                  通过 API 添加记忆后，数据将显示在这里
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 用户排行 - 占 1 列 */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>活跃用户</CardTitle>
+              <CardDescription>按记忆数量排序</CardDescription>
+            </div>
+            <Link href="/users">
+              <Button variant="ghost" size="sm">
+                全部
+                <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="h-10 animate-pulse rounded-md bg-muted"
+                  />
+                ))}
+              </div>
+            ) : topUsers.length > 0 ? (
+              <div className="space-y-3">
+                {topUsers.map(([uid, count], index) => (
+                  <Link
+                    key={uid}
+                    href={`/users/${encodeURIComponent(uid)}`}
+                    className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-accent/50"
+                  >
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                      {index + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{uid}</p>
+                    </div>
+                    <Badge variant="secondary">{count}</Badge>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-6 text-center">
+                <Users className="mb-2 h-8 w-8 text-muted-foreground/50" />
+                <p className="text-xs text-muted-foreground">暂无用户数据</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 快速操作 */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card
+          className="cursor-pointer transition-colors hover:bg-accent/50"
+          onClick={() => setAddDialogOpen(true)}
+        >
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Plus className="h-5 w-5 text-primary" />
+              添加记忆
+            </CardTitle>
+            <CardDescription>
+              手动添加一条新的记忆到系统中
+            </CardDescription>
+          </CardHeader>
+        </Card>
+        <Link href="/search">
+          <Card className="cursor-pointer transition-colors hover:bg-accent/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Search className="h-5 w-5 text-primary" />
+                语义搜索
+              </CardTitle>
+              <CardDescription>
+                使用自然语言搜索已存储的记忆
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </Link>
+      </div>
+
+      {/* 添加记忆弹窗 */}
+      <AddMemoryDialog
+        open={addDialogOpen}
+        onOpenChange={setAddDialogOpen}
+        onSuccess={fetchData}
+      />
+    </div>
+  );
+}
