@@ -278,19 +278,37 @@ def apply_filters(memories: list, categories: list = None, state: str = None,
         filtered = [m for m in filtered if set(m.get("categories", [])) & cat_set]
 
     # 按时间范围筛选
+    # 辅助函数：将日期字符串统一解析为 offset-aware datetime（UTC）
+    def _parse_dt(s: str) -> datetime:
+        """解析日期/时间字符串，统一返回带 UTC 时区的 datetime"""
+        from datetime import timezone
+        s = s.strip()
+        # 纯日期格式 YYYY-MM-DD，补充时间部分
+        if len(s) == 10 and s[4] == '-' and s[7] == '-':
+            return datetime.fromisoformat(s + "T00:00:00+00:00")
+        # 带 Z 后缀的 ISO 格式
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        # 如果解析结果无时区信息，默认当作 UTC
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+
     if date_from:
         try:
-            from_dt = datetime.fromisoformat(date_from.replace("Z", "+00:00"))
+            from_dt = _parse_dt(date_from)
             filtered = [m for m in filtered if m.get("created_at") and
-                        datetime.fromisoformat(str(m["created_at"]).replace("Z", "+00:00")) >= from_dt]
+                        _parse_dt(str(m["created_at"])) >= from_dt]
         except (ValueError, TypeError):
             pass
 
     if date_to:
         try:
-            to_dt = datetime.fromisoformat(date_to.replace("Z", "+00:00"))
+            to_dt = _parse_dt(date_to)
+            # 如果是纯日期（无时间部分），将截止时间设为当天 23:59:59
+            if len(date_to.strip()) == 10:
+                to_dt = to_dt.replace(hour=23, minute=59, second=59)
             filtered = [m for m in filtered if m.get("created_at") and
-                        datetime.fromisoformat(str(m["created_at"]).replace("Z", "+00:00")) <= to_dt]
+                        _parse_dt(str(m["created_at"])) <= to_dt]
         except (ValueError, TypeError):
             pass
 

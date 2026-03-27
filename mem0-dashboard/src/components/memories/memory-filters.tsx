@@ -160,7 +160,16 @@ export function MemoryFilters({
               <Input
                 type="date"
                 value={filters.date_from || ""}
-                onChange={(e) => updateFilter("date_from", e.target.value || undefined)}
+                max={filters.date_to || undefined}
+                onChange={(e) => {
+                  const newFrom = e.target.value || undefined;
+                  // 如果新的开始日期晚于结束日期，自动清空结束日期
+                  if (newFrom && filters.date_to && newFrom > filters.date_to) {
+                    onFiltersChange({ ...filters, date_from: newFrom, date_to: undefined });
+                  } else {
+                    updateFilter("date_from", newFrom);
+                  }
+                }}
                 className="h-8 w-[160px]"
                 placeholder="开始日期"
               />
@@ -168,7 +177,16 @@ export function MemoryFilters({
               <Input
                 type="date"
                 value={filters.date_to || ""}
-                onChange={(e) => updateFilter("date_to", e.target.value || undefined)}
+                min={filters.date_from || undefined}
+                onChange={(e) => {
+                  const newTo = e.target.value || undefined;
+                  // 如果新的结束日期早于开始日期，自动清空开始日期
+                  if (newTo && filters.date_from && newTo < filters.date_from) {
+                    onFiltersChange({ ...filters, date_to: newTo, date_from: undefined });
+                  } else {
+                    updateFilter("date_to", newTo);
+                  }
+                }}
                 className="h-8 w-[160px]"
                 placeholder="结束日期"
               />
