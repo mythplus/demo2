@@ -34,3 +34,10 @@
  GET /memories 200 in 966ms
  GET /search 200 in 52ms
  ✓ Compiled /users in 408ms (1886 modules)
+ ✓ Compiled /users/[userId] in 349ms (1402 modules)
+ GET /memories 200 in 101ms
+ GET /memories 200 in 42ms
+ GET /memories 200 in 45ms
+ ✓ Compiled /search in 92ms (458 modules)
+ ✓ Compiled in 816ms (1423 modules)
+ ✓ Compiled in 606ms (1421 modules)

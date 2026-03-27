@@ -42,6 +42,8 @@ export interface AddMemoryRequest {
   metadata?: Record<string, unknown>;
   categories?: Category[];
   state?: MemoryState;
+  /** true: AI 自动提取关键记忆（可能拆分为多条）; false: 原文整条存储 */
+  infer?: boolean;
 }
 
 /** 添加记忆响应 */

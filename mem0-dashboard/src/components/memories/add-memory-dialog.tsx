@@ -19,9 +19,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertTriangle } from "lucide-react";
 import { mem0Api } from "@/lib/api";
-import type { Category, MemoryState } from "@/lib/api";
+import type { Category, MemoryState, AddMemoryResponse } from "@/lib/api";
 import { CATEGORY_LIST, STATE_LIST, getCategoryInfo } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
@@ -40,8 +40,10 @@ export function AddMemoryDialog({
   const [userId, setUserId] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<Category[]>([]);
   const [state, setState] = useState<MemoryState>("active");
+  const [infer, setInfer] = useState(false); // 默认原文存储，AI 提取模式依赖 LLM 可能不稳定
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [warning, setWarning] = useState("");
 
   const toggleCategory = (cat: Category) => {
     setSelectedCategories((prev) =>
@@ -62,19 +64,35 @@ export function AddMemoryDialog({
 
     setLoading(true);
     setError("");
+    setWarning("");
 
     try {
-      await mem0Api.addMemory({
+      const result: AddMemoryResponse = await mem0Api.addMemory({
         messages: [{ role: "user", content: content.trim() }],
         user_id: userId.trim(),
         categories: selectedCategories.length > 0 ? selectedCategories : undefined,
         state: state,
+        infer: infer,
       });
+
+      // 检查返回结果是否为空（LLM 可能判断内容不值得提取）
+      const addedCount = result?.results?.filter((r) => r.event === "ADD").length ?? 0;
+      if (result?.results?.length === 0 || addedCount === 0) {
+        setWarning(
+          infer
+            ? "AI 未从内容中提取到有效记忆。建议切换到「📝 原文存储」模式重试。"
+            : "记忆添加未生效，请检查内容后重试。"
+        );
+        return;
+      }
+
       // 重置表单
       setContent("");
       setUserId("");
       setSelectedCategories([]);
       setState("active");
+      setInfer(true);
+      setWarning("");
       onOpenChange(false);
       onSuccess();
     } catch (err) {
@@ -146,6 +164,44 @@ export function AddMemoryDialog({
             </div>
           </div>
 
+          {/* 存储模式 */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">存储模式</label>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setInfer(true)}
+                disabled={loading}
+                className={cn(
+                  "inline-flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
+                  infer
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                🤖 AI 智能提取
+              </button>
+              <button
+                type="button"
+                onClick={() => setInfer(false)}
+                disabled={loading}
+                className={cn(
+                  "inline-flex items-center rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
+                  !infer
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                📝 原文存储
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {infer
+                ? "AI 会自动提取关键信息，可能将内容拆分为多条记忆"
+                : "将输入内容作为一条完整记忆原样存储，不做拆分"}
+            </p>
+          </div>
+
           {/* 状态选择 */}
           <div className="space-y-2">
             <label className="text-sm font-medium">初始状态</label>
@@ -169,6 +225,13 @@ export function AddMemoryDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {warning && (
+            <div className="rounded-md bg-yellow-500/10 border border-yellow-500/20 p-3 text-sm text-yellow-700 dark:text-yellow-400 flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>{warning}</span>
+            </div>
+          )}
 
           {error && (
             <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">

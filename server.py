@@ -231,6 +231,7 @@ class AddMemoryRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
     categories: Optional[List[str]] = None
     state: Optional[str] = "active"
+    infer: Optional[bool] = True  # True: AI 自动提取关键记忆（可能拆分为多条）; False: 原文整条存储
 
 
 class SearchMemoryRequest(BaseModel):
@@ -345,7 +346,7 @@ async def add_memory(request: AddMemoryRequest):
         if final_metadata:
             kwargs["metadata"] = final_metadata
 
-        result = m.add(messages=messages, **kwargs)
+        result = m.add(messages=messages, infer=request.infer, **kwargs)
 
         # 确保 categories/state 写入 Qdrant（Mem0 SDK 可能不保留自定义 metadata）
         if final_metadata and ("categories" in final_metadata or "state" in final_metadata):
