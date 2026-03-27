@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { X, Clock, FileText, History } from "lucide-react";
+import Link from "next/link";
+import { X, Clock, FileText, History, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -9,6 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { mem0Api } from "@/lib/api";
 import type { Memory, MemoryHistory } from "@/lib/api";
+import { CategoryBadges } from "./category-badge";
+import { StateBadge } from "./state-badge";
 
 interface MemoryDetailPanelProps {
   memory: Memory | null;
@@ -65,9 +68,16 @@ export function MemoryDetailPanel({
         {/* 头部 */}
         <div className="flex items-center justify-between border-b p-4">
           <h3 className="text-lg font-semibold">记忆详情</h3>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Link href={`/memory/${memory.id}`}>
+              <Button variant="ghost" size="icon" title="在详情页打开" onClick={onClose}>
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </Link>
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         {/* 内容区域 */}
@@ -86,6 +96,18 @@ export function MemoryDetailPanel({
 
             {/* 基本信息 Tab */}
             <TabsContent value="info" className="p-4 space-y-4">
+              {/* 状态 */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground">
+                  状态
+                </label>
+                <div>
+                  <StateBadge state={memory.state} size="md" />
+                </div>
+              </div>
+
+              <Separator />
+
               {/* 记忆内容 */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-muted-foreground">
@@ -163,6 +185,19 @@ export function MemoryDetailPanel({
                 )}
               </div>
 
+              {/* 分类标签 */}
+              {memory.categories && memory.categories.length > 0 && (
+                <>
+                  <Separator />
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-muted-foreground">
+                      分类标签
+                    </label>
+                    <CategoryBadges categories={memory.categories} />
+                  </div>
+                </>
+              )}
+
               {/* 元数据 */}
               {memory.metadata &&
                 Object.keys(memory.metadata).length > 0 && (
@@ -178,25 +213,6 @@ export function MemoryDetailPanel({
                     </div>
                   </>
                 )}
-
-              {/* 分类标签 */}
-              {memory.categories && memory.categories.length > 0 && (
-                <>
-                  <Separator />
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-muted-foreground">
-                      分类标签
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {memory.categories.map((cat) => (
-                        <Badge key={cat} variant="outline">
-                          {cat}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
             </TabsContent>
 
             {/* 修改历史 Tab */}
@@ -221,9 +237,9 @@ export function MemoryDetailPanel({
                         <Badge
                           variant={
                             item.event === "ADD"
-                              ? "success"
-                              : item.event === "UPDATE"
                               ? "default"
+                              : item.event === "UPDATE"
+                              ? "secondary"
                               : "destructive"
                           }
                         >

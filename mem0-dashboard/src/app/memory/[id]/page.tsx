@@ -1,0 +1,504 @@
+"use client";
+
+import React, { useEffect, useState, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  Brain,
+  Clock,
+  RefreshCw,
+  Pencil,
+  Trash2,
+  History,
+  Copy,
+  CheckCircle,
+  Play,
+  Pause,
+  Archive,
+} from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { CategoryBadges } from "@/components/memories/category-badge";
+import { StateBadge } from "@/components/memories/state-badge";
+import { EditMemoryDialog } from "@/components/memories/edit-memory-dialog";
+import { DeleteConfirmDialog } from "@/components/memories/delete-confirm-dialog";
+import { mem0Api } from "@/lib/api";
+import type { Memory, MemoryHistory, MemoryState } from "@/lib/api";
+import { STATE_LIST } from "@/lib/constants";
+
+export default function MemoryDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const memoryId = params.id as string;
+
+  const [memory, setMemory] = useState<Memory | null>(null);
+  const [history, setHistory] = useState<MemoryHistory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  // 弹窗状态
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const fetchMemory = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await mem0Api.getMemory(memoryId);
+      setMemory(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "获取记忆失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [memoryId]);
+
+  const fetchHistory = useCallback(async () => {
+    setLoadingHistory(true);
+    try {
+      const data = await mem0Api.getMemoryHistory(memoryId);
+      setHistory(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("获取历史记录失败:", err);
+      setHistory([]);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [memoryId]);
+
+  useEffect(() => {
+    fetchMemory();
+    fetchHistory();
+  }, [fetchMemory, fetchHistory]);
+
+  // 复制 ID
+  const handleCopyId = () => {
+    navigator.clipboard.writeText(memoryId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // 删除
+  const handleDelete = async () => {
+    setDeleteLoading(true);
+    try {
+      await mem0Api.deleteMemory(memoryId);
+      setDeleteDialogOpen(false);
+      router.push("/memories");
+    } catch (err) {
+      console.error("删除失败:", err);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  // 更改状态
+  const handleStateChange = async (newState: MemoryState) => {
+    try {
+      await mem0Api.updateMemory(memoryId, { state: newState });
+      fetchMemory();
+    } catch (err) {
+      console.error("更新状态失败:", err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-2">
+          <Link href="/memories">
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="mr-1 h-4 w-4" />
+              返回记忆列表
+            </Button>
+          </Link>
+        </div>
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-32 animate-pulse rounded-lg bg-muted" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !memory) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-2">
+          <Link href="/memories">
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="mr-1 h-4 w-4" />
+              返回记忆列表
+            </Button>
+          </Link>
+        </div>
+        <Card className="border-destructive">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Brain className="mb-4 h-16 w-16 text-muted-foreground/30" />
+            <p className="text-lg font-medium text-destructive">
+              {error || "记忆不存在"}
+            </p>
+            <Link href="/memories">
+              <Button className="mt-4" variant="outline">
+                返回记忆列表
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* 面包屑导航 */}
+      <div className="flex items-center gap-2">
+        <Link href="/memories">
+          <Button variant="ghost" size="sm">
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            返回记忆列表
+          </Button>
+        </Link>
+      </div>
+
+      {/* 主内容区域：左侧 2/3 + 右侧 1/3 */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* 左侧：记忆内容 + 分类 + 元数据 + 修改历史 */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* 记忆内容卡片 */}
+          <Card>
+            <CardHeader>
+              <CardTitle>记忆内容</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-lg border bg-muted/50 p-4">
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                  {memory.memory}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 分类标签 */}
+          {memory.categories && memory.categories.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">分类标签</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CategoryBadges categories={memory.categories} />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 元数据 */}
+          {memory.metadata && Object.keys(memory.metadata).length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">元数据</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <pre className="rounded-lg border bg-muted/50 p-3 text-xs overflow-x-auto font-mono">
+                  {JSON.stringify(memory.metadata, null, 2)}
+                </pre>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 修改历史时间线 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <History className="h-4 w-4" />
+                修改历史
+              </CardTitle>
+              <CardDescription>
+                记录该记忆的所有变更操作
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingHistory ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-16 animate-pulse rounded-md bg-muted" />
+                  ))}
+                </div>
+              ) : history.length > 0 ? (
+                <div className="relative space-y-0">
+                  {/* 时间线竖线 */}
+                  <div className="absolute left-4 top-0 bottom-0 w-px bg-border" />
+
+                  {history.map((item, index) => (
+                    <div key={item.id || index} className="relative pl-10 pb-6 last:pb-0">
+                      {/* 时间线圆点 */}
+                      <div
+                        className={`absolute left-2.5 top-1 h-3 w-3 rounded-full border-2 border-background ${
+                          item.event === "ADD"
+                            ? "bg-green-500"
+                            : item.event === "UPDATE"
+                            ? "bg-blue-500"
+                            : "bg-red-500"
+                        }`}
+                      />
+
+                      <div className="rounded-lg border p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Badge
+                            variant={
+                              item.event === "ADD"
+                                ? "default"
+                                : item.event === "UPDATE"
+                                ? "secondary"
+                                : "destructive"
+                            }
+                          >
+                            {item.event === "ADD"
+                              ? "新增"
+                              : item.event === "UPDATE"
+                              ? "更新"
+                              : "删除"}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            <Clock className="mr-1 inline h-3 w-3" />
+                            {new Date(item.created_at).toLocaleString("zh-CN")}
+                          </span>
+                        </div>
+
+                        {item.old_memory && (
+                          <div className="rounded bg-red-50 dark:bg-red-950/20 p-2">
+                            <p className="text-xs text-muted-foreground mb-1">旧内容：</p>
+                            <p className="text-sm line-through text-muted-foreground">
+                              {item.old_memory}
+                            </p>
+                          </div>
+                        )}
+
+                        <div className="rounded bg-green-50 dark:bg-green-950/20 p-2">
+                          <p className="text-xs text-muted-foreground mb-1">
+                            {item.old_memory ? "新内容：" : "内容："}
+                          </p>
+                          <p className="text-sm">{item.new_memory}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <History className="mb-3 h-10 w-10 text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">暂无修改历史</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* 右侧：元信息 + 操作按钮 */}
+        <div className="space-y-6">
+          {/* 元信息卡片 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">基本信息</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* ID */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  记忆 ID
+                </label>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 rounded bg-muted px-2 py-1 text-xs font-mono break-all">
+                    {memory.id}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0"
+                    onClick={handleCopyId}
+                  >
+                    {copied ? (
+                      <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* 状态 */}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  状态
+                </label>
+                <div>
+                  <StateBadge state={memory.state} size="md" />
+                </div>
+              </div>
+
+              {/* 用户 */}
+              {memory.user_id && (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    用户
+                  </label>
+                  <div>
+                    <Link href={`/users/${encodeURIComponent(memory.user_id)}`}>
+                      <Badge variant="secondary" className="cursor-pointer hover:bg-secondary/80">
+                        {memory.user_id}
+                      </Badge>
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              {/* Agent ID */}
+              {memory.agent_id && (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Agent ID
+                  </label>
+                  <div>
+                    <Badge variant="outline">{memory.agent_id}</Badge>
+                  </div>
+                </div>
+              )}
+
+              <Separator />
+
+              {/* 时间 */}
+              {memory.created_at && (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    创建时间
+                  </label>
+                  <p className="text-sm">
+                    {new Date(memory.created_at).toLocaleString("zh-CN")}
+                  </p>
+                </div>
+              )}
+
+              {memory.updated_at && (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    更新时间
+                  </label>
+                  <p className="text-sm">
+                    {new Date(memory.updated_at).toLocaleString("zh-CN")}
+                  </p>
+                </div>
+              )}
+
+              {memory.hash && (
+                <>
+                  <Separator />
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Hash
+                    </label>
+                    <p className="text-xs font-mono break-all text-muted-foreground">
+                      {memory.hash}
+                    </p>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 操作按钮 */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">操作</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => setEditDialogOpen(true)}
+              >
+                <Pencil className="mr-2 h-4 w-4" />
+                编辑记忆
+              </Button>
+
+              {/* 状态切换按钮 */}
+              {memory.state !== "active" && (
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => handleStateChange("active")}
+                >
+                  <Play className="mr-2 h-4 w-4" />
+                  设为活跃
+                </Button>
+              )}
+              {memory.state !== "paused" && memory.state !== "deleted" && (
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => handleStateChange("paused")}
+                >
+                  <Pause className="mr-2 h-4 w-4" />
+                  暂停
+                </Button>
+              )}
+              {memory.state !== "archived" && memory.state !== "deleted" && (
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => handleStateChange("archived")}
+                >
+                  <Archive className="mr-2 h-4 w-4" />
+                  归档
+                </Button>
+              )}
+
+              <Separator />
+
+              <Button
+                variant="destructive"
+                className="w-full justify-start"
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                删除记忆
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* 弹窗 */}
+      <EditMemoryDialog
+        memory={memory}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onSuccess={() => {
+          fetchMemory();
+          fetchHistory();
+        }}
+      />
+
+      <DeleteConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleDelete}
+        loading={deleteLoading}
+        description={`确定要删除这条记忆吗？此操作不可撤销。`}
+      />
+    </div>
+  );
+}

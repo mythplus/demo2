@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   Search,
   Loader2,
@@ -29,6 +30,8 @@ import {
 } from "@/components/ui/select";
 import { mem0Api } from "@/lib/api";
 import type { SearchResult, Memory } from "@/lib/api";
+import { CategoryBadges } from "@/components/memories/category-badge";
+import { StateBadge } from "@/components/memories/state-badge";
 
 // 搜索历史记录类型
 interface SearchHistoryItem {
@@ -269,9 +272,10 @@ export default function SearchPage() {
                           </span>
                           {result.user_id && (
                             <Badge variant="secondary" className="text-xs">
-                              👤 {result.user_id}
+                              {result.user_id}
                             </Badge>
                           )}
+                          <StateBadge state={result.state} />
                           {result.created_at && (
                             <span className="text-xs text-muted-foreground">
                               {new Date(result.created_at).toLocaleString(
@@ -283,6 +287,8 @@ export default function SearchPage() {
                         <p className="text-sm leading-relaxed">
                           {result.memory}
                         </p>
+                        {/* 分类标签 */}
+                        <CategoryBadges categories={result.categories} className="mt-2" max={3} />
                       </div>
 
                       {/* 相似度分数 */}

@@ -16,6 +16,13 @@ const pageTitles: Record<string, string> = {
   "/settings": "系统设置",
 };
 
+function getPageTitle(pathname: string): string {
+  if (pageTitles[pathname]) return pageTitles[pathname];
+  if (pathname.startsWith("/memory/")) return "记忆详情";
+  if (pathname.startsWith("/users/")) return "用户详情";
+  return "Mem0 Dashboard";
+}
+
 interface HeaderProps {
   themeMode: "light" | "dark" | "system";
   onCycleTheme: () => void;
@@ -33,9 +40,7 @@ const themeMeta: Record<
 
 export function Header({ themeMode, onCycleTheme }: HeaderProps) {
   const pathname = usePathname();
-  const title =
-    pageTitles[pathname] ||
-    (pathname.startsWith("/users/") ? "用户详情" : "Mem0 Dashboard");
+  const title = getPageTitle(pathname);
 
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("checking");

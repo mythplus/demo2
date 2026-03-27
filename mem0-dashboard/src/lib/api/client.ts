@@ -12,6 +12,10 @@ import type {
   UpdateMemoryRequest,
   DeleteResponse,
   MemoryHistory,
+  FilterParams,
+  StatsResponse,
+  Category,
+  MemoryState,
 } from "./types";
 
 // API 基础地址
@@ -56,7 +60,7 @@ export const mem0Api = {
   // ============ 记忆 CRUD ============
 
   /**
-   * 添加记忆
+   * 添加记忆（支持 categories 和 state）
    * @param data 包含消息列表和用户信息
    */
   async addMemory(data: AddMemoryRequest): Promise<AddMemoryResponse> {
@@ -67,12 +71,26 @@ export const mem0Api = {
   },
 
   /**
-   * 获取所有记忆
-   * @param userId 可选，按用户筛选
+   * 获取所有记忆（支持多维筛选）
+   * @param filters 可选的筛选参数
    */
-  async getMemories(userId?: string): Promise<Memory[]> {
+  async getMemories(filters?: FilterParams | string): Promise<Memory[]> {
     const params = new URLSearchParams();
-    if (userId) params.set("user_id", userId);
+
+    if (typeof filters === "string") {
+      // 兼容旧的 userId 参数调用方式
+      if (filters) params.set("user_id", filters);
+    } else if (filters) {
+      if (filters.user_id) params.set("user_id", filters.user_id);
+      if (filters.categories && filters.categories.length > 0) {
+        params.set("categories", filters.categories.join(","));
+      }
+      if (filters.state) params.set("state", filters.state);
+      if (filters.date_from) params.set("date_from", filters.date_from);
+      if (filters.date_to) params.set("date_to", filters.date_to);
+      if (filters.search) params.set("search", filters.search);
+    }
+
     const query = params.toString();
     return request<Memory[]>(`/v1/memories/${query ? `?${query}` : ""}`);
   },
@@ -86,9 +104,9 @@ export const mem0Api = {
   },
 
   /**
-   * 更新记忆
+   * 更新记忆（支持 text、metadata、categories、state 更新）
    * @param memoryId 记忆 ID
-   * @param data 新的记忆内容
+   * @param data 更新内容
    */
   async updateMemory(
     memoryId: string,
@@ -143,6 +161,15 @@ export const mem0Api = {
    */
   async getMemoryHistory(memoryId: string): Promise<MemoryHistory[]> {
     return request<MemoryHistory[]>(`/v1/memories/history/${memoryId}/`);
+  },
+
+  // ============ 统计 ============
+
+  /**
+   * 获取统计数据（分类分布、状态分布、每日趋势）
+   */
+  async getStats(): Promise<StatsResponse> {
+    return request<StatsResponse>("/v1/stats/");
   },
 
   // ============ 健康检查 ============

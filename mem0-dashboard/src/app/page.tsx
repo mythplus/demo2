@@ -11,6 +11,7 @@ import {
   Search,
   ArrowRight,
   Clock,
+  Tags,
 } from "lucide-react";
 import {
   Card,
@@ -22,8 +23,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AddMemoryDialog } from "@/components/memories/add-memory-dialog";
+import { CategoryBadges } from "@/components/memories/category-badge";
+import { StateBadge } from "@/components/memories/state-badge";
 import { mem0Api } from "@/lib/api";
-import type { Memory, ConnectionStatus } from "@/lib/api";
+import type { Memory, ConnectionStatus, StatsResponse } from "@/lib/api";
+import { CATEGORY_LIST } from "@/lib/constants";
 
 // 统计卡片组件
 function StatsCard({
@@ -58,6 +62,7 @@ function StatsCard({
 
 export default function DashboardPage() {
   const [memories, setMemories] = useState<Memory[]>([]);
+  const [stats, setStats] = useState<StatsResponse | null>(null);
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("checking");
   const [loading, setLoading] = useState(true);
@@ -70,8 +75,12 @@ export default function DashboardPage() {
       setConnectionStatus(isConnected ? "connected" : "disconnected");
 
       if (isConnected) {
-        const data = await mem0Api.getMemories();
+        const [data, statsData] = await Promise.all([
+          mem0Api.getMemories(),
+          mem0Api.getStats().catch(() => null),
+        ]);
         setMemories(Array.isArray(data) ? data : []);
+        setStats(statsData);
       }
     } catch (error) {
       console.error("获取数据失败:", error);
@@ -95,9 +104,8 @@ export default function DashboardPage() {
   }, [connectionStatus]);
 
   // 统计数据
-  const totalMemories = memories.length;
-  const uniqueUsers = new Set(memories.map((m) => m.user_id).filter(Boolean));
-  const uniqueUserCount = uniqueUsers.size;
+  const totalMemories = stats?.total_memories ?? memories.length;
+  const uniqueUserCount = stats?.total_users ?? new Set(memories.map((m) => m.user_id).filter(Boolean)).size;
 
   // 今日新增
   const today = new Date();
@@ -106,6 +114,13 @@ export default function DashboardPage() {
     if (!m.created_at) return false;
     return new Date(m.created_at) >= today;
   });
+
+  // 分类分布（从 stats 或 memories 计算）
+  const categoryDistribution: Record<string, number> = stats?.category_distribution || {};
+  const categoriesWithCount = CATEGORY_LIST
+    .map((cat) => ({ ...cat, count: categoryDistribution[cat.value] || 0 }))
+    .filter((c) => c.count > 0)
+    .sort((a, b) => b.count - a.count);
 
   // 最近记忆（按时间排序）
   const recentMemories = [...memories]
@@ -205,6 +220,42 @@ export default function DashboardPage() {
         />
       </div>
 
+      {/* 分类分布 */}
+      {categoriesWithCount.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Tags className="h-4 w-4" />
+              分类分布
+            </CardTitle>
+            <CardDescription>各分类的记忆数量</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {categoriesWithCount.map((cat) => {
+                const percentage = totalMemories > 0 ? (cat.count / totalMemories) * 100 : 0;
+                return (
+                  <div key={cat.value} className="flex items-center gap-3">
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${cat.bgColor} ${cat.textColor} w-16 justify-center`}>
+                      {cat.label}
+                    </span>
+                    <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${cat.bgColor.replace('bg-', 'bg-').replace('/30', '')}`}
+                        style={{ width: `${Math.max(percentage, 2)}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-muted-foreground w-12 text-right">
+                      {cat.count} 条
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-3">
         {/* 最近记忆 - 占 2 列 */}
         <Card className="lg:col-span-2">
@@ -235,10 +286,13 @@ export default function DashboardPage() {
                 {recentMemories.map((memory) => (
                   <Link
                     key={memory.id}
-                    href="/memories"
+                    href={`/memory/${memory.id}`}
                     className="flex items-start justify-between rounded-lg border p-3 transition-colors hover:bg-accent/50"
                   >
                     <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <StateBadge state={memory.state} />
+                      </div>
                       <p className="text-sm truncate">{memory.memory}</p>
                       <div className="mt-1 flex items-center gap-2">
                         {memory.user_id && (
@@ -246,6 +300,7 @@ export default function DashboardPage() {
                             {memory.user_id}
                           </Badge>
                         )}
+                        <CategoryBadges categories={memory.categories} max={2} />
                         {memory.created_at && (
                           <span className="text-xs text-muted-foreground">
                             <Clock className="mr-1 inline h-3 w-3" />

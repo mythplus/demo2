@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import {
   Brain,
   Plus,
@@ -10,9 +11,9 @@ import {
   Trash2,
   Eye,
   RefreshCw,
-  Filter,
   ChevronLeft,
   ChevronRight,
+  ExternalLink,
 } from "lucide-react";
 import {
   Card,
@@ -31,25 +32,23 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { AddMemoryDialog } from "@/components/memories/add-memory-dialog";
 import { EditMemoryDialog } from "@/components/memories/edit-memory-dialog";
 import { DeleteConfirmDialog } from "@/components/memories/delete-confirm-dialog";
 import { MemoryDetailPanel } from "@/components/memories/memory-detail-panel";
+import { MemoryFilters } from "@/components/memories/memory-filters";
+import { MemoryTable } from "@/components/memories/memory-table";
+import { ViewToggle, type ViewMode } from "@/components/memories/view-toggle";
+import { PageSizeSelector } from "@/components/memories/page-size-selector";
+import { CategoryBadges } from "@/components/memories/category-badge";
+import { StateBadge } from "@/components/memories/state-badge";
 import { mem0Api } from "@/lib/api";
-import type { Memory } from "@/lib/api";
+import type { Memory, FilterParams } from "@/lib/api";
 import { usePreferences } from "@/hooks/use-preferences";
 
 export default function MemoriesPage() {
   // 用户偏好设置
-  const { preferences } = usePreferences();
-  const pageSize = preferences.pageSize;
+  const { preferences, savePreferences } = usePreferences();
   const sortOrder = preferences.sortOrder;
 
   // 数据状态
@@ -59,10 +58,14 @@ export default function MemoriesPage() {
 
   // 筛选状态
   const [searchText, setSearchText] = useState("");
-  const [filterUserId, setFilterUserId] = useState<string>("all");
+  const [filters, setFilters] = useState<FilterParams>({});
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(preferences.pageSize);
 
-  // IME 中文输入法组合状态（防止组合输入过程中触发搜索异常）
+  // 视图模式
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
+
+  // IME 中文输入法组合状态
   const [isComposing, setIsComposing] = useState(false);
 
   // 弹窗状态
@@ -75,13 +78,13 @@ export default function MemoriesPage() {
   const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // 获取记忆列表
+  // 获取记忆列表（通过后端筛选）
   const fetchMemories = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const userId = filterUserId === "all" ? undefined : filterUserId;
-      const data = await mem0Api.getMemories(userId);
+      const apiFilters: FilterParams = { ...filters };
+      const data = await mem0Api.getMemories(apiFilters);
       setMemories(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "获取记忆列表失败");
@@ -89,7 +92,7 @@ export default function MemoriesPage() {
     } finally {
       setLoading(false);
     }
-  }, [filterUserId]);
+  }, [filters]);
 
   useEffect(() => {
     fetchMemories();
@@ -100,7 +103,7 @@ export default function MemoriesPage() {
     new Set(memories.map((m) => m.user_id).filter(Boolean))
   ) as string[];
 
-  // 本地搜索过滤
+  // 本地搜索过滤（在后端筛选结果上再做前端文本搜索）
   const filteredMemories = memories
     .filter((m) => {
       if (!searchText.trim()) return true;
@@ -121,12 +124,18 @@ export default function MemoriesPage() {
       return sortOrder === "newest" ? timeB - timeA : timeA - timeB;
     });
 
-  // 分页（使用偏好中的 pageSize）
+  // 分页
   const totalPages = Math.ceil(filteredMemories.length / pageSize);
   const paginatedMemories = filteredMemories.slice(
     (currentPage - 1) * pageSize,
     currentPage * pageSize
   );
+
+  // 筛选变化时重置页码
+  const handleFiltersChange = (newFilters: FilterParams) => {
+    setFilters(newFilters);
+    setCurrentPage(1);
+  };
 
   // 删除记忆
   const handleDelete = async () => {
@@ -184,51 +193,38 @@ export default function MemoriesPage() {
       {/* 筛选栏 */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-col gap-3 sm:flex-row">
-            {/* 搜索框 */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="搜索记忆内容、用户 ID..."
-                value={searchText}
-                onChange={(e) => {
-                  setSearchText(e.target.value);
-                  if (!isComposing) {
+          <div className="space-y-3">
+            {/* 搜索框 + 视图切换 */}
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="搜索记忆内容、用户 ID..."
+                  value={searchText}
+                  onChange={(e) => {
+                    setSearchText(e.target.value);
+                    if (!isComposing) {
+                      setCurrentPage(1);
+                    }
+                  }}
+                  onCompositionStart={() => setIsComposing(true)}
+                  onCompositionEnd={(e) => {
+                    setIsComposing(false);
+                    setSearchText((e.target as HTMLInputElement).value);
                     setCurrentPage(1);
-                  }
-                }}
-                onCompositionStart={() => setIsComposing(true)}
-                onCompositionEnd={(e) => {
-                  setIsComposing(false);
-                  // 组合输入结束后，确保使用最终值更新搜索
-                  setSearchText((e.target as HTMLInputElement).value);
-                  setCurrentPage(1);
-                }}
-                className="pl-9"
-              />
+                  }}
+                  className="pl-9"
+                />
+              </div>
+              <ViewToggle mode={viewMode} onChange={setViewMode} />
             </div>
 
-            {/* 用户筛选 */}
-            <Select
-              value={filterUserId}
-              onValueChange={(value) => {
-                setFilterUserId(value);
-                setCurrentPage(1);
-              }}
-            >
-              <SelectTrigger className="w-[200px]">
-                <Filter className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="筛选用户" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部用户</SelectItem>
-                {uniqueUsers.map((userId) => (
-                  <SelectItem key={userId} value={userId}>
-                    {userId}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* 多维筛选器 */}
+            <MemoryFilters
+              filters={filters}
+              onFiltersChange={handleFiltersChange}
+              users={uniqueUsers}
+            />
           </div>
         </CardContent>
       </Card>
@@ -254,6 +250,13 @@ export default function MemoriesPage() {
                 {searchText && `（搜索: "${searchText}"）`}
               </CardDescription>
             </div>
+            <PageSizeSelector
+              value={pageSize}
+              onChange={(size) => {
+                setPageSize(size);
+                setCurrentPage(1);
+              }}
+            />
           </div>
         </CardHeader>
         <CardContent>
@@ -269,81 +272,94 @@ export default function MemoriesPage() {
             </div>
           ) : paginatedMemories.length > 0 ? (
             <div className="space-y-2">
-              {paginatedMemories.map((memory) => (
-                <div
-                  key={memory.id}
-                  className="group flex items-start justify-between rounded-lg border p-4 transition-colors hover:bg-accent/50"
-                >
-                  {/* 左侧内容 */}
+              {/* 表格视图 */}
+              {viewMode === "table" ? (
+                <MemoryTable
+                  memories={paginatedMemories}
+                  onView={handleViewDetail}
+                  onEdit={handleEdit}
+                  onDelete={handleDeleteClick}
+                />
+              ) : (
+                /* 列表视图 */
+                paginatedMemories.map((memory) => (
                   <div
-                    className="flex-1 cursor-pointer"
-                    onClick={() => handleViewDetail(memory)}
+                    key={memory.id}
+                    className="group flex items-start justify-between rounded-lg border p-4 transition-colors hover:bg-accent/50"
                   >
-                    <p className="text-sm leading-relaxed">{memory.memory}</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {memory.user_id && (
-                        <Badge variant="secondary" className="text-xs">
-                          👤 {memory.user_id}
-                        </Badge>
-                      )}
-                      {memory.agent_id && (
-                        <Badge variant="outline" className="text-xs">
-                          🤖 {memory.agent_id}
-                        </Badge>
-                      )}
-                      {memory.categories?.map((cat) => (
-                        <Badge key={cat} variant="outline" className="text-xs">
-                          {cat}
-                        </Badge>
-                      ))}
-                      {memory.created_at && (
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(memory.created_at).toLocaleString("zh-CN")}
-                        </span>
-                      )}
+                    {/* 左侧内容 */}
+                    <div
+                      className="flex-1 cursor-pointer"
+                      onClick={() => handleViewDetail(memory)}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <StateBadge state={memory.state} />
+                      </div>
+                      <p className="text-sm leading-relaxed">{memory.memory}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {memory.user_id && (
+                          <Badge variant="secondary" className="text-xs">
+                            {memory.user_id}
+                          </Badge>
+                        )}
+                        <CategoryBadges categories={memory.categories} max={3} />
+                        {memory.created_at && (
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(memory.created_at).toLocaleString("zh-CN")}
+                          </span>
+                        )}
+                        <Link
+                          href={`/memory/${memory.id}`}
+                          className="text-xs text-primary hover:underline inline-flex items-center gap-0.5"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          详情页
+                          <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* 右侧操作 */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="ml-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() => handleViewDetail(memory)}
-                      >
-                        <Eye className="mr-2 h-4 w-4" />
-                        查看详情
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleEdit(memory)}>
-                        <Pencil className="mr-2 h-4 w-4" />
-                        编辑
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={() => handleDeleteClick(memory)}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        删除
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              ))}
+                    {/* 右侧操作 */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="ml-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => handleViewDetail(memory)}
+                        >
+                          <Eye className="mr-2 h-4 w-4" />
+                          查看详情
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEdit(memory)}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          编辑
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => handleDeleteClick(memory)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          删除
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                ))
+              )}
 
               {/* 分页 */}
               {totalPages > 1 && (
                 <div className="flex items-center justify-between pt-4">
                   <p className="text-sm text-muted-foreground">
-                    第 {currentPage} / {totalPages} 页
+                    第 {currentPage} / {totalPages} 页，共 {filteredMemories.length} 条
                   </p>
                   <div className="flex items-center gap-2">
                     <Button

@@ -10,7 +10,7 @@ import type { Memory } from "@/lib/api";
  */
 export function exportToJSON(memories: Memory[], filename?: string) {
   const exportData = {
-    version: "1.0",
+    version: "1.1",
     exported_at: new Date().toISOString(),
     total_count: memories.length,
     memories: memories.map((m) => ({
@@ -20,6 +20,7 @@ export function exportToJSON(memories: Memory[], filename?: string) {
       agent_id: m.agent_id || null,
       metadata: m.metadata || {},
       categories: m.categories || [],
+      state: m.state || "active",
       created_at: m.created_at || null,
       updated_at: m.updated_at || null,
     })),
@@ -41,6 +42,7 @@ export function exportToCSV(memories: Memory[], filename?: string) {
     "用户ID",
     "AgentID",
     "分类",
+    "状态",
     "创建时间",
     "更新时间",
   ];
@@ -52,6 +54,7 @@ export function exportToCSV(memories: Memory[], filename?: string) {
     m.user_id || "",
     m.agent_id || "",
     (m.categories || []).join(";"),
+    m.state || "active",
     m.created_at || "",
     m.updated_at || "",
   ]);
