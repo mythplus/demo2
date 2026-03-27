@@ -172,3 +172,20 @@ export interface RelatedMemory {
 export interface RelatedMemoriesResponse {
   results: RelatedMemory[];
 }
+
+// ============ 访问日志 ============
+
+/** 访问日志项 */
+export interface AccessLog {
+  id: number;
+  memory_id: string;
+  action: "view" | "search" | "edit";
+  memory_preview?: string;
+  timestamp: string;
+}
+
+/** 访问日志响应 */
+export interface AccessLogsResponse {
+  logs: AccessLog[];
+  total?: number;
+}

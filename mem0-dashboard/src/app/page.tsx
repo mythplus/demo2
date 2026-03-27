@@ -27,6 +27,7 @@ import { StateBadge } from "@/components/memories/state-badge";
 import { mem0Api } from "@/lib/api";
 import type { Memory, ConnectionStatus, StatsResponse } from "@/lib/api";
 import { StatsCharts } from "@/components/dashboard/stats-charts";
+import { StatsCardSkeleton } from "@/components/ui/skeleton";
 
 // 统计卡片组件
 function StatsCard({

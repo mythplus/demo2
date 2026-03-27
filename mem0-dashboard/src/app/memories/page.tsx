@@ -45,6 +45,7 @@ import { StateBadge } from "@/components/memories/state-badge";
 import { mem0Api } from "@/lib/api";
 import type { Memory, FilterParams } from "@/lib/api";
 import { usePreferences } from "@/hooks/use-preferences";
+import { MemoryListSkeleton } from "@/components/ui/skeleton";
 
 export default function MemoriesPage() {
   // 用户偏好设置
@@ -172,20 +173,21 @@ export default function MemoriesPage() {
   return (
     <div className="space-y-6">
       {/* 页面头部 */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">记忆管理</h2>
           <p className="text-muted-foreground">
             管理所有存储的记忆条目，支持添加、编辑、删除操作
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <Button variant="outline" size="icon" onClick={fetchMemories}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
           <Button onClick={() => setAddDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            添加记忆
+            <span className="hidden sm:inline">添加记忆</span>
+            <span className="sm:hidden">添加</span>
           </Button>
         </div>
       </div>
@@ -261,15 +263,7 @@ export default function MemoriesPage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            // 加载骨架屏
-            <div className="space-y-3">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div
-                  key={i}
-                  className="h-16 animate-pulse rounded-lg bg-muted"
-                />
-              ))}
-            </div>
+            <MemoryListSkeleton count={pageSize > 5 ? 5 : pageSize} />
           ) : paginatedMemories.length > 0 ? (
             <div className="space-y-2">
               {/* 表格视图 */}

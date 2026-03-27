@@ -82,11 +82,13 @@ export default function RootLayout({
     <html lang="zh-CN" suppressHydrationWarning>
       <body className={inter.className}>
         <div className="flex h-screen overflow-hidden">
-          {/* 侧边栏 */}
-          <Sidebar
-            collapsed={sidebarCollapsed}
-            onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-          />
+          {/* 侧边栏 - 小屏幕隐藏 */}
+          <div className="hidden md:block">
+            <Sidebar
+              collapsed={sidebarCollapsed}
+              onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+            />
+          </div>
 
           {/* 主内容区域 */}
           <div className="flex flex-1 flex-col overflow-hidden">
@@ -96,8 +98,8 @@ export default function RootLayout({
               onCycleTheme={handleCycleTheme}
             />
 
-            {/* 页面内容 */}
-            <main className="flex-1 overflow-y-auto p-6">{children}</main>
+            {/* 页面内容 - 响应式 padding */}
+            <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">{children}</main>
           </div>
         </div>
       </body>

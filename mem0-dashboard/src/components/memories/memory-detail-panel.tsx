@@ -61,7 +61,7 @@ export function MemoryDetailPanel({
       {/* 侧边面板 */}
       <div
         className={cn(
-          "fixed right-0 top-0 z-50 h-full w-[480px] transform border-l bg-background shadow-xl transition-transform duration-300",
+          "fixed right-0 top-0 z-50 h-full w-full sm:w-[480px] transform border-l bg-background shadow-xl transition-transform duration-300",
           open ? "translate-x-0" : "translate-x-full"
         )}
       >

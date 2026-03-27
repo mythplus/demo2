@@ -3,71 +3,18 @@
   - Environments: .env.local
 
  ✓ Starting...
- ✓ Ready in 2.4s
+ ✓ Ready in 3.1s
  ○ Compiling / ...
- ✓ Compiled / in 4.3s (820 modules)
- GET / 200 in 4616ms
+ ✓ Compiled / in 5.5s (1781 modules)
+ GET / 200 in 5981ms
  ○ Compiling /memories ...
- ✓ Compiled /memories in 3.2s (895 modules)
- GET /memories 200 in 3046ms
- ✓ Compiled /search in 158ms (905 modules)
- GET /search 200 in 263ms
- GET /memories 200 in 68ms
- ✓ Compiled /memory/[id] in 353ms (925 modules)
+ ✓ Compiled /memories in 4s (1868 modules)
+ GET /memories 200 in 3767ms
+ ✓ Compiled /search in 283ms (1878 modules)
+ GET /search 200 in 382ms
+ ✓ Compiled /settings in 348ms (1908 modules)
+ GET /settings 200 in 429ms
  ○ Compiling /users ...
- ✓ Compiled /users in 709ms (925 modules)
- ✓ Compiled / in 294ms (454 modules)
- GET / 200 in 145ms
- ○ Compiling /users/[userId] ...
- ✓ Compiled /users/[userId] in 636ms (930 modules)
- ✓ Compiled /users in 137ms (464 modules)
- ○ Compiling /settings ...
- ✓ Compiled /settings in 1289ms (963 modules)
- ✓ Compiled /search in 194ms (485 modules)
- ✓ Compiled in 841ms (960 modules)
- ✓ Compiled in 417ms (960 modules)
- ✓ Compiled in 324ms (954 modules)
- ✓ Compiled in 675ms (498 modules)
- ✓ Compiled in 769ms (968 modules)
- ✓ Compiled in 3.6s (1929 modules)
- ✓ Compiled in 581ms (1929 modules)
- ✓ Compiled in 760ms (1929 modules)
- ✓ Compiled in 610ms (1929 modules)
- ✓ Compiled in 442ms (980 modules)
- ✓ Compiled in 370ms (983 modules)
- ✓ Compiled in 635ms (1932 modules)
- ✓ Compiled in 542ms (1932 modules)
- ✓ Compiled in 551ms (1932 modules)
- ✓ Compiled in 502ms (1932 modules)
- ✓ Compiled in 773ms (1942 modules)
- ✓ Compiled in 1408ms (1942 modules)
- ○ Compiling /_error ...
- ✓ Compiled /_error in 1546ms (2162 modules)
- GET /memories 200 in 195ms
- ○ Compiling /_not-found ...
- ✓ Compiled /_not-found in 766ms (2165 modules)
- GET /_next/static/css/app/layout.css?v=1774583108668 404 in 948ms
- GET /_next/static/chunks/app-pages-internals.js 404 in 786ms
- GET /_next/static/chunks/main-app.js?v=1774583108668 404 in 788ms
- GET /_next/static/chunks/app/memories/page.js 404 in 28ms
- GET /memories 500 in 1444ms
- ✓ Compiled in 837ms (2179 modules)
- GET /memories 200 in 244ms
- ○ Compiling /memory/[id] ...
- ✓ Compiled /memory/[id] in 629ms (1000 modules)
- ✓ Compiled (1012 modules)
- ○ Compiling /_error ...
- ✓ Compiled /_error in 586ms (2180 modules)
- GET /memories 200 in 172ms
- ✓ Compiled /_not-found in 392ms (2183 modules)
- GET /_next/static/css/app/layout.css?v=1774583335315 500 in 447ms
- GET /_next/static/chunks/main-app.js?v=1774583335315 500 in 418ms
- GET /_next/static/chunks/app-pages-internals.js 500 in 412ms
- GET /_next/static/chunks/app/memories/page.js 500 in 412ms
- GET /_next/static/chunks/app/layout.js 500 in 411ms
- GET /memories 200 in 158ms
- GET /_next/static/css/app/layout.css?v=1774583339413 500 in 11ms
- GET /_next/static/chunks/main-app.js?v=1774583339413 500 in 30ms
- GET /_next/static/chunks/app-pages-internals.js 500 in 29ms
- GET /_next/static/chunks/app/memories/page.js 500 in 30ms
- GET /_next/static/chunks/app/layout.js 500 in 29ms
+ ✓ Compiled /users in 683ms (1916 modules)
+ GET /users 200 in 759ms
+ GET / 200 in 176ms

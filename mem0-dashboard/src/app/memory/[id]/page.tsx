@@ -35,6 +35,8 @@ import { mem0Api } from "@/lib/api";
 import type { Memory, MemoryHistory, MemoryState } from "@/lib/api";
 import { STATE_LIST } from "@/lib/constants";
 import { RelatedMemories } from "@/components/shared/related-memories";
+import { AccessLogList } from "@/components/shared/access-log-list";
+import { DetailPageSkeleton } from "@/components/ui/skeleton";
 
 export default function MemoryDetailPage() {
   const params = useParams();
@@ -126,11 +128,7 @@ export default function MemoryDetailPage() {
             </Button>
           </Link>
         </div>
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-32 animate-pulse rounded-lg bg-muted" />
-          ))}
-        </div>
+        <DetailPageSkeleton />
       </div>
     );
   }
@@ -308,6 +306,9 @@ export default function MemoryDetailPage() {
 
           {/* 关联记忆 */}
           <RelatedMemories memoryId={memoryId} />
+
+          {/* 访问日志 */}
+          <AccessLogList memoryId={memoryId} />
         </div>
 
         {/* 右侧：元信息 + 操作按钮 */}

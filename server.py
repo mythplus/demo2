@@ -5,6 +5,7 @@ Mem0 Dashboard 后端 API 服务
 
 import os
 import logging
+import sqlite3
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
@@ -55,6 +56,64 @@ MEM0_CONFIG = {
 # ============ 分类和状态常量 ============
 VALID_CATEGORIES = {"personal", "work", "health", "finance", "travel", "education", "preferences", "relationships"}
 VALID_STATES = {"active", "paused", "archived", "deleted"}
+
+# ============ 访问日志 SQLite 存储 ============
+ACCESS_LOG_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "access_logs.db")
+
+
+def _init_access_log_db():
+    """初始化访问日志数据库"""
+    conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS access_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            memory_id TEXT NOT NULL,
+            action TEXT NOT NULL,
+            memory_preview TEXT,
+            timestamp TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_memory_id ON access_logs(memory_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_timestamp ON access_logs(timestamp)")
+    conn.commit()
+    conn.close()
+
+
+def _log_access(memory_id: str, action: str, memory_preview: str = ""):
+    """记录一条访问日志"""
+    try:
+        conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
+        conn.execute(
+            "INSERT INTO access_logs (memory_id, action, memory_preview, timestamp) VALUES (?, ?, ?, ?)",
+            (memory_id, action, memory_preview[:100] if memory_preview else "", datetime.now().isoformat()),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"记录访问日志失败: {e}")
+
+
+def _get_access_logs(memory_id: str = None, limit: int = 50, offset: int = 0) -> list:
+    """查询访问日志"""
+    try:
+        conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        if memory_id:
+            rows = conn.execute(
+                "SELECT * FROM access_logs WHERE memory_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                (memory_id, limit, offset),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM access_logs ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+                (limit, offset),
+            ).fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+    except Exception as e:
+        logger.warning(f"查询访问日志失败: {e}")
+        return []
+
 
 # ============ 全局 Memory 实例 ============
 memory_instance = None
@@ -201,6 +260,9 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 50)
     # 预初始化 Memory 实例
     get_memory()
+    # 初始化访问日志数据库
+    _init_access_log_db()
+    logger.info(f"访问日志数据库: {ACCESS_LOG_DB_PATH}")
     yield
     logger.info("Mem0 Dashboard 后端服务已关闭")
 
@@ -339,7 +401,11 @@ async def get_memory_by_id(memory_id: str):
         result = m.get(memory_id)
         if not result:
             raise HTTPException(status_code=404, detail="记忆不存在")
-        return format_mem0_result(result) if isinstance(result, dict) else result
+        formatted = format_mem0_result(result) if isinstance(result, dict) else result
+        # 记录访问日志
+        preview = formatted.get("memory", "") if isinstance(formatted, dict) else ""
+        _log_access(memory_id, "view", preview)
+        return formatted
     except HTTPException:
         raise
     except Exception as e:
@@ -613,6 +679,37 @@ async def get_related_memories(memory_id: str, limit: int = Query(5, ge=1, le=20
         raise
     except Exception as e:
         logger.error(f"获取关联记忆失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ 访问日志接口 ============
+
+@app.get("/v1/access-logs/")
+async def get_access_logs_api(
+    memory_id: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """获取访问日志（可按记忆 ID 筛选）"""
+    try:
+        logs = _get_access_logs(memory_id=memory_id, limit=limit, offset=offset)
+        return {"logs": logs, "total": len(logs)}
+    except Exception as e:
+        logger.error(f"获取访问日志失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/v1/memories/{memory_id}/access-logs/")
+async def get_memory_access_logs(
+    memory_id: str,
+    limit: int = Query(20, ge=1, le=100),
+):
+    """获取单条记忆的访问日志"""
+    try:
+        logs = _get_access_logs(memory_id=memory_id, limit=limit)
+        return {"logs": logs}
+    except Exception as e:
+        logger.error(f"获取记忆访问日志失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
