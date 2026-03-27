@@ -120,7 +120,7 @@ export function MemoryFilters({
 
         {/* 清除筛选 */}
         {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 h-8 text-muted-foreground">
+          <Button variant="outline" size="sm" onClick={clearFilters} className="gap-1 h-8 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-400">
             <X className="h-3.5 w-3.5" />
             清除
           </Button>
@@ -195,6 +195,41 @@ export function MemoryFilters({
                 className="h-8 w-[160px]"
                 placeholder="结束日期"
               />
+
+              {/* 快捷日期范围按钮 */}
+              {[
+                { label: "今天", days: 0 },
+                { label: "近7天", days: 7 },
+                { label: "近30天", days: 30 },
+              ].map(({ label, days }) => {
+                const today = new Date();
+                const todayStr = today.toISOString().split("T")[0];
+                const fromDate = new Date(today);
+                fromDate.setDate(today.getDate() - days);
+                const fromStr = fromDate.toISOString().split("T")[0];
+                const isActive = filters.date_from === fromStr && filters.date_to === todayStr;
+                return (
+                  <button
+                    key={label}
+                    onClick={() => {
+                      if (isActive) {
+                        // 再次点击取消选择
+                        onFiltersChange({ ...filters, date_from: undefined, date_to: undefined });
+                      } else {
+                        onFiltersChange({ ...filters, date_from: fromStr, date_to: todayStr });
+                      }
+                    }}
+                    className={cn(
+                      "inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium transition-all cursor-pointer border whitespace-nowrap",
+                      isActive
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                        : "bg-background text-foreground border-input hover:bg-accent hover:text-accent-foreground"
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

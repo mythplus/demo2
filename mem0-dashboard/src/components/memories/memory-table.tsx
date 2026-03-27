@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +22,12 @@ import {
 import { CategoryBadges } from "./category-badge";
 import { StateBadge } from "./state-badge";
 import type { Memory } from "@/lib/api";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface MemoryTableProps {
   memories: Memory[];
@@ -31,89 +38,107 @@ interface MemoryTableProps {
 
 export function MemoryTable({ memories, onView, onEdit, onDelete }: MemoryTableProps) {
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead className="w-[40%]">记忆内容</TableHead>
-          <TableHead className="w-[12%]">用户</TableHead>
-          <TableHead className="w-[18%]">分类</TableHead>
-          <TableHead className="w-[8%]">状态</TableHead>
-          <TableHead className="w-[14%]">创建时间</TableHead>
-          <TableHead className="w-[8%] text-right">操作</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {memories.map((memory) => (
-          <TableRow
-            key={memory.id}
-            className="cursor-pointer"
-            onClick={() => onView(memory)}
-          >
-            <TableCell>
-              <p className="text-sm line-clamp-2 leading-relaxed">
-                {memory.memory}
-              </p>
-            </TableCell>
-            <TableCell>
-              {memory.user_id && (
-                <span className="text-xs text-muted-foreground">
-                  {memory.user_id}
-                </span>
-              )}
-            </TableCell>
-            <TableCell>
-              <CategoryBadges categories={memory.categories} max={2} />
-            </TableCell>
-            <TableCell>
-              <StateBadge state={memory.state} />
-            </TableCell>
-            <TableCell>
-              {memory.created_at && (
-                <span className="text-xs text-muted-foreground">
-                  {new Date(memory.created_at).toLocaleString("zh-CN", {
-                    month: "2-digit",
-                    day: "2-digit",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-              )}
-            </TableCell>
-            <TableCell className="text-right">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onView(memory); }}>
-                    <Eye className="mr-2 h-4 w-4" />
-                    查看详情
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(memory); }}>
-                    <Pencil className="mr-2 h-4 w-4" />
-                    编辑
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive"
-                    onClick={(e) => { e.stopPropagation(); onDelete(memory); }}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    删除
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <TooltipProvider>
+      <div className="rounded-md border overflow-hidden">
+        <Table className="table-fixed">
+          <TableHeader>
+            <TableRow className="bg-muted/40">
+              <TableHead className="w-[44%] py-3 font-semibold text-xs uppercase tracking-wider">记忆内容</TableHead>
+              <TableHead className="w-[10%] py-3 font-semibold text-xs uppercase tracking-wider">用户</TableHead>
+              <TableHead className="w-[16%] py-3 font-semibold text-xs uppercase tracking-wider">分类</TableHead>
+              <TableHead className="w-[10%] py-3 font-semibold text-xs uppercase tracking-wider">状态</TableHead>
+              <TableHead className="w-[14%] py-3 font-semibold text-xs uppercase tracking-wider">创建时间</TableHead>
+              <TableHead className="w-[6%] py-3 font-semibold text-xs uppercase tracking-wider text-right">操作</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {memories.map((memory) => (
+              <TableRow
+                key={memory.id}
+                className="cursor-pointer hover:bg-accent/50 transition-colors"
+                onClick={() => onView(memory)}
+              >
+                <TableCell className="py-3">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <p className="text-sm line-clamp-2 leading-relaxed break-words">
+                        {memory.memory}
+                      </p>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-sm">
+                      <p className="text-xs">{memory.memory}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TableCell>
+                <TableCell className="py-3">
+                  {memory.user_id && (
+                    <Badge variant="secondary" className="text-xs font-normal">
+                      {memory.user_id}
+                    </Badge>
+                  )}
+                </TableCell>
+                <TableCell className="py-3">
+                  <CategoryBadges categories={memory.categories} max={2} />
+                </TableCell>
+                <TableCell className="py-3 whitespace-nowrap">
+                  <StateBadge state={memory.state} />
+                </TableCell>
+                <TableCell className="py-3 whitespace-nowrap">
+                  {memory.created_at && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(memory.created_at).toLocaleString("zh-CN", {
+                            month: "2-digit",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs">{new Date(memory.created_at).toLocaleString("zh-CN")}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                </TableCell>
+                <TableCell className="py-3 text-right">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onView(memory); }}>
+                        <Eye className="mr-2 h-4 w-4" />
+                        查看详情
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(memory); }}>
+                        <Pencil className="mr-2 h-4 w-4" />
+                        编辑
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={(e) => { e.stopPropagation(); onDelete(memory); }}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        删除
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </TooltipProvider>
   );
 }
