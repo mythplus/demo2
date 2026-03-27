@@ -168,9 +168,40 @@ async def get_memories(user_id: Optional[str] = Query(None)):
     try:
         m = get_memory()
         if user_id:
+            # 按用户筛选
             result = m.get_all(user_id=user_id)
         else:
-            result = m.get_all()
+            # 不传 user_id 时，复用 Mem0 内部的 Qdrant 客户端查询全部记忆
+            # （Mem0 的 get_all() 要求至少提供一个 ID 参数，这里绕过该限制）
+            try:
+                collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+                # 复用 Mem0 内部已有的 Qdrant 客户端，避免锁冲突
+                qdrant_client = m.vector_store.client
+                records, _ = qdrant_client.scroll(
+                    collection_name=collection_name,
+                    limit=200,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+                # 将 Qdrant 记录转换为前端期望的格式
+                memories = []
+                for record in records:
+                    payload = record.payload or {}
+                    memories.append({
+                        "id": str(record.id),
+                        "memory": payload.get("data", payload.get("memory", "")),
+                        "user_id": payload.get("user_id", ""),
+                        "agent_id": payload.get("agent_id", ""),
+                        "run_id": payload.get("run_id", ""),
+                        "hash": payload.get("hash", ""),
+                        "metadata": payload.get("metadata", {}),
+                        "created_at": payload.get("created_at", ""),
+                        "updated_at": payload.get("updated_at", ""),
+                    })
+                return memories
+            except Exception as qdrant_err:
+                logger.warning(f"Qdrant 直接查询失败，返回空列表: {qdrant_err}")
+                return []
 
         # mem0 返回的可能是 dict 或 list，统一处理
         if isinstance(result, dict) and "results" in result:
@@ -232,8 +263,29 @@ async def delete_all_memories(user_id: Optional[str] = Query(None)):
             m.delete_all(user_id=user_id)
             return {"message": f"用户 {user_id} 的所有记忆已删除"}
         else:
-            m.delete_all()
-            return {"message": "所有记忆已删除"}
+            # 无 user_id 时，复用 Mem0 内部的 Qdrant 客户端清空集合
+            try:
+                from qdrant_client.models import PointIdsList
+                collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+                qdrant_client = m.vector_store.client
+                records, _ = qdrant_client.scroll(
+                    collection_name=collection_name,
+                    limit=1000,
+                    with_payload=False,
+                    with_vectors=False,
+                )
+                if records:
+                    ids = [record.id for record in records]
+                    qdrant_client.delete(
+                        collection_name=collection_name,
+                        points_selector=PointIdsList(points=ids),
+                    )
+                return {"message": "所有记忆已删除"}
+            except Exception as qdrant_err:
+                logger.error(f"Qdrant 直接删除失败: {qdrant_err}")
+                raise HTTPException(status_code=500, detail=str(qdrant_err))
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"删除记忆失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

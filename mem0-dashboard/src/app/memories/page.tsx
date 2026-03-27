@@ -62,6 +62,9 @@ export default function MemoriesPage() {
   const [filterUserId, setFilterUserId] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
 
+  // IME 中文输入法组合状态（防止组合输入过程中触发搜索异常）
+  const [isComposing, setIsComposing] = useState(false);
+
   // 弹窗状态
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -101,11 +104,14 @@ export default function MemoriesPage() {
   const filteredMemories = memories
     .filter((m) => {
       if (!searchText.trim()) return true;
-      const keyword = searchText.toLowerCase();
+      const keyword = searchText.trim().toLowerCase();
+      const memoryText = (m.memory || "").toLowerCase();
+      const userId = (m.user_id || "").toLowerCase();
+      const id = (m.id || "").toLowerCase();
       return (
-        m.memory.toLowerCase().includes(keyword) ||
-        m.user_id?.toLowerCase().includes(keyword) ||
-        m.id.toLowerCase().includes(keyword)
+        memoryText.includes(keyword) ||
+        userId.includes(keyword) ||
+        id.includes(keyword)
       );
     })
     // 按偏好排序
@@ -187,6 +193,15 @@ export default function MemoriesPage() {
                 value={searchText}
                 onChange={(e) => {
                   setSearchText(e.target.value);
+                  if (!isComposing) {
+                    setCurrentPage(1);
+                  }
+                }}
+                onCompositionStart={() => setIsComposing(true)}
+                onCompositionEnd={(e) => {
+                  setIsComposing(false);
+                  // 组合输入结束后，确保使用最终值更新搜索
+                  setSearchText((e.target as HTMLInputElement).value);
                   setCurrentPage(1);
                 }}
                 className="pl-9"
