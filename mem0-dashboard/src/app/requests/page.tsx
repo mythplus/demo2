@@ -55,20 +55,23 @@ import {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-// 请求类型颜色
+// 请求类型 Tailwind 颜色
 const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
   "添加": { bg: "bg-green-100 dark:bg-green-900/30", text: "text-green-700 dark:text-green-300" },
   "搜索": { bg: "bg-blue-100 dark:bg-blue-900/30", text: "text-blue-700 dark:text-blue-300" },
   "删除": { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-700 dark:text-red-300" },
   "更新": { bg: "bg-orange-100 dark:bg-orange-900/30", text: "text-orange-700 dark:text-orange-300" },
-  "查询": { bg: "bg-purple-100 dark:bg-purple-900/30", text: "text-purple-700 dark:text-purple-300" },
-  "获取全部": { bg: "bg-indigo-100 dark:bg-indigo-900/30", text: "text-indigo-700 dark:text-indigo-300" },
-  "统计": { bg: "bg-cyan-100 dark:bg-cyan-900/30", text: "text-cyan-700 dark:text-cyan-300" },
-  "关联": { bg: "bg-pink-100 dark:bg-pink-900/30", text: "text-pink-700 dark:text-pink-300" },
-  "历史": { bg: "bg-gray-100 dark:bg-gray-800/30", text: "text-gray-600 dark:text-gray-400" },
 };
 
-const ALL_TYPES = ["添加", "搜索", "删除", "更新", "查询", "获取全部", "统计", "关联", "历史"];
+// 请求类型 hex 颜色（给 recharts 柱状图用）
+const TYPE_HEX: Record<string, string> = {
+  "添加": "#22c55e",
+  "搜索": "#3b82f6",
+  "删除": "#ef4444",
+  "更新": "#f97316",
+};
+
+const ALL_TYPES = ["添加", "搜索", "删除", "更新"];
 
 function formatLatency(ms: number): string {
   if (ms < 1000) return `${ms.toFixed(0)}ms`;
@@ -86,25 +89,46 @@ function formatRelativeTime(timestamp: string): string {
   return `${days}天前`;
 }
 
+// 时间范围选项
+const TIME_RANGES = [
+  { value: "1h", label: "过去1小时", hours: 1 },
+  { value: "6h", label: "过去6小时", hours: 6 },
+  { value: "12h", label: "过去12小时", hours: 12 },
+  { value: "1d", label: "过去1天", hours: 24 },
+  { value: "7d", label: "过去7天", hours: 24 * 7 },
+  { value: "14d", label: "过去14天", hours: 24 * 14 },
+  { value: "30d", label: "过去30天", hours: 24 * 30 },
+  { value: "all", label: "所有时间", hours: 0 },
+] as const;
+
+function getSinceISO(rangeValue: string): string | undefined {
+  const range = TIME_RANGES.find((r) => r.value === rangeValue);
+  if (!range || range.hours === 0) return undefined;
+  return new Date(Date.now() - range.hours * 3600000).toISOString();
+}
+
 export default function RequestsPage() {
   const [logs, setLogs] = useState<RequestLog[]>([]);
   const [stats, setStats] = useState<RequestLogsStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [filterType, setFilterType] = useState<string>("all");
+  const [timeRange, setTimeRange] = useState<string>("all");
   const [page, setPage] = useState(0);
   const pageSize = 20;
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
+    const since = getSinceISO(timeRange);
     try {
       const [logsRes, statsRes] = await Promise.all([
         mem0Api.getRequestLogs({
           request_type: filterType === "all" ? undefined : filterType,
+          since,
           limit: pageSize,
           offset: page * pageSize,
         }),
-        page === 0 ? mem0Api.getRequestLogsStats().catch(() => null) : Promise.resolve(stats),
+        page === 0 ? mem0Api.getRequestLogsStats(since).catch(() => null) : Promise.resolve(stats),
       ]);
       setLogs(logsRes.logs || []);
       setTotal(logsRes.total || 0);
@@ -115,19 +139,13 @@ export default function RequestsPage() {
     } finally {
       setLoading(false);
     }
-  }, [filterType, page]);
+  }, [filterType, timeRange, page]);
 
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
 
   const totalPages = Math.ceil(total / pageSize);
-
-  // 趋势图数据
-  const trendData = (stats?.daily_trend || []).map((d) => ({
-    date: d.date.slice(5),
-    count: d.count,
-  }));
 
   return (
     <TooltipProvider>
@@ -140,56 +158,72 @@ export default function RequestsPage() {
               记录所有 API 请求的类型、延迟、状态等信息
             </p>
           </div>
-          <Button variant="outline" size="icon" onClick={fetchLogs}>
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Select
+              value={timeRange}
+              onValueChange={(v) => { setTimeRange(v); setPage(0); }}
+            >
+              <SelectTrigger className="w-[140px] h-8">
+                <Clock className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TIME_RANGES.map((r) => (
+                  <SelectItem key={r.value} value={r.value}>
+                    {r.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="icon" onClick={fetchLogs}>
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
         </div>
 
-        {/* 统计概览 */}
+        {/* 统计概览：总数 + 各类型紧凑排列 */}
         {stats && (
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">总请求数</CardTitle>
-                <Activity className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.total}</div>
-              </CardContent>
-            </Card>
-            {/* 类型分布 top 3 */}
-            {Object.entries(stats.type_distribution)
-              .sort((a, b) => b[1] - a[1])
-              .slice(0, 3)
-              .map(([type, count]) => {
-                const colors = TYPE_COLORS[type] || TYPE_COLORS["查询"];
-                return (
-                  <Card key={type}>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">{type}</CardTitle>
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${colors.bg} ${colors.text}`}>
-                        {type}
-                      </span>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{count}</div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-          </div>
+          <Card>
+            <CardContent className="py-4">
+              <div className="flex flex-wrap items-center gap-4">
+                {/* 总请求数 */}
+                <div className="flex items-center gap-2 pr-4 border-r">
+                  <Activity className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">总请求</span>
+                  <span className="text-lg font-bold">{stats.total}</span>
+                </div>
+                {/* 各类型 */}
+                {Object.entries(stats.type_distribution)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([type, count]) => (
+                    <div key={type} className="flex items-center gap-1.5">
+                      <span
+                        className="h-2.5 w-2.5 rounded-sm shrink-0"
+                        style={{ background: TYPE_HEX[type] || "#94a3b8" }}
+                      />
+                      <span className="text-sm text-muted-foreground">{type}</span>
+                      <span className="text-sm font-bold">{count}</span>
+                    </div>
+                  ))}
+              </div>
+            </CardContent>
+          </Card>
         )}
 
-        {/* 趋势图 */}
-        {stats && trendData.some((d) => d.count > 0) && (
+        {/* 趋势图 - 单色柱状图，tooltip 显示各类型明细 */}
+        {stats && stats.daily_trend && stats.daily_trend.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="text-base">请求趋势</CardTitle>
               <CardDescription>近 14 天每日请求数</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={trendData}>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={stats.daily_trend.map((d: any) => {
+                  // 计算每天总数
+                  const total = (stats.types || []).reduce((sum: number, t: string) => sum + (Number(d[t]) || 0), 0);
+                  return { ...d, date: String(d.date || "").slice(5), _total: total };
+                })}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis
                     dataKey="date"
@@ -202,15 +236,35 @@ export default function RequestsPage() {
                     tickLine={false}
                   />
                   <RechartsTooltip
-                    formatter={(value: any) => [`${value} 次`, "请求"]}
-                    contentStyle={{
-                      borderRadius: "8px",
-                      border: "1px solid hsl(var(--border))",
-                      background: "hsl(var(--background))",
-                      color: "hsl(var(--foreground))",
+                    content={({ active, payload, label }: any) => {
+                      if (!active || !payload || !payload[0]) return null;
+                      const data = payload[0].payload;
+                      const types = stats.types || [];
+                      const totalCount = data._total || 0;
+                      return (
+                        <div className="rounded-lg border bg-background p-3 shadow-md">
+                          <p className="text-xs text-muted-foreground mb-2">{label}</p>
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="h-2.5 w-2.5 rounded-sm" style={{ background: "#a78bfa" }} />
+                            <span className="text-sm font-medium">REQUESTS</span>
+                            <span className="text-sm font-bold ml-auto">{totalCount}</span>
+                          </div>
+                          {types.map((t: string) => {
+                            const count = Number(data[t]) || 0;
+                            if (count === 0) return null;
+                            return (
+                              <div key={t} className="flex items-center gap-2">
+                                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: TYPE_HEX[t] || "#94a3b8" }} />
+                                <span className="text-xs text-muted-foreground">{t}</span>
+                                <span className="text-xs font-medium ml-auto">{count}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
                     }}
                   />
-                  <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="_total" fill="#a78bfa" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>

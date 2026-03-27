@@ -201,9 +201,10 @@ export const mem0Api = {
   /**
    * 获取请求日志列表
    */
-  async getRequestLogs(params?: { request_type?: string; limit?: number; offset?: number }): Promise<RequestLogsResponse> {
+  async getRequestLogs(params?: { request_type?: string; since?: string; limit?: number; offset?: number }): Promise<RequestLogsResponse> {
     const qs = new URLSearchParams();
     if (params?.request_type) qs.set("request_type", params.request_type);
+    if (params?.since) qs.set("since", params.since);
     if (params?.limit) qs.set("limit", String(params.limit));
     if (params?.offset) qs.set("offset", String(params.offset));
     const q = qs.toString();
@@ -213,8 +214,9 @@ export const mem0Api = {
   /**
    * 获取请求日志统计
    */
-  async getRequestLogsStats(): Promise<RequestLogsStats> {
-    return request<RequestLogsStats>("/v1/request-logs/stats/");
+  async getRequestLogsStats(since?: string): Promise<RequestLogsStats> {
+    const qs = since ? `?since=${encodeURIComponent(since)}` : "";
+    return request<RequestLogsStats>(`/v1/request-logs/stats/${qs}`);
   },
 
   // ============ 健康检查 ============

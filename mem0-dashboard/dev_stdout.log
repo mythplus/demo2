@@ -109,3 +109,91 @@
  GET /_next/static/chunks/main-app.js?v=1774602619941 404 in 44ms
  GET /_next/static/chunks/app-pages-internals.js 404 in 42ms
  GET /_next/static/chunks/app/memories/page.js 404 in 40ms
+ GET /memories 200 in 64ms
+ GET /_next/static/css/app/layout.css?v=1774602807212 404 in 26ms
+ GET /_next/static/chunks/webpack.js?v=1774602807212 404 in 39ms
+ GET /_next/static/chunks/app/layout.js 404 in 58ms
+ GET /_next/static/chunks/main-app.js?v=1774602807212 404 in 60ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 57ms
+ GET /_next/static/chunks/app/memories/page.js 404 in 57ms
+ GET /memories 200 in 77ms
+ GET /_next/static/css/app/layout.css?v=1774602821183 404 in 46ms
+ GET /_next/static/chunks/webpack.js?v=1774602821183 404 in 54ms
+ GET /_next/static/chunks/app/memories/page.js 404 in 59ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 60ms
+ GET /_next/static/chunks/main-app.js?v=1774602821183 404 in 65ms
+ GET /_next/static/chunks/app/layout.js 404 in 59ms
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 1521ms (2190 modules)
+ GET / 500 in 2142ms
+ ✓ Compiled in 325ms (1184 modules)
+ GET /memories 500 in 61ms
+ GET /memories 500 in 91ms
+ GET /memories 500 in 48ms
+ GET /memories 500 in 65ms
+ GET /memories 500 in 67ms
+ GET /memories 500 in 33ms
+ GET /memories 500 in 63ms
+ GET /memories 500 in 60ms
+ GET /memories 500 in 112ms
+ GET /memories 500 in 50ms
+ GET /memories 500 in 45ms
+ GET /memories 500 in 94ms
+ GET /memories 500 in 66ms
+ GET /memories 500 in 64ms
+ GET /memories 500 in 61ms
+ GET /memories 500 in 68ms
+ GET /memories 500 in 80ms
+ GET /memories 500 in 63ms
+ GET /memories 500 in 61ms
+ GET /memories 500 in 49ms
+ GET /memories 500 in 93ms
+ GET /memories 500 in 50ms
+ GET /memories 500 in 78ms
+ GET /memories 500 in 112ms
+ ✓ Compiled /_not-found in 339ms (2179 modules)
+ GET /memories 404 in 426ms
+ ✓ Compiled in 824ms (2179 modules)
+ GET /memories 200 in 902ms
+ GET /memories 200 in 70ms
+ ○ Compiling /requests ...
+ ✓ Compiled /requests in 853ms (2215 modules)
+ GET /requests 200 in 1078ms
+ GET /requests 200 in 43ms
+ GET /requests 200 in 34ms
+ GET / 404 in 55ms
+ GET / 404 in 14ms
+ ✓ Compiled in 823ms (2224 modules)
+ GET /requests 500 in 62ms
+ ✓ Compiled in 961ms (2210 modules)
+ GET /requests 200 in 94ms
+ GET /_next/static/webpack/3cabd2e3e161d7aa.webpack.hot-update.json 404 in 736ms
+ GET /requests 200 in 171ms
+ ✓ Compiled in 1202ms (2210 modules)
+ GET /_next/static/webpack/e469f65ce59ca66d.webpack.hot-update.json 404 in 817ms
+ GET /requests 200 in 77ms
+ ✓ Compiled in 678ms (2224 modules)
+ GET /requests 200 in 130ms
+ GET /_next/static/css/app/layout.css?v=1774604453568 500 in 3631ms
+ GET /_next/static/chunks/main-app.js?v=1774604453568 500 in 3626ms
+ GET /_next/static/chunks/webpack.js?v=1774604453568 500 in 3630ms
+ GET /_next/static/chunks/app-pages-internals.js 500 in 10ms
+ GET /_next/static/chunks/app/requests/page.js 500 in 19ms
+ GET /_next/static/chunks/app/layout.js 500 in 18ms
+ ✓ Compiled in 343ms (1201 modules)
+ ✓ Compiled in 438ms (2221 modules)
+ ✓ Compiled in 1787ms (2209 modules)
+ ✓ Compiled in 528ms (2223 modules)
+ ✓ Compiled in 401ms (2223 modules)
+ ✓ Compiled in 780ms (2223 modules)
+ GET /requests 200 in 294ms
+ ✓ Compiled in 690ms (2223 modules)
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 993ms (2212 modules)
+ GET /requests 500 in 1038ms
+ GET /_next/static/webpack/fd580640642c0107.webpack.hot-update.json 404 in 1071ms
+ ✓ Compiled in 479ms (2226 modules)
+ GET /requests 200 in 24ms
+ GET /requests 500 in 81ms
+ ✓ Compiled in 660ms (2226 modules)
+ GET /requests 500 in 130ms

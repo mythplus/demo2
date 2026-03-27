@@ -226,5 +226,6 @@ export interface RequestLogsResponse {
 export interface RequestLogsStats {
   total: number;
   type_distribution: Record<string, number>;
-  daily_trend: Array<{ date: string; count: number }>;
+  daily_trend: Array<Record<string, unknown>>;
+  types: string[];
 }
