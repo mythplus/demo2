@@ -9,7 +9,7 @@ import type { ConnectionStatus } from "@/lib/api";
 
 // 路径到标题的映射
 const pageTitles: Record<string, string> = {
-  "/": "概览",
+"/": "仪表盘",
   "/memories": "记忆管理",
   "/search": "语义搜索",
   "/users": "用户管理",

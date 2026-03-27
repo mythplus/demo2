@@ -21,6 +21,7 @@ interface MemoryFiltersProps {
   onFiltersChange: (filters: FilterParams) => void;
   users?: string[];
   className?: string;
+  prefix?: React.ReactNode;
 }
 
 export function MemoryFilters({
@@ -28,6 +29,7 @@ export function MemoryFilters({
   onFiltersChange,
   users = [],
   className,
+  prefix,
 }: MemoryFiltersProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -58,12 +60,15 @@ export function MemoryFilters({
     <div className={cn("space-y-3", className)}>
       {/* 主筛选行 */}
       <div className="flex flex-wrap items-center gap-2">
+        {/* 前置插槽（如视图切换按钮） */}
+        {prefix}
+
         {/* 展开/折叠高级筛选 */}
         <Button
           variant={expanded ? "default" : "outline"}
           size="sm"
           onClick={() => setExpanded(!expanded)}
-          className="gap-1.5"
+          className="gap-1.5 h-8"
         >
           <Filter className="h-3.5 w-3.5" />
           筛选
@@ -115,7 +120,7 @@ export function MemoryFilters({
 
         {/* 清除筛选 */}
         {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-muted-foreground">
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 h-8 text-muted-foreground">
             <X className="h-3.5 w-3.5" />
             清除
           </Button>

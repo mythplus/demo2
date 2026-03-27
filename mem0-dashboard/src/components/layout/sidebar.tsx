@@ -25,7 +25,7 @@ import { Separator } from "@/components/ui/separator";
 // 导航菜单配置
 const navItems = [
   {
-    title: "概览",
+title: "仪表盘",
     href: "/",
     icon: LayoutDashboard,
   },

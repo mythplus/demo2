@@ -99,10 +99,10 @@ export default function MemoriesPage() {
     fetchMemories();
   }, [fetchMemories]);
 
-  // 获取所有唯一用户
-  const uniqueUsers = Array.from(
+  // 获取所有唯一用户（按名称排序）
+  const uniqueUsers = (Array.from(
     new Set(memories.map((m) => m.user_id).filter(Boolean))
-  ) as string[];
+  ) as string[]).sort((a, b) => a.localeCompare(b, "zh-CN", { numeric: true }));
 
   // 本地搜索过滤（在后端筛选结果上再做前端文本搜索）
   const filteredMemories = memories
@@ -196,7 +196,7 @@ export default function MemoriesPage() {
       <Card>
         <CardContent className="pt-6">
           <div className="space-y-3">
-            {/* 搜索框 + 视图切换 */}
+            {/* 搜索框 */}
             <div className="flex items-center gap-3">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -218,14 +218,14 @@ export default function MemoriesPage() {
                   className="pl-9"
                 />
               </div>
-              <ViewToggle mode={viewMode} onChange={setViewMode} />
             </div>
 
-            {/* 多维筛选器 */}
+            {/* 视图切换 + 多维筛选器 */}
             <MemoryFilters
               filters={filters}
               onFiltersChange={handleFiltersChange}
               users={uniqueUsers}
+              prefix={<ViewToggle mode={viewMode} onChange={setViewMode} className="h-8" />}
             />
           </div>
         </CardContent>
