@@ -17,3 +17,5 @@
 <w>  at file d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
 <w>  at resolve commonjs d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\build\webpack\loaders\next-swc-loader.js
  ⚠ Found a change in next.config.js. Restarting the server to apply the changes...
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.

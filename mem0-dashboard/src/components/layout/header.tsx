@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Moon, Sun, Monitor } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { mem0Api } from "@/lib/api";
 import type { ConnectionStatus } from "@/lib/api";
@@ -24,18 +24,17 @@ function getPageTitle(pathname: string): string {
 }
 
 interface HeaderProps {
-  themeMode: "light" | "dark" | "system";
+  themeMode: "light" | "dark";
   onCycleTheme: () => void;
 }
 
 // 主题模式图标和提示
 const themeMeta: Record<
-  "light" | "dark" | "system",
+  "light" | "dark",
   { icon: React.ElementType; label: string }
 > = {
   light: { icon: Sun, label: "浅色模式" },
   dark: { icon: Moon, label: "深色模式" },
-  system: { icon: Monitor, label: "跟随系统" },
 };
 
 export function Header({ themeMode, onCycleTheme }: HeaderProps) {

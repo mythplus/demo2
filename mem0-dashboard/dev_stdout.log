@@ -80,3 +80,12 @@
  ✓ Compiled in 752ms (1958 modules)
  ✓ Compiled in 684ms (1958 modules)
  ✓ Compiled in 686ms (1958 modules)
+ ✓ Compiled in 428ms (1958 modules)
+ ✓ Compiled in 339ms (1944 modules)
+ GET /settings 200 in 373ms
+ GET /memories 200 in 354ms
+ ✓ Compiled in 610ms (1958 modules)
+ ✓ Compiled in 547ms (1958 modules)
+ ✓ Compiled in 697ms (1956 modules)
+ GET /memories 200 in 189ms
+ GET /memories 200 in 37ms

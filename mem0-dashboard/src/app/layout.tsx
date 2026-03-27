@@ -10,15 +10,10 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 /**
- * 根据主题模式和系统偏好，计算实际是否应用深色
+ * 根据主题模式计算实际是否应用深色
  */
-function resolveTheme(
-  themeMode: "light" | "dark" | "system",
-  systemPrefersDark: boolean
-): boolean {
-  if (themeMode === "dark") return true;
-  if (themeMode === "light") return false;
-  return systemPrefersDark; // system 模式跟随系统
+function resolveTheme(themeMode: "light" | "dark"): boolean {
+  return themeMode === "dark";
 }
 
 export default function RootLayout({
@@ -29,31 +24,16 @@ export default function RootLayout({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { preferences, loaded, savePreferences } = usePreferences();
 
-  // 系统深色偏好检测
-  const [systemPrefersDark, setSystemPrefersDark] = useState(false);
-
-  // 监听系统主题偏好变化
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    setSystemPrefersDark(mediaQuery.matches);
-
-    const handler = (e: MediaQueryListEvent) => {
-      setSystemPrefersDark(e.matches);
-    };
-    mediaQuery.addEventListener("change", handler);
-    return () => mediaQuery.removeEventListener("change", handler);
-  }, []);
-
   // 根据主题模式应用 dark class
   useEffect(() => {
     if (!loaded) return;
-    const isDark = resolveTheme(preferences.themeMode, systemPrefersDark);
+    const isDark = resolveTheme(preferences.themeMode);
     if (isDark) {
       document.documentElement.classList.add("dark");
     } else {
       document.documentElement.classList.remove("dark");
     }
-  }, [preferences.themeMode, systemPrefersDark, loaded]);
+  }, [preferences.themeMode, loaded]);
 
   // 从 localStorage 恢复侧边栏状态
   useEffect(() => {
@@ -66,15 +46,9 @@ export default function RootLayout({
     localStorage.setItem("mem0-sidebar-collapsed", String(sidebarCollapsed));
   }, [sidebarCollapsed]);
 
-  // 主题模式切换（在 header 中循环切换：light -> dark -> system -> light）
+  // 主题模式切换（在 header 中切换：light <-> dark）
   const handleCycleTheme = () => {
-    const order: Array<"light" | "dark" | "system"> = [
-      "light",
-      "dark",
-      "system",
-    ];
-    const currentIndex = order.indexOf(preferences.themeMode);
-    const nextMode = order[(currentIndex + 1) % order.length];
+    const nextMode = preferences.themeMode === "light" ? "dark" : "light";
     savePreferences({ themeMode: nextMode });
   };
 
