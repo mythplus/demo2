@@ -4,6 +4,7 @@ Mem0 Dashboard 后端 API 服务
 """
 
 import os
+import json
 import logging
 import sqlite3
 from typing import Optional, List, Dict, Any
@@ -54,8 +55,96 @@ MEM0_CONFIG = {
 }
 
 # ============ 分类和状态常量 ============
-VALID_CATEGORIES = {"personal", "work", "health", "finance", "travel", "education", "preferences", "relationships"}
+VALID_CATEGORIES = {
+    "personal", "relationships", "preferences", "health", "travel",
+    "work", "education", "projects", "ai_ml_technology", "technical_support",
+    "finance", "shopping", "legal", "entertainment", "messages",
+    "customer_support", "product_feedback", "news", "organization", "goals",
+}
 VALID_STATES = {"active", "paused", "archived", "deleted"}
+
+# ============ AI 自动分类 Prompt ============
+CATEGORY_DESCRIPTIONS = {
+    "personal": "个人 — 家庭、朋友、家居、爱好、生活方式",
+    "relationships": "关系 — 社交网络、伴侣、同事、朋友关系",
+    "preferences": "偏好 — 喜好、厌恶、习惯、喜欢的媒体",
+    "health": "健康 — 体能、心理健康、饮食、睡眠",
+    "travel": "旅行 — 旅行计划、通勤、喜欢的地方、行程",
+    "work": "工作 — 职位、公司、项目、晋升",
+    "education": "教育 — 课程、学位、证书、技能发展",
+    "projects": "项目 — 待办事项、里程碑、截止日期、状态更新",
+    "ai_ml_technology": "AI/ML与技术 — 基础设施、算法、工具、研究",
+    "technical_support": "技术支持 — Bug报告、错误日志、修复",
+    "finance": "财务 — 收入、支出、投资、账单",
+    "shopping": "购物 — 购买、愿望清单、退货、配送",
+    "legal": "法律 — 合同、政策、法规、隐私",
+    "entertainment": "娱乐 — 电影、音乐、游戏、书籍、活动",
+    "messages": "消息 — 邮件、短信、提醒、通知",
+    "customer_support": "客户支持 — 工单、咨询、解决方案",
+    "product_feedback": "产品反馈 — 评分、Bug报告、功能请求",
+    "news": "新闻 — 文章、头条、热门话题",
+    "organization": "组织 — 会议、预约、日历",
+    "goals": "目标 — 目标、KPI、长期规划",
+}
+
+MEMORY_CATEGORIZATION_PROMPT = """你是一个记忆分类助手。请根据以下记忆内容，从给定的分类列表中选择最合适的分类标签。
+一条记忆可以属于多个分类，但请只选择真正相关的分类，不要过度标注。
+
+可用的分类列表：
+{categories}
+
+请严格按照以下 JSON 格式返回结果，不要输出任何其他内容：
+{{"categories": ["分类1", "分类2"]}}
+
+如果没有任何分类匹配，返回空数组：
+{{"categories": []}}
+
+记忆内容：
+{memory_content}"""
+
+
+def _auto_categorize_memory(memory_text: str) -> List[str]:
+    """使用 LLM 对记忆内容进行自动分类"""
+    try:
+        import requests
+
+        # 构建分类描述文本
+        cat_text = "\n".join(f"- {k}: {v}" for k, v in CATEGORY_DESCRIPTIONS.items())
+        prompt = MEMORY_CATEGORIZATION_PROMPT.format(
+            categories=cat_text,
+            memory_content=memory_text,
+        )
+
+        # 调用 Ollama API
+        ollama_base_url = MEM0_CONFIG["llm"]["config"]["ollama_base_url"]
+        model = MEM0_CONFIG["llm"]["config"]["model"]
+
+        response = requests.post(
+            f"{ollama_base_url}/api/generate",
+            json={
+                "model": model,
+                "prompt": prompt,
+                "stream": False,
+                "format": "json",
+                "options": {"temperature": 0.1},
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        result_text = response.json().get("response", "")
+
+        # 解析 JSON 结果
+        parsed = json.loads(result_text)
+        raw_categories = parsed.get("categories", [])
+
+        # 校验：只保留合法的分类
+        valid = [c for c in raw_categories if c in VALID_CATEGORIES]
+        logger.info(f"AI 自动分类结果: {valid} (原始: {raw_categories})")
+        return valid
+
+    except Exception as e:
+        logger.warning(f"AI 自动分类失败: {e}")
+        return []
 
 # ============ 访问日志 SQLite 存储 ============
 ACCESS_LOG_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "access_logs.db")
@@ -232,6 +321,7 @@ class AddMemoryRequest(BaseModel):
     categories: Optional[List[str]] = None
     state: Optional[str] = "active"
     infer: Optional[bool] = True  # True: AI 自动提取关键记忆（可能拆分为多条）; False: 原文整条存储
+    auto_categorize: Optional[bool] = True  # True: 未手动选择标签时由 AI 自动分类
 
 
 class SearchMemoryRequest(BaseModel):
@@ -247,6 +337,7 @@ class UpdateMemoryRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
     categories: Optional[List[str]] = None
     state: Optional[str] = None
+    auto_categorize: Optional[bool] = False  # True: 对当前内容重新 AI 自动分类
 
 
 # ============ 应用生命周期 ============
@@ -335,13 +426,23 @@ async def add_memory(request: AddMemoryRequest):
 
         # 合并 metadata，将 categories 和 state 写入 metadata
         final_metadata = dict(request.metadata or {})
+        user_selected_categories = False
         if request.categories:
-            # 校验分类
+            # 用户手动选择了分类
             valid_cats = [c for c in request.categories if c in VALID_CATEGORIES]
             if valid_cats:
                 final_metadata["categories"] = valid_cats
+                user_selected_categories = True
         if request.state and request.state in VALID_STATES:
             final_metadata["state"] = request.state
+
+        # 如果用户未手动选择标签，且开启了 AI 自动分类，则先对原始内容进行 AI 分类
+        if not user_selected_categories and request.auto_categorize:
+            memory_text = " ".join(msg.content for msg in request.messages)
+            ai_categories = _auto_categorize_memory(memory_text)
+            if ai_categories:
+                final_metadata["categories"] = ai_categories
+                logger.info(f"AI 自动分类结果已应用: {ai_categories}")
 
         if final_metadata:
             kwargs["metadata"] = final_metadata
@@ -349,39 +450,51 @@ async def add_memory(request: AddMemoryRequest):
         result = m.add(messages=messages, infer=request.infer, **kwargs)
 
         # 确保 categories/state 写入 Qdrant（Mem0 SDK 可能不保留自定义 metadata）
-        if final_metadata and ("categories" in final_metadata or "state" in final_metadata):
-            try:
-                added_ids = []
-                if isinstance(result, dict) and "results" in result:
-                    added_ids = [r["id"] for r in result["results"] if r.get("id")]
-                elif isinstance(result, list):
-                    added_ids = [r.get("id") for r in result if r.get("id")]
+        # 同时，如果是 AI 提取模式（infer=True），可能拆分为多条记忆，需要对每条单独 AI 分类
+        try:
+            added_ids = []
+            if isinstance(result, dict) and "results" in result:
+                added_ids = [r for r in result["results"] if r.get("id")]
+            elif isinstance(result, list):
+                added_ids = [r for r in result if r.get("id")]
 
-                if added_ids:
-                    collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
-                    qdrant_client = m.vector_store.client
-                    for mid in added_ids:
-                        try:
-                            points = qdrant_client.retrieve(
+            if added_ids:
+                collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+                qdrant_client = m.vector_store.client
+                for item in added_ids:
+                    mid = item.get("id") if isinstance(item, dict) else item
+                    try:
+                        points = qdrant_client.retrieve(
+                            collection_name=collection_name,
+                            ids=[mid],
+                            with_payload=True,
+                        )
+                        if points:
+                            current_meta = dict((points[0].payload or {}).get("metadata", {}) or {})
+
+                            # 如果是 AI 提取模式且未手动选标签，对每条拆分后的记忆单独 AI 分类
+                            if not user_selected_categories and request.auto_categorize and request.infer:
+                                memory_content = item.get("memory", "") if isinstance(item, dict) else ""
+                                if memory_content:
+                                    per_item_cats = _auto_categorize_memory(memory_content)
+                                    if per_item_cats:
+                                        current_meta["categories"] = per_item_cats
+                            
+                            # 补写用户手动选择的分类或预先 AI 分类的结果
+                            if "categories" in final_metadata and "categories" not in current_meta:
+                                current_meta["categories"] = final_metadata["categories"]
+                            if "state" in final_metadata:
+                                current_meta["state"] = final_metadata["state"]
+
+                            qdrant_client.set_payload(
                                 collection_name=collection_name,
-                                ids=[mid],
-                                with_payload=True,
+                                payload={"metadata": current_meta},
+                                points=[mid],
                             )
-                            if points:
-                                current_meta = dict((points[0].payload or {}).get("metadata", {}) or {})
-                                if "categories" in final_metadata:
-                                    current_meta["categories"] = final_metadata["categories"]
-                                if "state" in final_metadata:
-                                    current_meta["state"] = final_metadata["state"]
-                                qdrant_client.set_payload(
-                                    collection_name=collection_name,
-                                    payload={"metadata": current_meta},
-                                    points=[mid],
-                                )
-                        except Exception:
-                            pass
-            except Exception as e2:
-                logger.warning(f"补写 metadata 失败: {e2}")
+                    except Exception:
+                        pass
+        except Exception as e2:
+            logger.warning(f"补写 metadata 失败: {e2}")
 
         return result
     except Exception as e:
@@ -476,7 +589,13 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
 
         # 第二步：在文本更新完成后，再读取最新 payload 并修改 metadata
         # 这样可以确保不会被 m.update() 覆盖
-        if request.categories is not None or request.state is not None or request.metadata is not None:
+        need_metadata_update = (
+            request.categories is not None
+            or request.state is not None
+            or request.metadata is not None
+            or request.auto_categorize
+        )
+        if need_metadata_update:
             try:
                 collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
                 qdrant_client = m.vector_store.client
@@ -491,7 +610,16 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
                     current_payload = points[0].payload or {}
                     current_metadata = dict(current_payload.get("metadata", {}) or {})
 
-                    # 更新 categories
+                    # AI 自动重新分类
+                    if request.auto_categorize:
+                        # 获取当前记忆文本（可能是更新后的新文本）
+                        memory_text = request.text or current_payload.get("data", "")
+                        if memory_text:
+                            ai_categories = _auto_categorize_memory(memory_text)
+                            current_metadata["categories"] = ai_categories
+                            logger.info(f"AI 重新分类记忆 {memory_id}: {ai_categories}")
+
+                    # 更新 categories（手动选择优先于 AI 分类）
                     if request.categories is not None:
                         valid_cats = [c for c in request.categories if c in VALID_CATEGORIES]
                         current_metadata["categories"] = valid_cats

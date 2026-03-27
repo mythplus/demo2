@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Code } from "lucide-react";
+import { Loader2, Code, Sparkles } from "lucide-react";
 import { mem0Api } from "@/lib/api";
 import type { Memory, Category, MemoryState } from "@/lib/api";
 import { CATEGORY_LIST, STATE_LIST } from "@/lib/constants";
@@ -51,6 +51,7 @@ export function EditMemoryDialog({
     (memory?.metadata as Record<string, unknown>) || {}
   );
   const [showMetadata, setShowMetadata] = useState(false);
+  const [aiCategorizing, setAiCategorizing] = useState(false);
 
   // 当 memory 变化时更新内容
   React.useEffect(() => {
@@ -124,7 +125,42 @@ export function EditMemoryDialog({
 
           {/* 分类选择 */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">分类标签</label>
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">分类标签</label>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!memory) return;
+                  setAiCategorizing(true);
+                  try {
+                    await mem0Api.updateMemory(memory.id, {
+                      auto_categorize: true,
+                    });
+                    // 重新获取记忆以更新分类
+                    const updated = await mem0Api.getMemory(memory.id);
+                    if (updated?.categories) {
+                      setSelectedCategories(updated.categories as Category[]);
+                    }
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "AI 分类失败");
+                  } finally {
+                    setAiCategorizing(false);
+                  }
+                }}
+                disabled={loading || aiCategorizing}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors cursor-pointer",
+                  "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-900/50"
+                )}
+              >
+                {aiCategorizing ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3 w-3" />
+                )}
+                AI 重新分类
+              </button>
+            </div>
             <div className="flex flex-wrap gap-1.5">
               {CATEGORY_LIST.map((cat) => {
                 const isSelected = selectedCategories.includes(cat.value);

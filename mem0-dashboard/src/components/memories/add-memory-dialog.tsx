@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { Loader2, AlertTriangle, Sparkles } from "lucide-react";
 import { mem0Api } from "@/lib/api";
 import type { Category, MemoryState, AddMemoryResponse } from "@/lib/api";
 import { CATEGORY_LIST, STATE_LIST, getCategoryInfo } from "@/lib/constants";
@@ -41,6 +41,7 @@ export function AddMemoryDialog({
   const [selectedCategories, setSelectedCategories] = useState<Category[]>([]);
   const [state, setState] = useState<MemoryState>("active");
   const [infer, setInfer] = useState(false); // 默认原文存储，AI 提取模式依赖 LLM 可能不稳定
+  const [autoCategorize, setAutoCategorize] = useState(true); // 默认开启 AI 自动分类
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [warning, setWarning] = useState("");
@@ -73,6 +74,7 @@ export function AddMemoryDialog({
         categories: selectedCategories.length > 0 ? selectedCategories : undefined,
         state: state,
         infer: infer,
+        auto_categorize: autoCategorize,
       });
 
       // 检查返回结果是否为空（LLM 可能判断内容不值得提取）
@@ -91,7 +93,8 @@ export function AddMemoryDialog({
       setUserId("");
       setSelectedCategories([]);
       setState("active");
-      setInfer(true);
+      setInfer(false);
+      setAutoCategorize(true);
       setWarning("");
       onOpenChange(false);
       onSuccess();
@@ -138,30 +141,55 @@ export function AddMemoryDialog({
             </p>
           </div>
 
-          {/* 分类选择 */}
+          {/* 分类标签 */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">分类标签（可选）</label>
-            <div className="flex flex-wrap gap-1.5">
-              {CATEGORY_LIST.map((cat) => {
-                const isSelected = selectedCategories.includes(cat.value);
-                return (
-                  <button
-                    key={cat.value}
-                    type="button"
-                    onClick={() => toggleCategory(cat.value)}
-                    disabled={loading}
-                    className={cn(
-                      "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
-                      isSelected
-                        ? cn(cat.bgColor, cat.textColor, "ring-1 ring-current")
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
-                    )}
-                  >
-                    {cat.label}
-                  </button>
-                );
-              })}
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">分类标签</label>
+              <button
+                type="button"
+                onClick={() => {
+                  setAutoCategorize(!autoCategorize);
+                  if (!autoCategorize) setSelectedCategories([]);
+                }}
+                disabled={loading}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors cursor-pointer",
+                  autoCategorize
+                    ? "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                <Sparkles className="h-3 w-3" />
+                {autoCategorize ? "AI 自动分类" : "手动选择"}
+              </button>
             </div>
+            {autoCategorize ? (
+              <p className="text-xs text-muted-foreground">
+                💡 添加记忆后，AI 将自动分析内容并打上合适的分类标签
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {CATEGORY_LIST.map((cat) => {
+                  const isSelected = selectedCategories.includes(cat.value);
+                  return (
+                    <button
+                      key={cat.value}
+                      type="button"
+                      onClick={() => toggleCategory(cat.value)}
+                      disabled={loading}
+                      className={cn(
+                        "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
+                        isSelected
+                          ? cn(cat.bgColor, cat.textColor, "ring-1 ring-current")
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      )}
+                    >
+                      {cat.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* 存储模式 */}

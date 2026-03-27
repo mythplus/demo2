@@ -41,3 +41,15 @@
  ✓ Compiled /search in 92ms (458 modules)
  ✓ Compiled in 816ms (1423 modules)
  ✓ Compiled in 606ms (1421 modules)
+ ✓ Compiled in 627ms (1421 modules)
+ ✓ Compiled / in 179ms (944 modules)
+ ✓ Compiled in 716ms (1908 modules)
+ ✓ Compiled in 712ms (1910 modules)
+ ✓ Compiled in 753ms (1910 modules)
+ ○ Compiling /settings ...
+ ✓ Compiled /settings in 595ms (1926 modules)
+ GET /memories 200 in 200ms
+ ○ Compiling /memory/[id] ...
+ ✓ Compiled /memory/[id] in 708ms (1963 modules)
+ ✓ Compiled in 529ms (1944 modules)
+ ✓ Compiled in 657ms (1944 modules)

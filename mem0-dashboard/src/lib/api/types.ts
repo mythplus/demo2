@@ -5,7 +5,11 @@
 // ============ 分类与状态类型 ============
 
 /** 记忆分类 */
-export type Category = "personal" | "work" | "health" | "finance" | "travel" | "education" | "preferences" | "relationships";
+export type Category =
+  | "personal" | "relationships" | "preferences" | "health" | "travel"
+  | "work" | "education" | "projects" | "ai_ml_technology" | "technical_support"
+  | "finance" | "shopping" | "legal" | "entertainment" | "messages"
+  | "customer_support" | "product_feedback" | "news" | "organization" | "goals";
 
 /** 记忆状态 */
 export type MemoryState = "active" | "paused" | "archived" | "deleted";
@@ -44,6 +48,8 @@ export interface AddMemoryRequest {
   state?: MemoryState;
   /** true: AI 自动提取关键记忆（可能拆分为多条）; false: 原文整条存储 */
   infer?: boolean;
+  /** true: 未手动选择标签时由 AI 自动分类; false: 不自动分类 */
+  auto_categorize?: boolean;
 }
 
 /** 添加记忆响应 */
@@ -89,6 +95,8 @@ export interface UpdateMemoryRequest {
   metadata?: Record<string, unknown>;
   categories?: Category[];
   state?: MemoryState;
+  /** true: 对当前内容重新 AI 自动分类 */
+  auto_categorize?: boolean;
 }
 
 /** 记忆历史记录 */
