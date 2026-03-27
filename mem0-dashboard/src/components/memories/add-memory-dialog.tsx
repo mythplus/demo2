@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, AlertTriangle, Sparkles } from "lucide-react";
+import { Loader2, AlertTriangle, Sparkles, Check } from "lucide-react";
 import { mem0Api } from "@/lib/api";
 import type { Category, MemoryState, AddMemoryResponse } from "@/lib/api";
 import { CATEGORY_LIST, STATE_LIST, getCategoryInfo } from "@/lib/constants";
@@ -143,24 +143,37 @@ export function AddMemoryDialog({
 
           {/* 分类标签 */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">分类标签</label>
+            <label className="text-sm font-medium">分类标签</label>
+            <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => {
-                  setAutoCategorize(!autoCategorize);
-                  if (!autoCategorize) setSelectedCategories([]);
+                  setAutoCategorize(true);
+                  setSelectedCategories([]);
                 }}
                 disabled={loading}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors cursor-pointer",
+                  "inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
                   autoCategorize
-                    ? "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300"
+                    ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground hover:bg-muted/80"
                 )}
               >
                 <Sparkles className="h-3 w-3" />
-                {autoCategorize ? "AI 自动分类" : "手动选择"}
+                AI 自动分类
+              </button>
+              <button
+                type="button"
+                onClick={() => setAutoCategorize(false)}
+                disabled={loading}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
+                  !autoCategorize
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                ✏️ 手动选择
               </button>
             </div>
             {autoCategorize ? (
@@ -178,12 +191,13 @@ export function AddMemoryDialog({
                       onClick={() => toggleCategory(cat.value)}
                       disabled={loading}
                       className={cn(
-                        "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
+                        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all cursor-pointer border",
                         isSelected
-                          ? cn(cat.bgColor, cat.textColor, "ring-1 ring-current")
-                          : "bg-muted text-muted-foreground hover:bg-muted/80"
+                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                          : "bg-muted text-muted-foreground border-transparent hover:bg-muted/80"
                       )}
                     >
+                      {isSelected && <Check className="h-3 w-3" />}
                       {cat.label}
                     </button>
                   );

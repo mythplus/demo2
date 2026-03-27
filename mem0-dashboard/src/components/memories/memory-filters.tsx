@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Filter, X, CalendarDays } from "lucide-react";
+import { Filter, X, CalendarDays, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -136,12 +136,13 @@ export function MemoryFilters({
                     key={cat.value}
                     onClick={() => toggleCategory(cat.value)}
                     className={cn(
-                      "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
+                      "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all cursor-pointer border",
                       isSelected
-                        ? cn(cat.bgColor, cat.textColor, "ring-1 ring-current")
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                        : "bg-muted text-muted-foreground border-transparent hover:bg-muted/80"
                     )}
                   >
+                    {isSelected && <Check className="h-3 w-3" />}
                     {cat.label}
                   </button>
                 );
