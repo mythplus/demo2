@@ -154,3 +154,21 @@ export interface DashboardStats {
 
 /** API 连接状态 */
 export type ConnectionStatus = "connected" | "disconnected" | "checking";
+
+// ============ 关联记忆 ============
+
+/** 关联记忆项 */
+export interface RelatedMemory {
+  id: string;
+  memory: string;
+  score: number;
+  user_id?: string;
+  categories?: Category[];
+  state?: MemoryState;
+  created_at?: string;
+}
+
+/** 关联记忆响应 */
+export interface RelatedMemoriesResponse {
+  results: RelatedMemory[];
+}

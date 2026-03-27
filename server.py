@@ -570,6 +570,52 @@ async def get_stats():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ============ 关联记忆接口 ============
+
+@app.get("/v1/memories/{memory_id}/related/")
+async def get_related_memories(memory_id: str, limit: int = Query(5, ge=1, le=20)):
+    """获取语义相关的记忆（基于当前记忆内容搜索）"""
+    try:
+        m = get_memory()
+        # 先获取当前记忆内容
+        current = m.get(memory_id)
+        if not current:
+            raise HTTPException(status_code=404, detail="记忆不存在")
+
+        memory_text = current.get("memory", "") if isinstance(current, dict) else ""
+        if not memory_text:
+            return {"results": []}
+
+        # 用当前记忆文本做语义搜索
+        search_result = m.search(query=memory_text, limit=limit + 1)
+
+        # 格式化并排除自身
+        results = []
+        raw_items = []
+        if isinstance(search_result, dict) and "results" in search_result:
+            raw_items = search_result["results"]
+        elif isinstance(search_result, list):
+            raw_items = search_result
+
+        for item in raw_items:
+            item_id = item.get("id", "")
+            if item_id == memory_id:
+                continue
+            formatted = format_mem0_result(item)
+            if "score" in item:
+                formatted["score"] = item["score"]
+            results.append(formatted)
+            if len(results) >= limit:
+                break
+
+        return {"results": results}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取关联记忆失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============ 启动入口 ============
 
 if __name__ == "__main__":

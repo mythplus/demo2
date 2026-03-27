@@ -18,11 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, Code } from "lucide-react";
 import { mem0Api } from "@/lib/api";
 import type { Memory, Category, MemoryState } from "@/lib/api";
 import { CATEGORY_LIST, STATE_LIST } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { JsonEditor } from "./json-editor";
 
 interface EditMemoryDialogProps {
   memory: Memory | null;
@@ -46,6 +47,10 @@ export function EditMemoryDialog({
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [metadata, setMetadata] = useState<Record<string, unknown>>(
+    (memory?.metadata as Record<string, unknown>) || {}
+  );
+  const [showMetadata, setShowMetadata] = useState(false);
 
   // 当 memory 变化时更新内容
   React.useEffect(() => {
@@ -53,6 +58,7 @@ export function EditMemoryDialog({
       setContent(memory.memory);
       setSelectedCategories((memory.categories as Category[]) || []);
       setState((memory.state as MemoryState) || "active");
+      setMetadata((memory.metadata as Record<string, unknown>) || {});
     }
   }, [memory]);
 
@@ -77,6 +83,7 @@ export function EditMemoryDialog({
         text: content.trim(),
         categories: selectedCategories,
         state: state,
+        metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       });
       onOpenChange(false);
       onSuccess();
@@ -163,6 +170,28 @@ export function EditMemoryDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Metadata 编辑器 */}
+          <div className="space-y-2">
+            <button
+              type="button"
+              className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => setShowMetadata(!showMetadata)}
+            >
+              <Code className="h-3.5 w-3.5" />
+              元数据 (metadata)
+              <span className="text-xs">
+                {showMetadata ? "▼" : "▶"}
+              </span>
+            </button>
+            {showMetadata && (
+              <JsonEditor
+                value={metadata}
+                onChange={setMetadata}
+                readOnly={loading}
+              />
+            )}
           </div>
 
           {error && (

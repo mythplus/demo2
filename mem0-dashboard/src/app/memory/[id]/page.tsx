@@ -34,6 +34,7 @@ import { DeleteConfirmDialog } from "@/components/memories/delete-confirm-dialog
 import { mem0Api } from "@/lib/api";
 import type { Memory, MemoryHistory, MemoryState } from "@/lib/api";
 import { STATE_LIST } from "@/lib/constants";
+import { RelatedMemories } from "@/components/shared/related-memories";
 
 export default function MemoryDetailPage() {
   const params = useParams();
@@ -304,6 +305,9 @@ export default function MemoryDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* 关联记忆 */}
+          <RelatedMemories memoryId={memoryId} />
         </div>
 
         {/* 右侧：元信息 + 操作按钮 */}

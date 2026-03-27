@@ -16,6 +16,7 @@ import type {
   StatsResponse,
   Category,
   MemoryState,
+  RelatedMemoriesResponse,
 } from "./types";
 
 // API 基础地址
@@ -170,6 +171,17 @@ export const mem0Api = {
    */
   async getStats(): Promise<StatsResponse> {
     return request<StatsResponse>("/v1/stats/");
+  },
+
+  // ============ 关联记忆 ============
+
+  /**
+   * 获取语义相关的记忆
+   * @param memoryId 记忆 ID
+   * @param limit 返回数量，默认 5
+   */
+  async getRelatedMemories(memoryId: string, limit: number = 5): Promise<RelatedMemoriesResponse> {
+    return request<RelatedMemoriesResponse>(`/v1/memories/${memoryId}/related/?limit=${limit}`);
   },
 
   // ============ 健康检查 ============
