@@ -11,6 +11,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,11 @@ title: "仪表盘",
     title: "用户管理",
     href: "/users",
     icon: Users,
+  },
+  {
+    title: "请求监控",
+    href: "/requests",
+    icon: Activity,
   },
 ];
 

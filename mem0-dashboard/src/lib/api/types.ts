@@ -199,3 +199,32 @@ export interface AccessLogsResponse {
   logs: AccessLog[];
   total?: number;
 }
+
+// ============ 请求日志 ============
+
+/** 请求日志项 */
+export interface RequestLog {
+  id: number;
+  timestamp: string;
+  method: string;
+  path: string;
+  request_type: string;
+  user_id?: string;
+  status_code: number;
+  latency_ms: number;
+  payload_summary?: string;
+  error?: string;
+}
+
+/** 请求日志响应 */
+export interface RequestLogsResponse {
+  logs: RequestLog[];
+  total: number;
+}
+
+/** 请求日志统计 */
+export interface RequestLogsStats {
+  total: number;
+  type_distribution: Record<string, number>;
+  daily_trend: Array<{ date: string; count: number }>;
+}

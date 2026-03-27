@@ -5,14 +5,16 @@ Mem0 Dashboard 后端 API 服务
 
 import os
 import json
+import time
 import logging
 import sqlite3
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 import uvicorn
 
@@ -151,7 +153,7 @@ ACCESS_LOG_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "a
 
 
 def _init_access_log_db():
-    """初始化访问日志数据库"""
+    """初始化访问日志和请求日志数据库"""
     conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS access_logs (
@@ -164,6 +166,25 @@ def _init_access_log_db():
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_memory_id ON access_logs(memory_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_timestamp ON access_logs(timestamp)")
+    # 请求日志表
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS request_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT NOT NULL,
+            method TEXT NOT NULL,
+            path TEXT NOT NULL,
+            request_type TEXT,
+            user_id TEXT,
+            status_code INTEGER,
+            latency_ms REAL,
+            payload_summary TEXT,
+            error TEXT
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_timestamp ON request_logs(timestamp)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_type ON request_logs(request_type)")
+    conn.commit()
+    conn.close()
     conn.commit()
     conn.close()
 
@@ -202,6 +223,135 @@ def _get_access_logs(memory_id: str = None, limit: int = 50, offset: int = 0) ->
     except Exception as e:
         logger.warning(f"查询访问日志失败: {e}")
         return []
+
+
+# ============ 请求日志工具函数 ============
+
+# 路径 → 请求类型映射
+_PATH_TYPE_MAP = {
+    ("POST", "/v1/memories/"): "添加",
+    ("POST", "/v1/memories/search/"): "搜索",
+    ("DELETE",): "删除",
+    ("PUT",): "更新",
+    ("GET", "/v1/memories/"): "获取全部",
+    ("GET", "/v1/stats/"): "统计",
+}
+
+
+def _classify_request(method: str, path: str) -> str:
+    """根据 HTTP 方法和路径推断请求类型"""
+    if method == "POST" and "/search" in path:
+        return "搜索"
+    if method == "POST" and "/memories" in path:
+        return "添加"
+    if method == "PUT":
+        return "更新"
+    if method == "DELETE":
+        return "删除"
+    if method == "GET" and "/stats" in path:
+        return "统计"
+    if method == "GET" and "/related" in path:
+        return "关联"
+    if method == "GET" and "/access-logs" in path:
+        return "日志"
+    if method == "GET" and "/request-logs" in path:
+        return "日志"
+    if method == "GET" and "/history" in path:
+        return "历史"
+    if method == "GET" and "/memories" in path:
+        return "查询"
+    if method == "GET" and path == "/":
+        return "健康检查"
+    return f"{method}"
+
+
+def _extract_user_from_request(method: str, path: str, body: str) -> str:
+    """尝试从请求中提取 user_id"""
+    # 从 query params
+    if "user_id=" in path:
+        for part in path.split("?")[1].split("&") if "?" in path else []:
+            if part.startswith("user_id="):
+                return part.split("=", 1)[1]
+    # 从 body
+    if body:
+        try:
+            data = json.loads(body)
+            if isinstance(data, dict) and "user_id" in data:
+                return data["user_id"] or ""
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return ""
+
+
+def _summarize_payload(method: str, path: str, body: str) -> str:
+    """生成请求载荷摘要"""
+    if not body:
+        # GET 请求从 query params 提取
+        if "?" in path:
+            return path.split("?", 1)[1][:200]
+        return ""
+    try:
+        data = json.loads(body)
+        if isinstance(data, dict):
+            # 过滤掉过长的字段
+            summary = {}
+            for k, v in data.items():
+                if k == "messages":
+                    summary[k] = f"[{len(v)} msg]" if isinstance(v, list) else str(v)[:50]
+                elif isinstance(v, str) and len(v) > 80:
+                    summary[k] = v[:80] + "..."
+                else:
+                    summary[k] = v
+            return json.dumps(summary, ensure_ascii=False)[:300]
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return body[:200]
+
+
+def _log_request(timestamp: str, method: str, path: str, request_type: str,
+                 user_id: str, status_code: int, latency_ms: float,
+                 payload_summary: str, error: str = ""):
+    """记录一条请求日志"""
+    try:
+        conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
+        conn.execute(
+            """INSERT INTO request_logs
+               (timestamp, method, path, request_type, user_id, status_code, latency_ms, payload_summary, error)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (timestamp, method, path, request_type, user_id, status_code,
+             round(latency_ms, 2), payload_summary[:500], error[:500]),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"记录请求日志失败: {e}")
+
+
+def _get_request_logs(request_type: str = None, limit: int = 50, offset: int = 0) -> tuple:
+    """查询请求日志，返回 (logs, total)"""
+    try:
+        conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
+        conn.row_factory = sqlite3.Row
+
+        where = ""
+        params: list = []
+        if request_type:
+            where = "WHERE request_type = ?"
+            params.append(request_type)
+
+        # 总数
+        total = conn.execute(f"SELECT COUNT(*) FROM request_logs {where}", params).fetchone()[0]
+
+        # 分页数据
+        rows = conn.execute(
+            f"SELECT * FROM request_logs {where} ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+            params + [limit, offset],
+        ).fetchall()
+        conn.close()
+        return [dict(row) for row in rows], total
+    except Exception as e:
+        logger.warning(f"查询请求日志失败: {e}")
+        return [], 0
 
 
 # ============ 全局 Memory 实例 ============
@@ -394,6 +544,61 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ============ 请求日志中间件 ============
+
+class RequestLogMiddleware(BaseHTTPMiddleware):
+    """自动记录每次 API 请求的中间件"""
+
+    # 不记录的路径前缀
+    SKIP_PATHS = {"/v1/request-logs", "/favicon.ico", "/_next"}
+
+    async def dispatch(self, request: Request, call_next):
+        # 跳过不需要记录的路径
+        path = request.url.path
+        if any(path.startswith(p) for p in self.SKIP_PATHS):
+            return await call_next(request)
+
+        method = request.method
+        start_time = time.time()
+
+        # 读取请求体（仅 POST/PUT）
+        body = ""
+        if method in ("POST", "PUT"):
+            try:
+                body_bytes = await request.body()
+                body = body_bytes.decode("utf-8", errors="ignore")
+            except Exception:
+                body = ""
+
+        # 执行请求
+        error_msg = ""
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+        except Exception as exc:
+            error_msg = str(exc)[:500]
+            raise
+        finally:
+            latency_ms = (time.time() - start_time) * 1000
+
+            # 提取信息
+            request_type = _classify_request(method, path)
+            user_id = _extract_user_from_request(method, path, body)
+            payload_summary = _summarize_payload(method, path, body)
+            ts = datetime.now().isoformat()
+
+            # 异步记录（不阻塞响应）- 跳过健康检查和日志查询
+            if request_type not in ("健康检查", "日志"):
+                _log_request(ts, method, path, request_type, user_id,
+                             status_code, latency_ms, payload_summary, error_msg)
+
+        return response
+
+
+app.add_middleware(RequestLogMiddleware)
 
 
 # ============ 健康检查 ============
@@ -907,6 +1112,69 @@ async def get_memory_access_logs(
         return {"logs": logs}
     except Exception as e:
         logger.error(f"获取记忆访问日志失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ 请求日志接口 ============
+
+@app.get("/v1/request-logs/")
+async def get_request_logs_api(
+    request_type: Optional[str] = Query(None, description="请求类型筛选: 添加/搜索/删除/更新/查询/统计"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """获取请求日志"""
+    try:
+        logs, total = _get_request_logs(request_type=request_type, limit=limit, offset=offset)
+        return {"logs": logs, "total": total}
+    except Exception as e:
+        logger.error(f"获取请求日志失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/v1/request-logs/stats/")
+async def get_request_logs_stats():
+    """获取请求日志统计（按类型分组计数 + 近 14 天每日请求数）"""
+    try:
+        conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
+        conn.row_factory = sqlite3.Row
+
+        # 按类型分组
+        type_rows = conn.execute(
+            "SELECT request_type, COUNT(*) as count FROM request_logs GROUP BY request_type ORDER BY count DESC"
+        ).fetchall()
+        type_distribution = {row["request_type"]: row["count"] for row in type_rows}
+
+        # 近 14 天每日请求数
+        today = datetime.now().strftime("%Y-%m-%d")
+        day_14_ago = (datetime.now() - timedelta(days=13)).strftime("%Y-%m-%d")
+        daily_rows = conn.execute(
+            """SELECT DATE(timestamp) as date, COUNT(*) as count
+               FROM request_logs
+               WHERE DATE(timestamp) >= ?
+               GROUP BY DATE(timestamp)
+               ORDER BY date""",
+            (day_14_ago,),
+        ).fetchall()
+        daily_map = {row["date"]: row["count"] for row in daily_rows}
+
+        # 补全缺失日期
+        daily_trend = []
+        for i in range(13, -1, -1):
+            d = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+            daily_trend.append({"date": d, "count": daily_map.get(d, 0)})
+
+        # 总请求数
+        total = conn.execute("SELECT COUNT(*) FROM request_logs").fetchone()[0]
+
+        conn.close()
+        return {
+            "total": total,
+            "type_distribution": type_distribution,
+            "daily_trend": daily_trend,
+        }
+    except Exception as e:
+        logger.error(f"获取请求日志统计失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

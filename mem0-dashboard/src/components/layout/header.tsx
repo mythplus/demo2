@@ -13,6 +13,7 @@ const pageTitles: Record<string, string> = {
   "/memories": "记忆管理",
   "/search": "语义搜索",
   "/users": "用户管理",
+  "/requests": "请求监控",
   "/settings": "系统设置",
 };
 

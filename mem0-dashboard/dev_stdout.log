@@ -89,3 +89,23 @@
  ✓ Compiled in 697ms (1956 modules)
  GET /memories 200 in 189ms
  GET /memories 200 in 37ms
+ GET /memories 200 in 57ms
+ GET /memories 200 in 59ms
+ ✓ Compiled in 664ms (1956 modules)
+ ✓ Compiled in 405ms (1942 modules)
+ ✓ Compiled in 404ms (1942 modules)
+ ✓ Compiled in 987ms (1956 modules)
+ ✓ Compiled in 502ms (1956 modules)
+ ✓ Compiled in 620ms (1956 modules)
+ ✓ Compiled in 524ms (1956 modules)
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 525ms (1959 modules)
+ GET /_next/static/webpack/app/layout.1fbbdf844b7694a3.hot-update.js 404 in 750ms
+ GET /_next/static/webpack/webpack.1fbbdf844b7694a3.hot-update.js 404 in 748ms
+ GET /_next/static/css/app/layout.css?v=1774602619913 404 in 118ms
+ GET /_next/static/css/app/layout.css?v=1774602619912 404 in 121ms
+ GET /memories 200 in 135ms
+ GET /_next/static/css/app/layout.css?v=1774602619941 404 in 24ms
+ GET /_next/static/chunks/main-app.js?v=1774602619941 404 in 44ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 42ms
+ GET /_next/static/chunks/app/memories/page.js 404 in 40ms
