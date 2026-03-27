@@ -55,6 +55,10 @@ export function AddMemoryDialog({
       setError("请输入记忆内容");
       return;
     }
+    if (!userId.trim()) {
+      setError("请输入用户 ID");
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -62,7 +66,7 @@ export function AddMemoryDialog({
     try {
       await mem0Api.addMemory({
         messages: [{ role: "user", content: content.trim() }],
-        user_id: userId.trim() || undefined,
+        user_id: userId.trim(),
         categories: selectedCategories.length > 0 ? selectedCategories : undefined,
         state: state,
       });
@@ -103,15 +107,16 @@ export function AddMemoryDialog({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">用户 ID（可选）</label>
+            <label className="text-sm font-medium">用户 ID *</label>
             <Input
               placeholder="例如：user_001"
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
               disabled={loading}
+              required
             />
             <p className="text-xs text-muted-foreground">
-              不填则不关联用户，记忆将作为全局记忆存储
+              记忆将关联到该用户
             </p>
           </div>
 

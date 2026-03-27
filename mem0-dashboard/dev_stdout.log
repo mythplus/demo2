@@ -3,18 +3,34 @@
   - Environments: .env.local
 
  ✓ Starting...
- ✓ Ready in 3.1s
+ ✓ Ready in 2.7s
  ○ Compiling / ...
- ✓ Compiled / in 5.5s (1781 modules)
- GET / 200 in 5981ms
+ ✓ Compiled / in 8.1s (1781 modules)
+ GET / 200 in 8706ms
  ○ Compiling /memories ...
- ✓ Compiled /memories in 4s (1868 modules)
- GET /memories 200 in 3767ms
- ✓ Compiled /search in 283ms (1878 modules)
- GET /search 200 in 382ms
- ✓ Compiled /settings in 348ms (1908 modules)
- GET /settings 200 in 429ms
+ ✓ Compiled /memories in 6.3s (1868 modules)
+ GET /memories 200 in 5925ms
+ ✓ Compiled /search in 398ms (1878 modules)
+ GET /search 200 in 508ms
+ ○ Compiling /settings ...
+ ✓ Compiled /settings in 517ms (1908 modules)
+ GET /settings 200 in 630ms
  ○ Compiling /users ...
- ✓ Compiled /users in 683ms (1916 modules)
- GET /users 200 in 759ms
- GET / 200 in 176ms
+ ✓ Compiled /users in 974ms (1916 modules)
+ GET /users 200 in 1098ms
+ GET / 200 in 200ms
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3000
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 2.3s
+ ○ Compiling /search ...
+ ✓ Compiled / in 8.6s (1782 modules)
+ GET / 200 in 5169ms
+ GET / 200 in 71ms
+ ○ Compiling /memories ...
+ ✓ Compiled /memories in 715ms (1878 modules)
+ GET /memories 200 in 966ms
+ GET /search 200 in 52ms
+ ✓ Compiled /users in 408ms (1886 modules)

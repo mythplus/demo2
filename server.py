@@ -323,9 +323,10 @@ async def add_memory(request: AddMemoryRequest):
         m = get_memory()
         messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
 
-        kwargs = {}
-        if request.user_id:
-            kwargs["user_id"] = request.user_id
+        if not request.user_id or not request.user_id.strip():
+            raise HTTPException(status_code=400, detail="user_id 为必填项")
+
+        kwargs = {"user_id": request.user_id.strip()}
         if request.agent_id:
             kwargs["agent_id"] = request.agent_id
         if request.run_id:
@@ -345,6 +346,42 @@ async def add_memory(request: AddMemoryRequest):
             kwargs["metadata"] = final_metadata
 
         result = m.add(messages=messages, **kwargs)
+
+        # 确保 categories/state 写入 Qdrant（Mem0 SDK 可能不保留自定义 metadata）
+        if final_metadata and ("categories" in final_metadata or "state" in final_metadata):
+            try:
+                added_ids = []
+                if isinstance(result, dict) and "results" in result:
+                    added_ids = [r["id"] for r in result["results"] if r.get("id")]
+                elif isinstance(result, list):
+                    added_ids = [r.get("id") for r in result if r.get("id")]
+
+                if added_ids:
+                    collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+                    qdrant_client = m.vector_store.client
+                    for mid in added_ids:
+                        try:
+                            points = qdrant_client.retrieve(
+                                collection_name=collection_name,
+                                ids=[mid],
+                                with_payload=True,
+                            )
+                            if points:
+                                current_meta = dict((points[0].payload or {}).get("metadata", {}) or {})
+                                if "categories" in final_metadata:
+                                    current_meta["categories"] = final_metadata["categories"]
+                                if "state" in final_metadata:
+                                    current_meta["state"] = final_metadata["state"]
+                                qdrant_client.set_payload(
+                                    collection_name=collection_name,
+                                    payload={"metadata": current_meta},
+                                    points=[mid],
+                                )
+                        except Exception:
+                            pass
+            except Exception as e2:
+                logger.warning(f"补写 metadata 失败: {e2}")
+
         return result
     except Exception as e:
         logger.error(f"添加记忆失败: {e}")
@@ -362,24 +399,17 @@ async def get_memories(
 ):
     """获取所有记忆（支持多维筛选）"""
     try:
-        m = get_memory()
+        # 统一使用 Qdrant 直接查询，确保 metadata (categories/state) 始终一致
+        all_memories = _get_all_memories_raw()
+
+        # 如果指定了 user_id，先做用户筛选
         if user_id:
-            # 按用户筛选
-            result = m.get_all(user_id=user_id)
-            # mem0 返回的可能是 dict 或 list
-            if isinstance(result, dict) and "results" in result:
-                memories = [format_mem0_result(item) for item in result["results"]]
-            elif isinstance(result, list):
-                memories = [format_mem0_result(item) for item in result]
-            else:
-                memories = []
-        else:
-            memories = _get_all_memories_raw()
+            all_memories = [m for m in all_memories if m.get("user_id") == user_id]
 
         # 应用多维筛选
         cat_list = [c.strip() for c in categories.split(",") if c.strip()] if categories else None
         memories = apply_filters(
-            memories,
+            all_memories,
             categories=cat_list,
             state=state,
             date_from=date_from,
@@ -398,10 +428,28 @@ async def get_memory_by_id(memory_id: str):
     """获取单条记忆"""
     try:
         m = get_memory()
-        result = m.get(memory_id)
-        if not result:
-            raise HTTPException(status_code=404, detail="记忆不存在")
-        formatted = format_mem0_result(result) if isinstance(result, dict) else result
+        # 直接从 Qdrant 读取，确保 metadata (state/categories) 一致
+        try:
+            collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+            qdrant_client = m.vector_store.client
+            points = qdrant_client.retrieve(
+                collection_name=collection_name,
+                ids=[memory_id],
+                with_payload=True,
+            )
+            if not points:
+                raise HTTPException(status_code=404, detail="记忆不存在")
+            formatted = format_record(points[0])
+            formatted["id"] = memory_id  # 确保 ID 一致
+        except HTTPException:
+            raise
+        except Exception:
+            # fallback 到 Mem0 SDK
+            result = m.get(memory_id)
+            if not result:
+                raise HTTPException(status_code=404, detail="记忆不存在")
+            formatted = format_mem0_result(result) if isinstance(result, dict) else result
+
         # 记录访问日志
         preview = formatted.get("memory", "") if isinstance(formatted, dict) else ""
         _log_access(memory_id, "view", preview)
@@ -419,19 +467,20 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
     try:
         m = get_memory()
 
-        # 如果有文本更新
+        # 第一步：如果有文本更新，先通过 Mem0 SDK 更新（这会重写 Qdrant payload）
         if request.text:
             result = m.update(memory_id=memory_id, data=request.text)
         else:
             result = {"message": "metadata updated"}
 
-        # 如果有 categories 或 state 更新，需要更新 Qdrant payload 中的 metadata
+        # 第二步：在文本更新完成后，再读取最新 payload 并修改 metadata
+        # 这样可以确保不会被 m.update() 覆盖
         if request.categories is not None or request.state is not None or request.metadata is not None:
             try:
                 collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
                 qdrant_client = m.vector_store.client
 
-                # 先获取当前 payload
+                # 读取 m.update() 之后的最新 payload
                 points = qdrant_client.retrieve(
                     collection_name=collection_name,
                     ids=[memory_id],
@@ -456,12 +505,13 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
                             if k not in ("categories", "state"):
                                 current_metadata[k] = v
 
-                    # 写回 Qdrant
+                    # 写回 Qdrant - 只更新 metadata 字段
                     qdrant_client.set_payload(
                         collection_name=collection_name,
                         payload={"metadata": current_metadata},
                         points=[memory_id],
                     )
+                    logger.info(f"已更新记忆 {memory_id} 的 metadata: state={current_metadata.get('state')}, categories={current_metadata.get('categories')}")
             except Exception as meta_err:
                 logger.warning(f"更新 metadata 失败: {meta_err}")
 

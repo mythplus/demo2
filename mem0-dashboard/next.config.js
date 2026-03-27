@@ -9,6 +9,17 @@ const nextConfig = {
       },
     ];
   },
+
+  // 修复 Windows 上 webpack 文件缓存反复损坏导致页面崩溃的问题
+  // 将持久化文件缓存改为内存缓存，避免 .next 缓存文件不一致
+  webpack: (config, { dev }) => {
+    if (dev) {
+      config.cache = {
+        type: 'memory',
+      };
+    }
+    return config;
+  },
 };
 
 module.exports = nextConfig;
