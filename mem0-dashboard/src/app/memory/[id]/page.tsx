@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -41,7 +41,6 @@ import { DetailPageSkeleton } from "@/components/ui/skeleton";
 
 export default function MemoryDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const memoryId = params.id as string;
 
   const [memory, setMemory] = useState<Memory | null>(null);
@@ -279,24 +278,28 @@ export default function MemoryDetailPage() {
                           </span>
                         </div>
 
-                        {item.old_memory && (
-                          <div className="rounded bg-red-50 dark:bg-red-950/20 p-2">
-                            <p className="text-xs text-muted-foreground mb-1">旧内容：</p>
-                            <p className="text-sm line-through text-muted-foreground">
-                              {item.old_memory}
-                            </p>
-                          </div>
+                        {item.event !== "DELETE" && (
+                          <>
+                            {item.old_memory && (
+                              <div className="rounded bg-red-50 dark:bg-red-950/20 p-2">
+                                <p className="text-xs text-muted-foreground mb-1">旧内容：</p>
+                                <p className="text-sm line-through text-muted-foreground">
+                                  {item.old_memory}
+                                </p>
+                              </div>
+                            )}
+
+                            <div className="rounded bg-green-50 dark:bg-green-950/20 p-2">
+                              <p className="text-xs text-muted-foreground mb-1">
+                                {item.old_memory ? "新内容：" : "内容："}
+                              </p>
+                              <p className="text-sm">{item.new_memory}</p>
+                            </div>
+                          </>
                         )}
 
-                        <div className="rounded bg-green-50 dark:bg-green-950/20 p-2">
-                          <p className="text-xs text-muted-foreground mb-1">
-                            {item.old_memory ? "新内容：" : "内容："}
-                          </p>
-                          <p className="text-sm">{item.new_memory}</p>
-                        </div>
-
                         {/* 标签信息 - 对比显示变更 */}
-                        {(() => {
+                        {item.event !== "DELETE" && (() => {
                           const oldCats = item.old_categories || [];
                           const newCats = item.categories || [];
                           const added = newCats.filter((c: string) => !oldCats.includes(c));
@@ -468,7 +471,7 @@ export default function MemoryDetailPage() {
               {memory.updated_at && (
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">
-                    更新时间
+                    最近更新时间
                   </label>
                   <p className="text-sm">
                     {new Date(memory.updated_at).toLocaleString("zh-CN")}

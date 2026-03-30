@@ -175,7 +175,7 @@ export function MemoryDetailPanel({
 
               {/* 时间信息 */}
               <Separator />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-3">
                 {memory.created_at && (
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-muted-foreground">
@@ -189,7 +189,7 @@ export function MemoryDetailPanel({
                 {memory.updated_at && (
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-muted-foreground">
-                      更新时间
+                      最近更新时间
                     </label>
                     <p className="text-sm">
                       {new Date(memory.updated_at).toLocaleString("zh-CN")}
@@ -270,29 +270,31 @@ export function MemoryDetailPanel({
                         </span>
                       </div>
 
-                      {item.old_memory ? (
-                        <div className="pt-1 space-y-1.5">
-                          <p className="text-xs text-muted-foreground mb-1">内容变更：</p>
-                          <div className="rounded bg-red-50 dark:bg-red-950/20 p-2">
-                            <p className="text-sm line-through text-muted-foreground">
-                              {item.old_memory}
-                            </p>
+                      {item.event !== "DELETE" && (
+                        item.old_memory ? (
+                          <div className="pt-1 space-y-1.5">
+                            <p className="text-xs text-muted-foreground mb-1">内容变更：</p>
+                            <div className="rounded bg-red-50 dark:bg-red-950/20 p-2">
+                              <p className="text-sm line-through text-muted-foreground">
+                                {item.old_memory}
+                              </p>
+                            </div>
+                            <div className="rounded bg-green-50 dark:bg-green-950/20 p-2">
+                              <p className="text-sm">{item.new_memory}</p>
+                            </div>
                           </div>
-                          <div className="rounded bg-green-50 dark:bg-green-950/20 p-2">
-                            <p className="text-sm">{item.new_memory}</p>
+                        ) : (
+                          <div className="pt-1 space-y-1.5">
+                            <p className="text-xs text-muted-foreground mb-1">{item.event === "ADD" ? "内容：" : "内容变更："}</p>
+                            <div className="rounded bg-green-50 dark:bg-green-950/20 p-2">
+                              <p className="text-sm">{item.new_memory}</p>
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="pt-1 space-y-1.5">
-                          <p className="text-xs text-muted-foreground mb-1">{item.event === "ADD" ? "内容：" : "内容变更："}</p>
-                          <div className="rounded bg-green-50 dark:bg-green-950/20 p-2">
-                            <p className="text-sm">{item.new_memory}</p>
-                          </div>
-                        </div>
+                        )
                       )}
 
                       {/* 标签信息 - 对比显示变更 */}
-                      {(() => {
+                      {item.event !== "DELETE" && (() => {
                         const oldCats = item.old_categories || [];
                         const newCats = item.categories || [];
                         const added = newCats.filter((c: string) => !oldCats.includes(c));

@@ -94,12 +94,19 @@ export default function DashboardPage() {
     fetchData();
   }, []);
 
+  // 定时刷新（每 30 秒自动同步数据）
+  useEffect(() => {
+    if (connectionStatus !== "connected") return;
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, [connectionStatus]);
+
   // 连接断开时自动重试
   useEffect(() => {
     if (connectionStatus !== "disconnected") return;
     const retryInterval = setInterval(() => {
       fetchData();
-    }, 10000); // 每 10 秒重试一次
+    }, 10000);
     return () => clearInterval(retryInterval);
   }, [connectionStatus]);
 
@@ -107,13 +114,9 @@ export default function DashboardPage() {
   const totalMemories = stats?.total_memories ?? memories.length;
   const uniqueUserCount = stats?.total_users ?? new Set(memories.map((m) => m.user_id).filter(Boolean)).size;
 
-  // 今日新增
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayMemories = memories.filter((m) => {
-    if (!m.created_at) return false;
-    return new Date(m.created_at) >= today;
-  });
+  // 今日新增（从 stats.daily_trend 取今天的数据，避免时区问题）
+  const todayStr = new Date().toISOString().slice(0, 10); // "2026-03-30"
+  const todayCount = stats?.daily_trend?.find((d) => d.date === todayStr)?.count ?? 0;
 
   // 最近记忆（按时间排序）
   const recentMemories = [...memories]
@@ -194,10 +197,10 @@ export default function DashboardPage() {
         />
         <StatsCard
           title="今日新增"
-          value={loading ? "..." : todayMemories.length}
+          value={loading ? "..." : todayCount}
           description="今日新增记忆数量"
           icon={TrendingUp}
-          trend={todayMemories.length > 0 ? `+${todayMemories.length}` : undefined}
+          trend={todayCount > 0 ? `+${todayCount}` : undefined}
         />
         <StatsCard
           title="系统状态"
