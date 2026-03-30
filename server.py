@@ -1007,11 +1007,48 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
 
 @app.delete("/v1/memories/{memory_id}/")
 async def delete_memory_by_id(memory_id: str):
-    """删除单条记忆"""
+    """软删除单条记忆（将 state 标记为 deleted，而非物理删除）"""
     try:
         m = get_memory()
-        m.delete(memory_id=memory_id)
-        return {"message": "记忆已删除"}
+        collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+        qdrant_client = m.vector_store.client
+
+        # 先获取当前记忆信息
+        try:
+            points = qdrant_client.retrieve(
+                collection_name=collection_name,
+                ids=[memory_id],
+                with_payload=True,
+            )
+            if not points:
+                raise HTTPException(status_code=404, detail="记忆不存在")
+
+            payload = points[0].payload or {}
+            metadata = payload.get("metadata", {})
+            old_memory_text = payload.get("data", "")
+            old_categories = metadata.get("categories", [])
+
+            # 将 state 标记为 deleted
+            metadata["state"] = "deleted"
+            qdrant_client.set_payload(
+                collection_name=collection_name,
+                payload={"metadata": metadata},
+                points=[memory_id],
+            )
+
+            # 记录 DELETE 事件到修改历史
+            _save_change_log(memory_id, "DELETE", old_memory_text, old_categories)
+
+            logger.info(f"已软删除记忆 {memory_id}")
+            return {"message": "记忆已删除"}
+        except HTTPException:
+            raise
+        except Exception as inner_err:
+            logger.warning(f"软删除失败，回退到物理删除: {inner_err}")
+            m.delete(memory_id=memory_id)
+            return {"message": "记忆已删除"}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"删除记忆失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

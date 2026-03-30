@@ -55,7 +55,7 @@ export function MemoryDetailPanel({
       {open && (
         <div
           className="fixed left-0 right-0 bottom-0 z-40 bg-black/50"
-          style={{ top: "1rem" }}
+          style={{ top: "2rem" }}
           onClick={onClose}
         />
       )}
@@ -66,7 +66,7 @@ export function MemoryDetailPanel({
           "fixed right-0 bottom-0 z-50 w-full sm:w-[480px] transform border-l bg-background shadow-xl transition-transform duration-300",
           open ? "translate-x-0" : "translate-x-full"
         )}
-        style={{ top: "1rem" }}
+        style={{ top: "2rem" }}
       >
         {/* 头部 */}
         <div className="flex items-center justify-between border-b p-4">

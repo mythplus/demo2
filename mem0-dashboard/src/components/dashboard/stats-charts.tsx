@@ -87,41 +87,48 @@ export function StatsCharts({ stats }: StatsChartsProps) {
         </CardHeader>
         <CardContent>
           {hasAnyCategoryData ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={3}
-                  dataKey="value"
-                >
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cat-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value: any, name: any) => [`${value} 条`, name]}
-                  contentStyle={{
-                    borderRadius: "8px",
-                    border: "1px solid hsl(var(--border))",
-                    background: "hsl(var(--background))",
-                    color: "hsl(var(--foreground))",
-                  }}
-                />
-                <Legend
-                  layout="vertical"
-                  align="right"
-                  verticalAlign="middle"
-                  iconSize={8}
-                  formatter={(value: any) => (
-                    <span className="text-xs text-muted-foreground">{value}</span>
-                  )}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+            <div>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={categoryData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={3}
+                    dataKey="value"
+                  >
+                    {categoryData.map((entry, index) => (
+                      <Cell key={`cat-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: any, name: any) => [`${value} 条`, name]}
+                    contentStyle={{
+                      borderRadius: "8px",
+                      border: "1px solid hsl(var(--border))",
+                      background: "hsl(var(--background))",
+                      color: "hsl(var(--foreground))",
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              {/* 自定义两列图例 */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-3 px-2">
+                {categoryData.map((entry, index) => (
+                  <div key={`legend-${index}`} className="flex items-center gap-1.5">
+                    <span
+                      className="inline-block h-2 w-2 rounded-sm shrink-0"
+                      style={{ background: entry.color }}
+                    />
+                    <span className="text-xs text-muted-foreground truncate">
+                      {entry.name} ({entry.value})
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           ) : (
             <div className="flex items-center justify-center h-[220px] text-sm text-muted-foreground">
               暂无分类数据
@@ -130,8 +137,54 @@ export function StatsCharts({ stats }: StatsChartsProps) {
         </CardContent>
       </Card>
 
+      {/* 状态分布饼图 */}
+      {hasAnyStateData && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">状态分布</CardTitle>
+            <CardDescription>各状态的记忆数量</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-center">
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={stateData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={3}
+                    dataKey="value"
+                  >
+                    {stateData.map((entry, index) => (
+                      <Cell key={`state-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: any, name: any) => [`${value} 条`, name]}
+                    contentStyle={{
+                      borderRadius: "8px",
+                      border: "1px solid hsl(var(--border))",
+                      background: "hsl(var(--background))",
+                      color: "hsl(var(--foreground))",
+                    }}
+                  />
+                  <Legend
+                    iconSize={8}
+                    formatter={(value: any) => (
+                      <span className="text-xs text-muted-foreground">{value}</span>
+                    )}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* 记忆增长趋势折线图 */}
-      <Card>
+      <Card className="md:col-span-2">
         <CardHeader>
           <CardTitle className="text-base">增长趋势</CardTitle>
           <CardDescription>近 14 天每日新增记忆</CardDescription>
@@ -180,52 +233,6 @@ export function StatsCharts({ stats }: StatsChartsProps) {
           )}
         </CardContent>
       </Card>
-
-      {/* 状态分布饼图 */}
-      {hasAnyStateData && (
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-base">状态分布</CardTitle>
-            <CardDescription>各状态的记忆数量</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-center">
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie
-                    data={stateData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={45}
-                    outerRadius={70}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
-                    {stateData.map((entry, index) => (
-                      <Cell key={`state-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: any, name: any) => [`${value} 条`, name]}
-                    contentStyle={{
-                      borderRadius: "8px",
-                      border: "1px solid hsl(var(--border))",
-                      background: "hsl(var(--background))",
-                      color: "hsl(var(--foreground))",
-                    }}
-                  />
-                  <Legend
-                    iconSize={8}
-                    formatter={(value: any) => (
-                      <span className="text-xs text-muted-foreground">{value}</span>
-                    )}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

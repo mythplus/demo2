@@ -100,7 +100,9 @@ export default function MemoryDetailPage() {
     try {
       await mem0Api.deleteMemory(memoryId);
       setDeleteDialogOpen(false);
-      router.push("/memories");
+      // 软删除后刷新数据，让用户看到状态变为"已删除"
+      fetchMemory();
+      fetchHistory();
     } catch (err) {
       console.error("删除失败:", err);
     } finally {
