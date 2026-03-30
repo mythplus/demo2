@@ -12,7 +12,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -87,35 +86,37 @@ export function StatsCharts({ stats }: StatsChartsProps) {
         </CardHeader>
         <CardContent>
           {hasAnyCategoryData ? (
-            <div>
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={categoryData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
-                    {categoryData.map((entry, index) => (
-                      <Cell key={`cat-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: any, name: any) => [`${value} 条`, name]}
-                    contentStyle={{
-                      borderRadius: "8px",
-                      border: "1px solid hsl(var(--border))",
-                      background: "hsl(var(--background))",
-                      color: "hsl(var(--foreground))",
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              {/* 自定义两列图例 */}
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-3 px-2">
+            <div className="flex items-center gap-4">
+              <div className="w-[180px] shrink-0">
+                <ResponsiveContainer width="100%" height={180}>
+                  <PieChart>
+                    <Pie
+                      data={categoryData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={45}
+                      outerRadius={75}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {categoryData.map((entry, index) => (
+                        <Cell key={`cat-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: any, name: any) => [`${value} 条`, name]}
+                      contentStyle={{
+                        borderRadius: "8px",
+                        border: "1px solid hsl(var(--border))",
+                        background: "hsl(var(--background))",
+                        color: "hsl(var(--foreground))",
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              {/* 右侧两列图例 */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 flex-1 min-w-0">
                 {categoryData.map((entry, index) => (
                   <div key={`legend-${index}`} className="flex items-center gap-1.5">
                     <span
@@ -145,39 +146,49 @@ export function StatsCharts({ stats }: StatsChartsProps) {
             <CardDescription>各状态的记忆数量</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-center">
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={stateData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
-                    {stateData.map((entry, index) => (
-                      <Cell key={`state-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: any, name: any) => [`${value} 条`, name]}
-                    contentStyle={{
-                      borderRadius: "8px",
-                      border: "1px solid hsl(var(--border))",
-                      background: "hsl(var(--background))",
-                      color: "hsl(var(--foreground))",
-                    }}
-                  />
-                  <Legend
-                    iconSize={8}
-                    formatter={(value: any) => (
-                      <span className="text-xs text-muted-foreground">{value}</span>
-                    )}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="flex items-center gap-4">
+              <div className="w-[180px] shrink-0">
+                <ResponsiveContainer width="100%" height={180}>
+                  <PieChart>
+                    <Pie
+                      data={stateData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={45}
+                      outerRadius={75}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {stateData.map((entry, index) => (
+                        <Cell key={`state-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: any, name: any) => [`${value} 条`, name]}
+                      contentStyle={{
+                        borderRadius: "8px",
+                        border: "1px solid hsl(var(--border))",
+                        background: "hsl(var(--background))",
+                        color: "hsl(var(--foreground))",
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              {/* 右侧图例 */}
+              <div className="space-y-2 flex-1">
+                {stateData.map((entry, index) => (
+                  <div key={`slegend-${index}`} className="flex items-center gap-2">
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-sm shrink-0"
+                      style={{ background: entry.color }}
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      {entry.name} ({entry.value})
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </CardContent>
         </Card>

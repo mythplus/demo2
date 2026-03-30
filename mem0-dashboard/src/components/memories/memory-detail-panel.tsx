@@ -254,8 +254,15 @@ export function MemoryDetailPanel({
                             item.event === "ADD"
                               ? "default"
                               : item.event === "UPDATE"
-                              ? "secondary"
+                              ? "default"
                               : "destructive"
+                          }
+                          className={
+                            item.event === "ADD"
+                              ? "bg-green-500 text-white hover:bg-green-500/90"
+                              : item.event === "UPDATE"
+                              ? "bg-amber-500 text-white hover:bg-amber-500/90"
+                              : ""
                           }
                         >
                           {item.event === "ADD"

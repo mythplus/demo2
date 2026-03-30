@@ -217,13 +217,13 @@ export default function SearchPage() {
 
               <Select value={limit} onValueChange={setLimit}>
                 <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="返回数量" />
+                  <SelectValue placeholder="显示数量" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="5">返回 5 条</SelectItem>
-                  <SelectItem value="10">返回 10 条</SelectItem>
-                  <SelectItem value="20">返回 20 条</SelectItem>
-                  <SelectItem value="50">返回 50 条</SelectItem>
+                  <SelectItem value="5">显示 5 条</SelectItem>
+                  <SelectItem value="10">显示 10 条</SelectItem>
+                  <SelectItem value="20">显示 20 条</SelectItem>
+                  <SelectItem value="50">显示 50 条</SelectItem>
                 </SelectContent>
               </Select>
             </div>

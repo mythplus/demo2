@@ -7,8 +7,6 @@ import {
   Users,
   TrendingUp,
   Activity,
-  Plus,
-  Search,
   ArrowRight,
   Clock,
 } from "lucide-react";
@@ -138,8 +136,7 @@ export default function DashboardPage() {
     }
   });
   const topUsers = Array.from(userMemoryCount.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
+    .sort((a, b) => b[1] - a[1]);
 
   return (
     <div className="space-y-6">
@@ -224,8 +221,8 @@ export default function DashboardPage() {
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle>最近记忆</CardTitle>
-              <CardDescription>最近添加的记忆条目</CardDescription>
+              <CardTitle>最近操作</CardTitle>
+              <CardDescription>最近操作记录</CardDescription>
             </div>
             <Link href="/memories">
               <Button variant="ghost" size="sm">
@@ -314,7 +311,7 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : topUsers.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-1 overflow-y-auto" style={{ maxHeight: "calc(100vh - 300px)" }}>
                 {topUsers.map(([uid, count], index) => (
                   <Link
                     key={uid}
@@ -339,37 +336,6 @@ export default function DashboardPage() {
             )}
           </CardContent>
         </Card>
-      </div>
-
-      {/* 快速操作 */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card
-          className="cursor-pointer transition-colors hover:bg-accent/50"
-          onClick={() => setAddDialogOpen(true)}
-        >
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Plus className="h-5 w-5 text-primary" />
-              添加记忆
-            </CardTitle>
-            <CardDescription>
-              手动添加一条新的记忆到系统中
-            </CardDescription>
-          </CardHeader>
-        </Card>
-        <Link href="/search">
-          <Card className="cursor-pointer transition-colors hover:bg-accent/50">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Search className="h-5 w-5 text-primary" />
-                语义搜索
-              </CardTitle>
-              <CardDescription>
-                使用自然语言搜索已存储的记忆
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        </Link>
       </div>
 
       {/* 添加记忆弹窗 */}

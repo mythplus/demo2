@@ -38,6 +38,18 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     localStorage.setItem("mem0-sidebar-collapsed", String(sidebarCollapsed));
   }, [sidebarCollapsed]);
 
+  // 窗口宽度变小时自动收起侧边栏，变大时自动展开
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 768px)");
+    const handleChange = (e: MediaQueryListEvent | MediaQueryList) => {
+      setSidebarCollapsed(e.matches);
+    };
+    // 初始化
+    handleChange(mql);
+    mql.addEventListener("change", handleChange);
+    return () => mql.removeEventListener("change", handleChange);
+  }, []);
+
   // 主题模式切换（在 header 中切换：light <-> dark）
   const handleCycleTheme = () => {
     const nextMode = preferences.themeMode === "light" ? "dark" : "light";
@@ -46,13 +58,11 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* 侧边栏 - 小屏幕隐藏 */}
-      <div className="hidden md:block">
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-        />
-      </div>
+      {/* 侧边栏 - 始终显示，窄屏自动收起 */}
+      <Sidebar
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+      />
 
       {/* 主内容区域 */}
       <div className="flex flex-1 flex-col overflow-hidden">
