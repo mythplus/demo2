@@ -237,7 +237,7 @@ _PATH_TYPE_MAP = {
 
 
 def _classify_request(method: str, path: str) -> str:
-    """根据 HTTP 方法和路径推断请求类型"""
+    """根据 HTTP 方法和路径推断请求类型（只分类前端写操作）"""
     if method == "POST" and "/search" in path:
         return "搜索"
     if method == "POST" and "/memories" in path:
@@ -246,21 +246,8 @@ def _classify_request(method: str, path: str) -> str:
         return "更新"
     if method == "DELETE":
         return "删除"
-    if method == "GET" and "/stats" in path:
-        return "统计"
-    if method == "GET" and "/related" in path:
-        return "关联"
-    if method == "GET" and "/access-logs" in path:
-        return "日志"
-    if method == "GET" and "/request-logs" in path:
-        return "日志"
-    if method == "GET" and "/history" in path:
-        return "历史"
-    if method == "GET" and "/memories" in path:
-        return "查询"
-    if method == "GET" and path == "/":
-        return "健康检查"
-    return f"{method}"
+    # 其余请求不应被记录，兜底返回方法名
+    return method
 
 
 def _extract_user_from_request(method: str, path: str, body: str) -> str:
@@ -550,21 +537,27 @@ app.add_middleware(
 # ============ 请求日志中间件 ============
 
 class RequestLogMiddleware(BaseHTTPMiddleware):
-    """自动记录 API 业务请求的中间件（只记录添加/搜索/删除/更新，不记录查询/统计/OPTIONS）"""
+    """自动记录前端→后端的业务 API 请求（添加/搜索/删除/更新），不记录 GET/OPTIONS 等"""
 
-    # 不记录的路径前缀
+    # 不记录的路径前缀（日志查询接口本身、静态资源等）
+    # 注意：不能包含 "/"，否则所有路径都会被 startswith("/") 匹配而跳过
     SKIP_PATHS = {"/v1/request-logs", "/v1/access-logs", "/favicon.ico", "/_next"}
 
-    # 只记录这些业务方法
+    # 精确匹配跳过的路径（如健康检查）
+    SKIP_EXACT = {"/"}
+
+    # 只记录这些 HTTP 方法（前端发出的写操作）
     RECORD_METHODS = {"POST", "PUT", "DELETE"}
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
         method = request.method
 
-        # 跳过：非业务方法（GET/OPTIONS/HEAD）、不需要记录的路径
+        # 只记录前端发出的写操作（POST/PUT/DELETE），跳过所有 GET/OPTIONS/HEAD
+        # 同时跳过日志查询等非业务路径
         should_record = (
             method in self.RECORD_METHODS
+            and path not in self.SKIP_EXACT
             and not any(path.startswith(p) for p in self.SKIP_PATHS)
         )
 

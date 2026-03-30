@@ -5541,3 +5541,568 @@ Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-das
   digest: '3450464296',
   page: '/requests'
 }
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\app-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "3450464296"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\client-page.js#ClientPageRoot" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "1709271592"
+ ⨯ Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\src\app\requests\page.tsx#default" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at stringify (<anonymous>)
+digest: "591255182"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\layout-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "1559376968"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\render-from-template-context.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "4142596648"
+ ⨯ Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\src\components\layout\client-layout.tsx#ClientLayout" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at stringify (<anonymous>)
+    at stringify (<anonymous>)
+digest: "3951915111"
+ ⨯     at stringify (<anonymous>)
+    at stringify (<anonymous>)
+digest: "3966186253"
+ ⨯     at stringify (<anonymous>)
+    at stringify (<anonymous>)
+digest: "2651108589"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\error-boundary.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Object.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "2169368900"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\app-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "3450464296"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\app-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "3450464296"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\error-boundary.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Object.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "2169368900"
+Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\app-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  digest: '3450464296'
+}
+ ⨯ Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\app-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  digest: '3450464296',
+  page: '/requests'
+}
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\app-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "3450464296"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\client-page.js#ClientPageRoot" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "1709271592"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\layout-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "1559376968"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\render-from-template-context.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "4142596648"
+ ⨯     at stringify (<anonymous>)
+    at stringify (<anonymous>)
+digest: "3966186253"
+ ⨯     at stringify (<anonymous>)
+    at stringify (<anonymous>)
+digest: "2651108589"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\error-boundary.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Object.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "2169368900"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\app-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "3450464296"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\client-page.js#ClientPageRoot" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "1709271592"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\layout-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "1559376968"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\render-from-template-context.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "4142596648"
+ ⨯     at stringify (<anonymous>)
+    at stringify (<anonymous>)
+digest: "3966186253"
+ ⨯     at stringify (<anonymous>)
+    at stringify (<anonymous>)
+digest: "2651108589"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\error-boundary.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Object.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "2169368900"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\app-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "3450464296"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\app-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "3450464296"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\app-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "3450464296"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\error-boundary.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Object.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "2169368900"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\app-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "3450464296"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\error-boundary.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Object.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "2169368900"
+Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\app-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  digest: '3450464296'
+}
+ ⨯ Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\app-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  digest: '3450464296',
+  page: '/requests'
+}
+Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\app-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  digest: '3450464296'
+}
+ ⨯ Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\app-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  digest: '3450464296',
+  page: '/requests'
+}
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\app-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "3450464296"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\client-page.js#ClientPageRoot" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "1709271592"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\layout-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "1559376968"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\render-from-template-context.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "4142596648"
+ ⨯     at stringify (<anonymous>)
+    at stringify (<anonymous>)
+digest: "3966186253"
+ ⨯     at stringify (<anonymous>)
+    at stringify (<anonymous>)
+digest: "2651108589"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\error-boundary.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Object.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "2169368900"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\app-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "3450464296"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\app-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "3450464296"
+ ⨯ Internal error: Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\error-boundary.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Object.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+digest: "2169368900"
+Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\app-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  digest: '3450464296'
+}
+ ⨯ Error: Could not find the module "D:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\client\components\app-router.js#" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268131
+    at eD (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:268326)
+    at eL (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:273210)
+    at d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267040
+    at Array.toJSON (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:267504)
+    at stringify (<anonymous>)
+    at eJ (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:275872)
+    at eV (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:276390)
+    at Timeout._onTimeout (d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard\node_modules\next\dist\compiled\next-server\app-page.runtime.dev.js:35:266177)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  digest: '3450464296',
+  page: '/requests'
+}

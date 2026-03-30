@@ -55,7 +55,7 @@ import {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-// 请求类型 Tailwind 颜色
+// 请求类型 Tailwind 颜色（只有4种业务类型）
 const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
   "添加": { bg: "bg-green-100 dark:bg-green-900/30", text: "text-green-700 dark:text-green-300" },
   "搜索": { bg: "bg-blue-100 dark:bg-blue-900/30", text: "text-blue-700 dark:text-blue-300" },
@@ -63,7 +63,7 @@ const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
   "更新": { bg: "bg-orange-100 dark:bg-orange-900/30", text: "text-orange-700 dark:text-orange-300" },
 };
 
-// 请求类型 hex 颜色（给 recharts 柱状图用）
+// 请求类型 hex 颜色（给 recharts 柱状图和统计概览用）
 const TYPE_HEX: Record<string, string> = {
   "添加": "#22c55e",
   "搜索": "#3b82f6",
@@ -71,7 +71,8 @@ const TYPE_HEX: Record<string, string> = {
   "更新": "#f97316",
 };
 
-const ALL_TYPES = ["添加", "搜索", "删除", "更新"];
+// 默认业务类型（筛选下拉用）
+const DEFAULT_TYPES = ["添加", "搜索", "删除", "更新"];
 
 function formatLatency(ms: number): string {
   if (ms < 1000) return `${ms.toFixed(0)}ms`;
@@ -283,9 +284,22 @@ export default function RequestsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部类型</SelectItem>
-              {ALL_TYPES.map((t) => (
-                <SelectItem key={t} value={t}>{t}</SelectItem>
-              ))}
+              {/* 合并默认类型 + stats 中实际出现的类型，去重 */}
+              {(() => {
+                const statsTypes = stats?.types || [];
+                const merged = Array.from(new Set([...DEFAULT_TYPES, ...statsTypes]));
+                return merged.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="inline-block h-2 w-2 rounded-sm shrink-0"
+                        style={{ background: TYPE_HEX[t] || "#94a3b8" }}
+                      />
+                      {t}
+                    </span>
+                  </SelectItem>
+                ));
+              })()}
             </SelectContent>
           </Select>
           <span className="text-sm text-muted-foreground">

@@ -197,3 +197,7 @@
  GET /requests 500 in 81ms
  ✓ Compiled in 660ms (2226 modules)
  GET /requests 500 in 130ms
+ GET /requests 500 in 89ms
+ ✓ Compiled in 1317ms (2223 modules)
+ GET /requests 200 in 112ms
+ GET /requests 500 in 151ms
