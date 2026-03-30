@@ -3,12 +3,19 @@
  */
 import type { Memory } from "@/lib/api";
 
+/** 导出结果，包含 Blob 和文件名，用于操作记录 */
+export interface ExportOutput {
+  blob: Blob;
+  filename: string;
+}
+
 // ============ 导出功能 ============
 
 /**
  * 将记忆数据导出为 JSON 文件
+ * 返回 Blob 和文件名，方便操作记录存储
  */
-export function exportToJSON(memories: Memory[], filename?: string) {
+export function exportToJSON(memories: Memory[], filename?: string): ExportOutput {
   const exportData = {
     version: "1.1",
     exported_at: new Date().toISOString(),
@@ -29,13 +36,15 @@ export function exportToJSON(memories: Memory[], filename?: string) {
   const blob = new Blob([JSON.stringify(exportData, null, 2)], {
     type: "application/json",
   });
-  downloadBlob(blob, filename || `mem0-export-${formatDate()}.json`);
+  const finalName = filename || `mem0-export-${formatDate()}.json`;
+  downloadBlob(blob, finalName);
+  return { blob, filename: finalName };
 }
 
 /**
  * 将记忆数据导出为 CSV 文件
  */
-export function exportToCSV(memories: Memory[], filename?: string) {
+export function exportToCSV(memories: Memory[], filename?: string): ExportOutput {
   const headers = [
     "ID",
     "记忆内容",
@@ -66,7 +75,9 @@ export function exportToCSV(memories: Memory[], filename?: string) {
   ].join("\n");
 
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  downloadBlob(blob, filename || `mem0-export-${formatDate()}.csv`);
+  const finalName = filename || `mem0-export-${formatDate()}.csv`;
+  downloadBlob(blob, finalName);
+  return { blob, filename: finalName };
 }
 
 // ============ 导入功能 ============

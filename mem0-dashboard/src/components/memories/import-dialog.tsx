@@ -27,10 +27,17 @@ import {
 import { mem0Api } from "@/lib/api";
 import type { Category, MemoryState } from "@/lib/api/types";
 
+/** 导入成功回调信息 */
+export interface ImportSuccessInfo {
+  filename: string;
+  successCount: number;
+  failedCount: number;
+}
+
 interface ImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
+  onSuccess: (info: ImportSuccessInfo) => void;
 }
 
 type ImportStep = "upload" | "preview" | "importing" | "done";
@@ -48,10 +55,12 @@ export function ImportDialog({
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [importFileName, setImportFileName] = useState("");
 
   /** 解析文件内容 */
   const processFile = useCallback(async (file: File) => {
     setError("");
+    setImportFileName(file.name);
 
     if (!file.name.endsWith(".json")) {
       setError("仅支持 .json 格式的文件");
@@ -81,6 +90,7 @@ export function ImportDialog({
     setImportResult(null);
     setError("");
     setProgress(0);
+    setImportFileName("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -149,7 +159,11 @@ export function ImportDialog({
     setImportResult(result);
     setStep("done");
     if (result.success > 0) {
-      onSuccess();
+      onSuccess({
+        filename: importFileName,
+        successCount: result.success,
+        failedCount: result.failed,
+      });
     }
   };
 
