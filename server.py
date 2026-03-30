@@ -183,8 +183,58 @@ def _init_access_log_db():
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_timestamp ON request_logs(timestamp)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_type ON request_logs(request_type)")
+    # 标签快照表（记录每次标签变更，用于修改历史展示）
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS category_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            memory_id TEXT NOT NULL,
+            categories TEXT NOT NULL DEFAULT '[]',
+            timestamp TEXT NOT NULL
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_cat_snap_memory_id ON category_snapshots(memory_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_cat_snap_timestamp ON category_snapshots(timestamp)")
     conn.commit()
     conn.close()
+
+
+def _save_category_snapshot(memory_id: str, categories: list, timestamp: str = ""):
+    """记录一次标签快照"""
+    try:
+        ts = timestamp or datetime.now().isoformat()
+        cats_json = json.dumps(categories, ensure_ascii=False)
+        conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
+        conn.execute(
+            "INSERT INTO category_snapshots (memory_id, categories, timestamp) VALUES (?, ?, ?)",
+            (memory_id, cats_json, ts),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"记录标签快照失败: {e}")
+
+
+def _get_category_snapshots(memory_id: str) -> list:
+    """获取某条记忆的所有标签快照，按时间正序"""
+    try:
+        conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT categories, timestamp FROM category_snapshots WHERE memory_id = ? ORDER BY timestamp ASC",
+            (memory_id,),
+        ).fetchall()
+        conn.close()
+        result = []
+        for row in rows:
+            try:
+                cats = json.loads(row["categories"])
+            except (json.JSONDecodeError, TypeError):
+                cats = []
+            result.append({"categories": cats, "timestamp": row["timestamp"]})
+        return result
+    except Exception as e:
+        logger.warning(f"查询标签快照失败: {e}")
+        return []
 
 
 def _log_access(memory_id: str, action: str, memory_preview: str = ""):
@@ -712,6 +762,10 @@ async def add_memory(request: AddMemoryRequest):
                                 payload={"metadata": current_meta},
                                 points=[mid],
                             )
+                            # 记录初始标签快照
+                            init_cats = current_meta.get("categories", [])
+                            if init_cats:
+                                _save_category_snapshot(mid, init_cats)
                     except Exception:
                         pass
         except Exception as e2:
@@ -861,7 +915,10 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
                         payload={"metadata": current_metadata},
                         points=[memory_id],
                     )
-                    logger.info(f"已更新记忆 {memory_id} 的 metadata: state={current_metadata.get('state')}, categories={current_metadata.get('categories')}")
+                    # 标签有变更时记录快照
+                    new_cats = current_metadata.get("categories", [])
+                    _save_category_snapshot(memory_id, new_cats)
+                    logger.info(f"已更新记忆 {memory_id} 的 metadata: state={current_metadata.get('state')}, categories={new_cats}")
             except Exception as meta_err:
                 logger.warning(f"更新 metadata 失败: {meta_err}")
 
@@ -963,13 +1020,58 @@ async def search_memories(request: SearchMemoryRequest):
 
 @app.get("/v1/memories/history/{memory_id}/")
 async def get_memory_history(memory_id: str):
-    """获取记忆的修改历史"""
+    """获取记忆的修改历史（附加对应时间点的 categories 快照）"""
     try:
         m = get_memory()
         result = m.history(memory_id=memory_id)
-        if isinstance(result, list):
-            return result
-        return result
+        history_list = result if isinstance(result, list) else []
+
+        # 获取该记忆的所有标签快照（按时间正序）
+        snapshots = _get_category_snapshots(memory_id)
+
+        # 获取当前记忆的 categories 作为兜底
+        current_categories: list = []
+        try:
+            collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+            qdrant_client = m.vector_store.client
+            points = qdrant_client.retrieve(
+                collection_name=collection_name,
+                ids=[memory_id],
+                with_payload=True,
+            )
+            if points:
+                current_metadata = (points[0].payload or {}).get("metadata", {}) or {}
+                current_categories = current_metadata.get("categories", [])
+        except Exception:
+            pass
+
+        # 为每条历史记录匹配对应时间点的标签快照
+        for item in history_list:
+            if not isinstance(item, dict):
+                continue
+            item_time = item.get("created_at", "")
+            if snapshots:
+                # 找到 <= item_time 的最新快照
+                matched_cats = None
+                for snap in snapshots:
+                    if snap["timestamp"] <= item_time:
+                        matched_cats = snap["categories"]
+                    else:
+                        break
+                # 如果没有匹配到（历史早于所有快照），用第一个快照或当前值
+                if matched_cats is not None:
+                    item["categories"] = matched_cats
+                else:
+                    # ADD 事件且有快照，用第一个快照（就是初始标签）
+                    if item.get("event") == "ADD" and snapshots:
+                        item["categories"] = snapshots[0]["categories"]
+                    else:
+                        item["categories"] = current_categories
+            else:
+                # 没有快照记录，兜底用当前标签
+                item["categories"] = current_categories
+
+        return history_list
     except Exception as e:
         logger.error(f"获取记忆历史失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))

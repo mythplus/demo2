@@ -96,9 +96,9 @@ export function MemoryDetailPanel({
 
             {/* 基本信息 Tab */}
             <TabsContent value="info" className="p-4 space-y-4">
-              {/* 状态 */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">
+              {/* 1. 状态 */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
                   状态
                 </label>
                 <div>
@@ -108,9 +108,47 @@ export function MemoryDetailPanel({
 
               <Separator />
 
-              {/* 记忆内容 */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-muted-foreground">
+              {/* 2. 记忆 ID */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  记忆 ID
+                </label>
+                <p className="text-sm font-mono break-all">{memory.id}</p>
+              </div>
+
+              <Separator />
+
+              {/* 3. 用户 ID */}
+              {memory.user_id && (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      用户 ID
+                    </label>
+                    <div>
+                      <Badge variant="secondary">{memory.user_id}</Badge>
+                    </div>
+                  </div>
+                  <Separator />
+                </>
+              )}
+
+              {/* 4. 分类标签 */}
+              {memory.categories && memory.categories.length > 0 && (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      分类标签
+                    </label>
+                    <CategoryBadges categories={memory.categories} />
+                  </div>
+                  <Separator />
+                </>
+              )}
+
+              {/* 5. 记忆内容 */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
                   记忆内容
                 </label>
                 <div className="rounded-lg border bg-muted/50 p-4">
@@ -120,37 +158,21 @@ export function MemoryDetailPanel({
 
               <Separator />
 
-              {/* 元信息 */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
+              {/* 6. Hash */}
+              {memory.hash && (
+                <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">
-                    记忆 ID
+                    Hash
                   </label>
-                  <p className="text-sm font-mono break-all">{memory.id}</p>
+                  <p className="text-sm font-mono break-all text-muted-foreground">
+                    {memory.hash}
+                  </p>
                 </div>
+              )}
 
-                {memory.user_id && (
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground">
-                      用户 ID
-                    </label>
-                    <div>
-                      <Badge variant="secondary">{memory.user_id}</Badge>
-                    </div>
-                  </div>
-                )}
-
-                {memory.agent_id && (
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground">
-                      Agent ID
-                    </label>
-                    <div>
-                      <Badge variant="outline">{memory.agent_id}</Badge>
-                    </div>
-                  </div>
-                )}
-
+              {/* 时间信息 */}
+              <Separator />
+              <div className="grid grid-cols-2 gap-4">
                 {memory.created_at && (
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-muted-foreground">
@@ -161,7 +183,6 @@ export function MemoryDetailPanel({
                     </p>
                   </div>
                 )}
-
                 {memory.updated_at && (
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-muted-foreground">
@@ -172,28 +193,19 @@ export function MemoryDetailPanel({
                     </p>
                   </div>
                 )}
-
-                {memory.hash && (
-                  <div className="space-y-1 col-span-2">
-                    <label className="text-xs font-medium text-muted-foreground">
-                      Hash
-                    </label>
-                    <p className="text-sm font-mono break-all text-muted-foreground">
-                      {memory.hash}
-                    </p>
-                  </div>
-                )}
               </div>
 
-              {/* 分类标签 */}
-              {memory.categories && memory.categories.length > 0 && (
+              {/* Agent ID */}
+              {memory.agent_id && (
                 <>
                   <Separator />
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-muted-foreground">
-                      分类标签
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Agent ID
                     </label>
-                    <CategoryBadges categories={memory.categories} />
+                    <div>
+                      <Badge variant="outline">{memory.agent_id}</Badge>
+                    </div>
                   </div>
                 </>
               )}
@@ -203,8 +215,8 @@ export function MemoryDetailPanel({
                 Object.keys(memory.metadata).length > 0 && (
                   <>
                     <Separator />
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-muted-foreground">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-muted-foreground">
                         元数据
                       </label>
                       <pre className="rounded-lg border bg-muted/50 p-3 text-xs overflow-x-auto">
@@ -272,6 +284,14 @@ export function MemoryDetailPanel({
                         </p>
                         <p className="text-sm">{item.new_memory}</p>
                       </div>
+
+                      {/* 标签信息 */}
+                      {item.categories && item.categories.length > 0 && (
+                        <div className="pt-1">
+                          <p className="text-xs text-muted-foreground mb-1">标签：</p>
+                          <CategoryBadges categories={item.categories} />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

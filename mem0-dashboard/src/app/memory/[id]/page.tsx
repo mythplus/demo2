@@ -291,6 +291,14 @@ export default function MemoryDetailPage() {
                           </p>
                           <p className="text-sm">{item.new_memory}</p>
                         </div>
+
+                        {/* 标签信息 */}
+                        {item.categories && item.categories.length > 0 && (
+                          <div className="pt-1">
+                            <p className="text-xs text-muted-foreground mb-1">标签：</p>
+                            <CategoryBadges categories={item.categories} />
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}

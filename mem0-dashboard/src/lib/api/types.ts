@@ -107,6 +107,7 @@ export interface MemoryHistory {
   new_memory: string;
   event: "ADD" | "UPDATE" | "DELETE";
   created_at: string;
+  categories?: string[];
 }
 
 // ============ 筛选参数 ============
