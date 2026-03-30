@@ -62,6 +62,7 @@ export default function MemoriesPage() {
   const [filters, setFilters] = useState<FilterParams>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(preferences.pageSize);
+  const [jumpPage, setJumpPage] = useState("");
 
   // 视图模式
   const [viewMode, setViewMode] = useState<ViewMode>("list");
@@ -351,11 +352,11 @@ export default function MemoriesPage() {
 
               {/* 分页 */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-between pt-4">
+                <div className="flex items-center justify-between pt-4 flex-wrap gap-3">
                   <p className="text-sm text-muted-foreground">
                     第 {currentPage} / {totalPages} 页，共 {filteredMemories.length} 条
                   </p>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <Button
                       variant="outline"
                       size="sm"
@@ -365,6 +366,40 @@ export default function MemoriesPage() {
                       <ChevronLeft className="h-4 w-4" />
                       上一页
                     </Button>
+
+                    {/* 智能页码显示 */}
+                    {(() => {
+                      const pages: (number | string)[] = [];
+                      if (totalPages <= 7) {
+                        for (let i = 1; i <= totalPages; i++) pages.push(i);
+                      } else {
+                        pages.push(1);
+                        if (currentPage > 3) pages.push("...");
+                        const start = Math.max(2, currentPage - 1);
+                        const end = Math.min(totalPages - 1, currentPage + 1);
+                        for (let i = start; i <= end; i++) pages.push(i);
+                        if (currentPage < totalPages - 2) pages.push("...");
+                        pages.push(totalPages);
+                      }
+                      return pages.map((page, idx) =>
+                        typeof page === "string" ? (
+                          <span key={`ellipsis-${idx}`} className="px-1 text-muted-foreground text-sm">
+                            ···
+                          </span>
+                        ) : (
+                          <Button
+                            key={page}
+                            variant={page === currentPage ? "default" : "outline"}
+                            size="sm"
+                            className="w-8 h-8 p-0"
+                            onClick={() => setCurrentPage(page)}
+                          >
+                            {page}
+                          </Button>
+                        )
+                      );
+                    })()}
+
                     <Button
                       variant="outline"
                       size="sm"
@@ -374,6 +409,44 @@ export default function MemoriesPage() {
                       下一页
                       <ChevronRight className="h-4 w-4" />
                     </Button>
+
+                    {/* 跳转到指定页 */}
+                    <div className="flex items-center gap-1.5 ml-3">
+                      <span className="text-sm text-muted-foreground whitespace-nowrap">跳转到</span>
+                      <Input
+                        className="w-16 h-8 text-center text-sm"
+                        value={jumpPage}
+                        placeholder="页码"
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === "" || /^\d+$/.test(val)) {
+                            setJumpPage(val);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && jumpPage) {
+                            const page = Math.max(1, Math.min(totalPages, parseInt(jumpPage)));
+                            setCurrentPage(page);
+                            setJumpPage("");
+                          }
+                        }}
+                      />
+                      <span className="text-sm text-muted-foreground">页</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        onClick={() => {
+                          if (jumpPage) {
+                            const page = Math.max(1, Math.min(totalPages, parseInt(jumpPage)));
+                            setCurrentPage(page);
+                            setJumpPage("");
+                          }
+                        }}
+                      >
+                        确定
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}

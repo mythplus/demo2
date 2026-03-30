@@ -8,6 +8,7 @@ import {
   Search,
   RefreshCw,
   ChevronRight,
+  ChevronLeft,
   Trash2,
   Loader2,
 } from "lucide-react";
@@ -30,6 +31,11 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
   const [error, setError] = useState("");
+
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [jumpPage, setJumpPage] = useState("");
+  const pageSize = 10;
 
   // 删除状态
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -88,6 +94,18 @@ export default function UsersPage() {
     if (!searchText.trim()) return true;
     return u.user_id.toLowerCase().includes(searchText.toLowerCase());
   });
+
+  // 分页计算
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+  const paginatedUsers = filteredUsers.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  // 搜索时重置页码
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchText]);
 
   // 删除用户所有记忆
   const handleDeleteUser = async () => {
@@ -194,6 +212,7 @@ export default function UsersPage() {
           <CardDescription>
             共 {filteredUsers.length} 个用户
             {searchText && `（搜索: "${searchText}"）`}
+            {filteredUsers.length > pageSize && `　第 ${currentPage}/${totalPages} 页`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -208,7 +227,7 @@ export default function UsersPage() {
             </div>
           ) : filteredUsers.length > 0 ? (
             <div className="space-y-2">
-              {filteredUsers.map((user) => (
+              {paginatedUsers.map((user) => (
                 <div
                   key={user.user_id}
                   className="group flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-accent/50"
@@ -252,6 +271,7 @@ export default function UsersPage() {
                     variant="ghost"
                     size="icon"
                     className="ml-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                    title="删除用户及其所有记忆"
                     onClick={(e) => {
                       e.preventDefault();
                       setDeleteUserId(user.user_id);
@@ -276,6 +296,111 @@ export default function UsersPage() {
               </p>
             </div>
           )}
+
+          {/* 分页控件 */}
+          {!loading && filteredUsers.length > pageSize && (
+            <div className="flex items-center justify-between pt-4 border-t mt-4 flex-wrap gap-3">
+              <p className="text-sm text-muted-foreground">
+                显示第 {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filteredUsers.length)} 条，共 {filteredUsers.length} 条
+              </p>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  上一页
+                </Button>
+
+                {/* 智能页码显示 */}
+                {(() => {
+                  const pages: (number | string)[] = [];
+                  if (totalPages <= 7) {
+                    // 页数较少时全部显示
+                    for (let i = 1; i <= totalPages; i++) pages.push(i);
+                  } else {
+                    // 始终显示第1页
+                    pages.push(1);
+                    if (currentPage > 3) pages.push("...");
+                    // 当前页附近的页码
+                    const start = Math.max(2, currentPage - 1);
+                    const end = Math.min(totalPages - 1, currentPage + 1);
+                    for (let i = start; i <= end; i++) pages.push(i);
+                    if (currentPage < totalPages - 2) pages.push("...");
+                    // 始终显示最后一页
+                    pages.push(totalPages);
+                  }
+                  return pages.map((page, idx) =>
+                    typeof page === "string" ? (
+                      <span key={`ellipsis-${idx}`} className="px-1 text-muted-foreground text-sm">
+                        ···
+                      </span>
+                    ) : (
+                      <Button
+                        key={page}
+                        variant={page === currentPage ? "default" : "outline"}
+                        size="sm"
+                        className="w-8 h-8 p-0"
+                        onClick={() => setCurrentPage(page)}
+                      >
+                        {page}
+                      </Button>
+                    )
+                  );
+                })()}
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                >
+                  下一页
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+
+                {/* 跳转到指定页 */}
+                <div className="flex items-center gap-1.5 ml-3">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">跳转到</span>
+                  <Input
+                    className="w-16 h-8 text-center text-sm"
+                    value={jumpPage}
+                    placeholder="页码"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "" || /^\d+$/.test(val)) {
+                        setJumpPage(val);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && jumpPage) {
+                        const page = Math.max(1, Math.min(totalPages, parseInt(jumpPage)));
+                        setCurrentPage(page);
+                        setJumpPage("");
+                      }
+                    }}
+                  />
+                  <span className="text-sm text-muted-foreground">页</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8"
+                    onClick={() => {
+                      if (jumpPage) {
+                        const page = Math.max(1, Math.min(totalPages, parseInt(jumpPage)));
+                        setCurrentPage(page);
+                        setJumpPage("");
+                      }
+                    }}
+                  >
+                    确定
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -285,8 +410,8 @@ export default function UsersPage() {
         onOpenChange={setDeleteDialogOpen}
         onConfirm={handleDeleteUser}
         loading={deleteLoading}
-        title="删除用户所有记忆"
-        description={`确定要删除用户 "${deleteUserId}" 的所有记忆吗？此操作不可撤销。`}
+        title="删除用户"
+        description={`确定要删除用户 "${deleteUserId}" 吗？该用户及其所有记忆数据将被永久删除，此操作不可撤销。`}
       />
     </div>
   );
