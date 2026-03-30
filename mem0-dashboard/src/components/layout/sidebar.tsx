@@ -73,7 +73,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       <aside
         className={cn(
           "flex h-screen flex-col border-r bg-background transition-all duration-300",
-          collapsed ? "w-16" : "w-64"
+          collapsed ? "w-16" : "w-58"
         )}
       >
         {/* Logo 区域 */}

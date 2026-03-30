@@ -49,8 +49,8 @@ function StatsCard({
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
+        {trend && <p className="text-xs text-green-600 font-medium">{trend}</p>}
         <p className="text-xs text-muted-foreground">
-          {trend && <span className="text-green-600 mr-1">{trend}</span>}
           {description}
         </p>
       </CardContent>
