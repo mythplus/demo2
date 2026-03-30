@@ -32,6 +32,7 @@ export interface ImportSuccessInfo {
   filename: string;
   successCount: number;
   failedCount: number;
+  blob: Blob | null;
 }
 
 interface ImportDialogProps {
@@ -56,11 +57,14 @@ export function ImportDialog({
   const [progress, setProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [importFileName, setImportFileName] = useState("");
+  const [importFileBlob, setImportFileBlob] = useState<Blob | null>(null);
 
   /** 解析文件内容 */
   const processFile = useCallback(async (file: File) => {
     setError("");
     setImportFileName(file.name);
+    // 保存文件 Blob 用于操作记录下载
+    setImportFileBlob(new Blob([await file.arrayBuffer()], { type: file.type || "application/json" }));
 
     if (!file.name.endsWith(".json")) {
       setError("仅支持 .json 格式的文件");
@@ -91,6 +95,7 @@ export function ImportDialog({
     setError("");
     setProgress(0);
     setImportFileName("");
+    setImportFileBlob(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -163,6 +168,7 @@ export function ImportDialog({
         filename: importFileName,
         successCount: result.success,
         failedCount: result.failed,
+        blob: importFileBlob,
       });
     }
   };

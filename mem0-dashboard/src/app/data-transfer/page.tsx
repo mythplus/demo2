@@ -586,7 +586,7 @@ export default function DataTransferPage() {
             type: "导入",
             status: info.failedCount === 0 ? "成功" : "失败",
             filename: info.filename,
-            blob: null,
+            blob: info.blob,
             detail: `成功 ${info.successCount} 条${info.failedCount > 0 ? `，失败 ${info.failedCount} 条` : ""}`,
           });
         }}
@@ -631,11 +631,11 @@ export default function DataTransferPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">类型</th>
-                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">时间</th>
-                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">状态</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground w-[80px]">类型</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground w-[180px]">时间</th>
                     <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">文件</th>
                     <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">详情</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground w-[80px]">状态</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -643,8 +643,13 @@ export default function DataTransferPage() {
                     <tr key={record.id} className="border-b last:border-b-0 hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-2.5">
                         <Badge
-                          variant={record.type === "导出" ? "default" : "secondary"}
-                          className="font-normal"
+                          variant="outline"
+                          className={cn(
+                            "font-normal",
+                            record.type === "导出"
+                              ? "bg-blue-50 text-blue-600 border-blue-200"
+                              : "bg-red-50 text-red-600 border-red-200"
+                          )}
                         >
                           {record.type === "导出" ? (
                             <Upload className="mr-1 h-3 w-3" />
@@ -658,6 +663,26 @@ export default function DataTransferPage() {
                         {record.time}
                       </td>
                       <td className="px-4 py-2.5">
+                        {record.blob ? (
+                          <button
+                            onClick={() => handleDownloadRecord(record)}
+                            className="inline-flex items-center gap-1 text-primary hover:underline cursor-pointer"
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                            <span className="truncate">{record.filename}</span>
+                            <Download className="h-3 w-3 ml-0.5 shrink-0" />
+                          </button>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-muted-foreground">
+                            <FileText className="h-3.5 w-3.5" />
+                            <span className="truncate">{record.filename}</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-muted-foreground">
+                        {record.detail || "-"}
+                      </td>
+                      <td className="px-4 py-2.5">
                         {record.status === "成功" ? (
                           <span className="inline-flex items-center gap-1 text-green-600">
                             <CheckCircle2 className="h-3.5 w-3.5" />
@@ -669,26 +694,6 @@ export default function DataTransferPage() {
                             失败
                           </span>
                         )}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        {record.blob ? (
-                          <button
-                            onClick={() => handleDownloadRecord(record)}
-                            className="inline-flex items-center gap-1 text-primary hover:underline cursor-pointer"
-                          >
-                            <FileText className="h-3.5 w-3.5" />
-                            <span className="max-w-[200px] truncate">{record.filename}</span>
-                            <Download className="h-3 w-3 ml-0.5" />
-                          </button>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-muted-foreground">
-                            <FileText className="h-3.5 w-3.5" />
-                            <span className="max-w-[200px] truncate">{record.filename}</span>
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5 text-muted-foreground">
-                        {record.detail || "-"}
                       </td>
                     </tr>
                   ))}
