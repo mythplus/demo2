@@ -192,9 +192,15 @@ def _init_access_log_db():
             old_memory TEXT,
             new_memory TEXT,
             categories TEXT NOT NULL DEFAULT '[]',
+            old_categories TEXT NOT NULL DEFAULT '[]',
             timestamp TEXT NOT NULL
         )
     """)
+    # 兼容旧表：如果 old_categories 列不存在则添加
+    try:
+        conn.execute("ALTER TABLE memory_change_logs ADD COLUMN old_categories TEXT NOT NULL DEFAULT '[]'")
+    except Exception:
+        pass  # 列已存在，忽略
     conn.execute("CREATE INDEX IF NOT EXISTS idx_mcl_memory_id ON memory_change_logs(memory_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_mcl_timestamp ON memory_change_logs(timestamp)")
     # 保留旧表兼容（不删除）
@@ -229,17 +235,19 @@ def _save_category_snapshot(memory_id: str, categories: list, timestamp: str = "
 
 
 def _save_change_log(memory_id: str, event: str, new_memory: str,
-                     categories: list, old_memory: str = None):
+                     categories: list, old_memory: str = None,
+                     old_categories: list = None):
     """记录一条修改历史（自建，带真实时间和标签快照）"""
     try:
         ts = datetime.now().isoformat()
         cats_json = json.dumps(categories, ensure_ascii=False)
+        old_cats_json = json.dumps(old_categories or [], ensure_ascii=False)
         conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
         conn.execute(
             """INSERT INTO memory_change_logs
-               (memory_id, event, old_memory, new_memory, categories, timestamp)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (memory_id, event, old_memory or "", new_memory, cats_json, ts),
+               (memory_id, event, old_memory, new_memory, categories, old_categories, timestamp)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (memory_id, event, old_memory or "", new_memory, cats_json, old_cats_json, ts),
         )
         conn.commit()
         conn.close()
@@ -253,7 +261,7 @@ def _get_change_logs(memory_id: str) -> list:
         conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
-            """SELECT event, old_memory, new_memory, categories, timestamp
+            """SELECT event, old_memory, new_memory, categories, old_categories, timestamp
                FROM memory_change_logs WHERE memory_id = ? ORDER BY timestamp ASC""",
             (memory_id,),
         ).fetchall()
@@ -264,6 +272,10 @@ def _get_change_logs(memory_id: str) -> list:
                 cats = json.loads(row["categories"])
             except (json.JSONDecodeError, TypeError):
                 cats = []
+            try:
+                old_cats = json.loads(row["old_categories"])
+            except (json.JSONDecodeError, TypeError, KeyError):
+                old_cats = []
             result.append({
                 "id": f"cl-{memory_id[:8]}-{len(result)}",
                 "memory_id": memory_id,
@@ -271,6 +283,7 @@ def _get_change_logs(memory_id: str) -> list:
                 "old_memory": row["old_memory"] or None,
                 "new_memory": row["new_memory"],
                 "categories": cats,
+                "old_categories": old_cats,
                 "created_at": row["timestamp"],
             })
         return result
@@ -982,7 +995,9 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
 
         # 记录 UPDATE 事件到自建历史（真实时间 + 旧/新内容 + 当前标签）
         new_memory_text = request.text or old_memory_text
-        _save_change_log(memory_id, "UPDATE", new_memory_text, new_cats, old_memory_text)
+        # 如果内容没有变化（只改了标签/元数据），old_memory 传 None 避免显示相同的旧/新内容
+        effective_old_memory = old_memory_text if (request.text and old_memory_text != new_memory_text) else None
+        _save_change_log(memory_id, "UPDATE", new_memory_text, new_cats, effective_old_memory, old_categories)
 
         return result
     except Exception as e:

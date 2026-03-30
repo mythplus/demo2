@@ -27,7 +27,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CategoryBadges } from "@/components/memories/category-badge";
+import { CategoryBadge, CategoryBadges } from "@/components/memories/category-badge";
+import { getCategoryInfo } from "@/lib/constants";
 import { StateBadge } from "@/components/memories/state-badge";
 import { EditMemoryDialog } from "@/components/memories/edit-memory-dialog";
 import { DeleteConfirmDialog } from "@/components/memories/delete-confirm-dialog";
@@ -292,13 +293,70 @@ export default function MemoryDetailPage() {
                           <p className="text-sm">{item.new_memory}</p>
                         </div>
 
-                        {/* 标签信息 */}
-                        {item.categories && item.categories.length > 0 && (
-                          <div className="pt-1">
-                            <p className="text-xs text-muted-foreground mb-1">标签：</p>
-                            <CategoryBadges categories={item.categories} />
-                          </div>
-                        )}
+                        {/* 标签信息 - 对比显示变更 */}
+                        {(() => {
+                          const oldCats = item.old_categories || [];
+                          const newCats = item.categories || [];
+                          const added = newCats.filter((c: string) => !oldCats.includes(c));
+                          const removed = oldCats.filter((c: string) => !newCats.includes(c));
+                          const unchanged = newCats.filter((c: string) => oldCats.includes(c));
+                          const hasChange = added.length > 0 || removed.length > 0;
+
+                          if (item.event === "ADD") {
+                            return newCats.length > 0 ? (
+                              <div className="pt-1">
+                                <p className="text-xs text-muted-foreground mb-1">标签：</p>
+                                <CategoryBadges categories={newCats} />
+                              </div>
+                            ) : null;
+                          }
+
+                          if (!hasChange && newCats.length > 0) {
+                            return (
+                              <div className="pt-1">
+                                <p className="text-xs text-muted-foreground mb-1">标签：</p>
+                                <CategoryBadges categories={newCats} />
+                              </div>
+                            );
+                          }
+
+                          if (hasChange) {
+                            return (
+                              <div className="pt-1 space-y-1.5">
+                                <p className="text-xs text-muted-foreground mb-1">标签变更：</p>
+                                <div className="flex flex-wrap gap-1.5 items-center">
+                                  {removed.map((cat: string) => {
+                                    const info = getCategoryInfo(cat as any);
+                                    return (
+                                      <span
+                                        key={`rm-${cat}`}
+                                        className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border bg-red-50 dark:bg-red-950/20 text-red-500 dark:text-red-400 border-red-200 dark:border-red-700/40 line-through"
+                                      >
+                                        {info?.label || cat}
+                                      </span>
+                                    );
+                                  })}
+                                  {unchanged.map((cat: string) => (
+                                    <CategoryBadge key={`keep-${cat}`} category={cat as any} />
+                                  ))}
+                                  {added.map((cat: string) => {
+                                    const info = getCategoryInfo(cat as any);
+                                    return (
+                                      <span
+                                        key={`add-${cat}`}
+                                        className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border bg-green-50 dark:bg-green-950/20 text-green-600 dark:text-green-400 border-green-200 dark:border-green-700/40"
+                                      >
+                                        + {info?.label || cat}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return null;
+                        })()}
                       </div>
                     </div>
                   ))}

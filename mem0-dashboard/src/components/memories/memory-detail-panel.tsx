@@ -10,7 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { mem0Api } from "@/lib/api";
 import type { Memory, MemoryHistory } from "@/lib/api";
-import { CategoryBadges } from "./category-badge";
+import { CategoryBadge, CategoryBadges } from "./category-badge";
+import { getCategoryInfo } from "@/lib/constants";
 import { StateBadge } from "./state-badge";
 
 interface MemoryDetailPanelProps {
@@ -50,10 +51,11 @@ export function MemoryDetailPanel({
 
   return (
     <>
-      {/* 遮罩层 - 顶部与 Header 底部边框线重合 */}
+      {/* 遮罩层 - 顶部与 Header 底部对齐 */}
       {open && (
         <div
-          className="fixed inset-0 top-[3.5rem] z-40 bg-black/50"
+          className="fixed left-0 right-0 bottom-0 z-40 bg-black/50"
+          style={{ top: "1rem" }}
           onClick={onClose}
         />
       )}
@@ -61,9 +63,10 @@ export function MemoryDetailPanel({
       {/* 侧边面板 */}
       <div
         className={cn(
-          "fixed right-0 top-[3.5rem] z-50 h-[calc(100%-3.5rem)] w-full sm:w-[480px] transform border-l bg-background shadow-xl transition-transform duration-300",
+          "fixed right-0 bottom-0 z-50 w-full sm:w-[480px] transform border-l bg-background shadow-xl transition-transform duration-300",
           open ? "translate-x-0" : "translate-x-full"
         )}
+        style={{ top: "1rem" }}
       >
         {/* 头部 */}
         <div className="flex items-center justify-between border-b p-4">
@@ -267,31 +270,96 @@ export function MemoryDetailPanel({
                         </span>
                       </div>
 
-                      {item.old_memory && (
-                        <div className="rounded bg-red-50 dark:bg-red-950/20 p-2">
-                          <p className="text-xs text-muted-foreground mb-1">
-                            旧内容：
-                          </p>
-                          <p className="text-sm line-through text-muted-foreground">
-                            {item.old_memory}
-                          </p>
+                      {item.old_memory ? (
+                        <div className="pt-1 space-y-1.5">
+                          <p className="text-xs text-muted-foreground mb-1">内容变更：</p>
+                          <div className="rounded bg-red-50 dark:bg-red-950/20 p-2">
+                            <p className="text-sm line-through text-muted-foreground">
+                              {item.old_memory}
+                            </p>
+                          </div>
+                          <div className="rounded bg-green-50 dark:bg-green-950/20 p-2">
+                            <p className="text-sm">{item.new_memory}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="pt-1 space-y-1.5">
+                          <p className="text-xs text-muted-foreground mb-1">{item.event === "ADD" ? "内容：" : "内容变更："}</p>
+                          <div className="rounded bg-green-50 dark:bg-green-950/20 p-2">
+                            <p className="text-sm">{item.new_memory}</p>
+                          </div>
                         </div>
                       )}
 
-                      <div className="rounded bg-green-50 dark:bg-green-950/20 p-2">
-                        <p className="text-xs text-muted-foreground mb-1">
-                          {item.old_memory ? "新内容：" : "内容："}
-                        </p>
-                        <p className="text-sm">{item.new_memory}</p>
-                      </div>
+                      {/* 标签信息 - 对比显示变更 */}
+                      {(() => {
+                        const oldCats = item.old_categories || [];
+                        const newCats = item.categories || [];
+                        const added = newCats.filter((c: string) => !oldCats.includes(c));
+                        const removed = oldCats.filter((c: string) => !newCats.includes(c));
+                        const unchanged = newCats.filter((c: string) => oldCats.includes(c));
+                        const hasChange = added.length > 0 || removed.length > 0;
 
-                      {/* 标签信息 */}
-                      {item.categories && item.categories.length > 0 && (
-                        <div className="pt-1">
-                          <p className="text-xs text-muted-foreground mb-1">标签：</p>
-                          <CategoryBadges categories={item.categories} />
-                        </div>
-                      )}
+                        if (item.event === "ADD") {
+                          // 新增事件直接显示标签
+                          return newCats.length > 0 ? (
+                            <div className="pt-1">
+                              <p className="text-xs text-muted-foreground mb-1">标签：</p>
+                              <CategoryBadges categories={newCats} />
+                            </div>
+                          ) : null;
+                        }
+
+                        if (!hasChange && newCats.length > 0) {
+                          // 标签无变化，正常显示
+                          return (
+                            <div className="pt-1">
+                              <p className="text-xs text-muted-foreground mb-1">标签：</p>
+                              <CategoryBadges categories={newCats} />
+                            </div>
+                          );
+                        }
+
+                        if (hasChange) {
+                          return (
+                            <div className="pt-1 space-y-1.5">
+                              <p className="text-xs text-muted-foreground mb-1">标签变更：</p>
+                              <div className="flex flex-wrap gap-1.5 items-center">
+                                {/* 删除的标签 - 红色删除线 */}
+                                {removed.map((cat: string) => {
+                                  const info = getCategoryInfo(cat as any);
+                                  return (
+                                    <span
+                                      key={`rm-${cat}`}
+                                      className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border bg-red-50 dark:bg-red-950/20 text-red-500 dark:text-red-400 border-red-200 dark:border-red-700/40 line-through"
+                                    >
+                                      {info?.label || cat}
+                                    </span>
+                                  );
+                                })}
+                                {/* 不变的标签 */}
+                                {unchanged.map((cat: string) => (
+                                  <CategoryBadge key={`keep-${cat}`} category={cat as any} />
+                                ))}
+                                {/* 新增的标签 - 绿色高亮 */}
+                                {added.map((cat: string) => {
+                                  const info = getCategoryInfo(cat as any);
+                                  return (
+                                    <span
+                                      key={`add-${cat}`}
+                                      className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border bg-green-50 dark:bg-green-950/20 text-green-600 dark:text-green-400 border-green-200 dark:border-green-700/40"
+                                    >
+                                      + {info?.label || cat}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return null;
+                      })()}
                     </div>
                   ))}
                 </div>
