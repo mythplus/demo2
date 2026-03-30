@@ -65,7 +65,7 @@ export default function MemoriesPage() {
   const [jumpPage, setJumpPage] = useState("");
 
   // 视图模式
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
 
   // IME 中文输入法组合状态
   const [isComposing, setIsComposing] = useState(false);

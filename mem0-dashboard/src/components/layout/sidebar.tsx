@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Activity,
+  Database,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -49,6 +50,11 @@ title: "仪表盘",
     title: "请求监控",
     href: "/requests",
     icon: Activity,
+  },
+  {
+    title: "记忆导出",
+    href: "/data-transfer",
+    icon: Database,
   },
 ];
 

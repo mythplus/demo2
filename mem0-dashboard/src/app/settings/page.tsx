@@ -6,13 +6,9 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
-  Download,
-  Upload,
   RotateCcw,
   Sun,
   Moon,
-  Database,
-  Palette,
   SlidersHorizontal,
 } from "lucide-react";
 import {
@@ -34,9 +30,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { mem0Api } from "@/lib/api";
-import type { Memory } from "@/lib/api";
-import { exportToJSON, exportToCSV } from "@/lib/data-transfer";
-import { ImportDialog } from "@/components/memories/import-dialog";
 import { usePreferences } from "@/hooks/use-preferences";
 
 export default function SettingsPage() {
@@ -48,13 +41,6 @@ export default function SettingsPage() {
     "idle" | "testing" | "success" | "error"
   >("idle");
   const [apiInfo, setApiInfo] = useState<string>("");
-
-  // 导出状态
-  const [exporting, setExporting] = useState(false);
-  const [exportCount, setExportCount] = useState<number | null>(null);
-
-  // 导入弹窗
-  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   useEffect(() => {
     setApiUrl(preferences.apiUrl);
@@ -73,7 +59,6 @@ export default function SettingsPage() {
           const memories = await mem0Api.getMemories();
           const count = Array.isArray(memories) ? memories.length : 0;
           setApiInfo(`当前共有 ${count} 条记忆数据`);
-          setExportCount(count);
         } catch {
           setApiInfo("连接成功，但无法获取记忆数据");
         }
@@ -82,34 +67,6 @@ export default function SettingsPage() {
       }
     } catch {
       setTestStatus("error");
-    }
-  };
-
-  // 导出 JSON
-  const handleExportJSON = async () => {
-    setExporting(true);
-    try {
-      const memories = await mem0Api.getMemories();
-      const data = Array.isArray(memories) ? memories : [];
-      exportToJSON(data as Memory[]);
-    } catch (err) {
-      console.error("导出失败:", err);
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  // 导出 CSV
-  const handleExportCSV = async () => {
-    setExporting(true);
-    try {
-      const memories = await mem0Api.getMemories();
-      const data = Array.isArray(memories) ? memories : [];
-      exportToCSV(data as Memory[]);
-    } catch (err) {
-      console.error("导出失败:", err);
-    } finally {
-      setExporting(false);
     }
   };
 
@@ -125,7 +82,7 @@ export default function SettingsPage() {
       <div>
         <h2 className="text-2xl font-bold tracking-tight">系统设置</h2>
         <p className="text-muted-foreground">
-          配置 API 连接、显示偏好、数据管理
+          配置 API 连接、显示偏好
         </p>
       </div>
 
@@ -317,84 +274,6 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* 数据管理 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5" />
-            数据管理
-          </CardTitle>
-          <CardDescription>
-            导入和导出记忆数据，方便备份和迁移
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* 导出 */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-sm font-medium">导出数据</p>
-                <p className="text-xs text-muted-foreground">
-                  将所有记忆数据导出为文件
-                  {exportCount !== null && (
-                    <span className="ml-1">
-                      （当前共 {exportCount} 条记忆）
-                    </span>
-                  )}
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={handleExportJSON}
-                disabled={exporting}
-              >
-                {exporting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Download className="mr-2 h-4 w-4" />
-                )}
-                导出 JSON
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleExportCSV}
-                disabled={exporting}
-              >
-                {exporting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Download className="mr-2 h-4 w-4" />
-                )}
-                导出 CSV
-              </Button>
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* 导入 */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-sm font-medium">导入数据</p>
-                <p className="text-xs text-muted-foreground">
-                  从 JSON 文件批量导入记忆数据
-                </p>
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              onClick={() => setImportDialogOpen(true)}
-            >
-              <Upload className="mr-2 h-4 w-4" />
-              导入 JSON
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* 关于信息 */}
       <Card>
         <CardHeader>
@@ -426,15 +305,6 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* 导入弹窗 */}
-      <ImportDialog
-        open={importDialogOpen}
-        onOpenChange={setImportDialogOpen}
-        onSuccess={() => {
-          // 刷新导出计数
-          handleTestConnection();
-        }}
-      />
     </div>
   );
 }

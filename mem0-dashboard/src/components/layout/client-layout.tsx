@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { Toaster } from "@/components/ui/toaster";
 import { usePreferences } from "@/hooks/use-preferences";
 
 /**
@@ -77,6 +78,9 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+
+      {/* 全局 Toast 通知 */}
+      <Toaster />
     </div>
   );
 }
