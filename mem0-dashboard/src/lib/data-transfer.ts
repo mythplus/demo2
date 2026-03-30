@@ -48,15 +48,14 @@ export function exportToCSV(memories: Memory[], filename?: string) {
   ];
 
   const rows = memories.map((m) => [
-    m.id,
-    // CSV 中双引号需要转义
-    `"${(m.memory || "").replace(/"/g, '""')}"`,
-    m.user_id || "",
-    m.agent_id || "",
-    (m.categories || []).join(";"),
-    m.state || "active",
-    m.created_at || "",
-    m.updated_at || "",
+    csvSafe(m.id),
+    csvSafe(m.memory || ""),
+    csvSafe(m.user_id || ""),
+    csvSafe(m.agent_id || ""),
+    csvSafe((m.categories || []).join(";")),
+    csvSafe(m.state || "active"),
+    csvSafe(m.created_at || ""),
+    csvSafe(m.updated_at || ""),
   ]);
 
   const csvContent = [
@@ -84,6 +83,8 @@ export interface ImportItem {
   content: string;
   user_id?: string;
   metadata?: Record<string, unknown>;
+  categories?: string[];
+  state?: string;
 }
 
 /**
@@ -101,6 +102,8 @@ export function parseImportJSON(text: string): ImportItem[] {
       content: (m.memory as string) || (m.content as string) || "",
       user_id: (m.user_id as string) || undefined,
       metadata: (m.metadata as Record<string, unknown>) || undefined,
+      categories: Array.isArray(m.categories) ? (m.categories as string[]) : undefined,
+      state: (m.state as string) || undefined,
     }));
   }
 
@@ -114,6 +117,8 @@ export function parseImportJSON(text: string): ImportItem[] {
         content: (item.memory as string) || (item.content as string) || (item.text as string) || "",
         user_id: (item.user_id as string) || undefined,
         metadata: (item.metadata as Record<string, unknown>) || undefined,
+        categories: Array.isArray(item.categories) ? (item.categories as string[]) : undefined,
+        state: (item.state as string) || undefined,
       };
     });
   }
@@ -143,6 +148,14 @@ export function validateImportItems(items: ImportItem[]): {
 }
 
 // ============ 工具函数 ============
+
+/** CSV 安全转义：包含逗号、双引号、换行的字段用双引号包裹 */
+function csvSafe(value: string): string {
+  if (/[",\n\r]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);

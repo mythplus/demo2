@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,7 @@ import {
   type ImportResult,
 } from "@/lib/data-transfer";
 import { mem0Api } from "@/lib/api";
+import type { Category, MemoryState } from "@/lib/api/types";
 
 interface ImportDialogProps {
   open: boolean;
@@ -46,23 +47,10 @@ export function ImportDialog({
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
 
-  // 重置状态
-  const reset = () => {
-    setStep("upload");
-    setItems([]);
-    setParseErrors([]);
-    setImportResult(null);
-    setError("");
-    setProgress(0);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  // 处理文件选择
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  /** 解析文件内容 */
+  const processFile = useCallback(async (file: File) => {
     setError("");
 
     if (!file.name.endsWith(".json")) {
@@ -83,30 +71,79 @@ export function ImportDialog({
         err instanceof Error ? err.message : "文件解析失败，请检查格式"
       );
     }
+  }, []);
+
+  // 重置状态
+  const reset = () => {
+    setStep("upload");
+    setItems([]);
+    setParseErrors([]);
+    setImportResult(null);
+    setError("");
+    setProgress(0);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // 执行导入
+  // 处理文件选择
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processFile(file);
+  };
+
+  // 拖拽上传处理
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processFile(file);
+  }, [processFile]);
+
+  // 执行导入（并发批量，每批 5 条）
   const handleImport = async () => {
     setStep("importing");
     const result: ImportResult = { success: 0, failed: 0, errors: [] };
+    const BATCH_SIZE = 5;
+    let completed = 0;
 
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      setProgress(Math.round(((i + 1) / items.length) * 100));
+    for (let i = 0; i < items.length; i += BATCH_SIZE) {
+      const batch = items.slice(i, i + BATCH_SIZE);
 
-      try {
-        await mem0Api.addMemory({
-          messages: [{ role: "user", content: item.content }],
-          user_id: item.user_id,
-          metadata: item.metadata,
-        });
-        result.success++;
-      } catch (err) {
-        result.failed++;
-        result.errors.push(
-          `第 ${i + 1} 条: ${err instanceof Error ? err.message : "导入失败"}`
-        );
-      }
+      const promises = batch.map(async (item, batchIdx) => {
+        const globalIdx = i + batchIdx;
+        try {
+          await mem0Api.addMemory({
+            messages: [{ role: "user", content: item.content }],
+            user_id: item.user_id,
+            metadata: item.metadata,
+            categories: item.categories as Category[] | undefined,
+            state: item.state as MemoryState | undefined,
+          });
+          result.success++;
+        } catch (err) {
+          result.failed++;
+          result.errors.push(
+            `第 ${globalIdx + 1} 条: ${err instanceof Error ? err.message : "导入失败"}`
+          );
+        }
+      });
+
+      await Promise.all(promises);
+      completed += batch.length;
+      setProgress(Math.round((completed / items.length) * 100));
     }
 
     setImportResult(result);
@@ -136,13 +173,18 @@ export function ImportDialog({
         {step === "upload" && (
           <div className="space-y-4">
             <div
-              className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 cursor-pointer transition-colors hover:border-primary hover:bg-accent/30"
+              className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 cursor-pointer transition-colors hover:border-primary hover:bg-accent/30 ${
+                isDragging ? "border-primary bg-accent/30" : ""
+              }`}
               onClick={() => fileInputRef.current?.click()}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
             >
               <Upload className="mb-3 h-10 w-10 text-muted-foreground" />
               <p className="text-sm font-medium">点击选择 JSON 文件</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                支持标准导出格式或简单数组格式
+                点击选择或拖拽 JSON 文件到此处
               </p>
             </div>
 

@@ -48,8 +48,11 @@ function StatsCard({
         <Icon className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        {trend && <p className="text-xs text-green-600 font-medium">{trend}</p>}
+        {trend ? (
+          <div className="text-2xl font-bold text-green-600">{trend}</div>
+        ) : (
+          <div className="text-2xl font-bold">{value}</div>
+        )}
         <p className="text-xs text-muted-foreground">
           {description}
         </p>
@@ -287,7 +290,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* 用户排行 - 占 1 列 */}
-        <Card>
+        <Card className="flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle>活跃用户</CardTitle>
@@ -300,7 +303,7 @@ export default function DashboardPage() {
               </Button>
             </Link>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1 overflow-y-auto" style={{ maxHeight: "480px" }}>
             {loading ? (
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => (
@@ -311,7 +314,7 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : topUsers.length > 0 ? (
-              <div className="space-y-1 overflow-y-auto" style={{ maxHeight: "calc(100vh - 300px)" }}>
+              <div className="space-y-1">
                 {topUsers.map(([uid, count], index) => (
                   <Link
                     key={uid}

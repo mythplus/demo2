@@ -19,6 +19,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -116,6 +117,7 @@ export default function RequestsPage() {
   const [filterType, setFilterType] = useState<string>("all");
   const [timeRange, setTimeRange] = useState<string>("all");
   const [page, setPage] = useState(0);
+  const [jumpPage, setJumpPage] = useState("");
   const pageSize = 20;
 
   const fetchLogs = useCallback(async () => {
@@ -410,27 +412,102 @@ export default function RequestsPage() {
 
                 {/* 分页 */}
                 {totalPages > 1 && (
-                  <div className="flex items-center justify-between border-t px-4 py-3">
+                  <div className="flex items-center justify-between border-t px-4 py-3 flex-wrap gap-3">
                     <p className="text-sm text-muted-foreground">
-                      第 {page + 1} / {totalPages} 页
+                      第 {page + 1} / {totalPages} 页，共 {total} 条
                     </p>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <Button
                         variant="outline"
                         size="sm"
                         disabled={page <= 0}
                         onClick={() => setPage((p) => p - 1)}
                       >
-                        <ChevronLeft className="h-4 w-4" />
+                        <ChevronLeft className="h-4 w-4 mr-1" />
+                        上一页
                       </Button>
+
+                      {/* 智能页码显示 */}
+                      {(() => {
+                        const pages: (number | string)[] = [];
+                        const current = page + 1; // 显示用的页码从1开始
+                        if (totalPages <= 7) {
+                          for (let i = 1; i <= totalPages; i++) pages.push(i);
+                        } else {
+                          pages.push(1);
+                          if (current > 3) pages.push("...");
+                          const start = Math.max(2, current - 1);
+                          const end = Math.min(totalPages - 1, current + 1);
+                          for (let i = start; i <= end; i++) pages.push(i);
+                          if (current < totalPages - 2) pages.push("...");
+                          pages.push(totalPages);
+                        }
+                        return pages.map((p, idx) =>
+                          typeof p === "string" ? (
+                            <span key={`ellipsis-${idx}`} className="px-1 text-muted-foreground text-sm">
+                              ···
+                            </span>
+                          ) : (
+                            <Button
+                              key={p}
+                              variant={p === page + 1 ? "default" : "outline"}
+                              size="sm"
+                              className="w-8 h-8 p-0"
+                              onClick={() => setPage(p - 1)}
+                            >
+                              {p}
+                            </Button>
+                          )
+                        );
+                      })()}
+
                       <Button
                         variant="outline"
                         size="sm"
                         disabled={page >= totalPages - 1}
                         onClick={() => setPage((p) => p + 1)}
                       >
-                        <ChevronRight className="h-4 w-4" />
+                        下一页
+                        <ChevronRight className="h-4 w-4 ml-1" />
                       </Button>
+
+                      {/* 跳转到指定页 */}
+                      <div className="flex items-center gap-1.5 ml-3">
+                        <span className="text-sm text-muted-foreground whitespace-nowrap">跳转到</span>
+                        <Input
+                          className="w-16 h-8 text-center text-sm"
+                          value={jumpPage}
+                          placeholder="页码"
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === "" || /^\d+$/.test(val)) {
+                              setJumpPage(val);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && jumpPage) {
+                              const target = Math.max(1, Math.min(totalPages, parseInt(jumpPage)));
+                              setPage(target - 1);
+                              setJumpPage("");
+                            }
+                          }}
+                        />
+                        <span className="text-sm text-muted-foreground">页</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8"
+                          onClick={() => {
+                            if (jumpPage) {
+                              const target = Math.max(1, Math.min(totalPages, parseInt(jumpPage)));
+                              setPage(target - 1);
+                              setJumpPage("");
+                            }
+                          }}
+                        >
+                          确定
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )}
