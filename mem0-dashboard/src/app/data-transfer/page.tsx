@@ -321,7 +321,7 @@ export default function DataTransferPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 页面头部 */}
       <div>
         <h2 className="text-2xl font-bold tracking-tight">记忆导出</h2>
@@ -332,7 +332,7 @@ export default function DataTransferPage() {
 
       {/* 导出数据 */}
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2">
             <Upload className="h-5 w-5" />
             导出数据
@@ -341,9 +341,9 @@ export default function DataTransferPage() {
             筛选并导出记忆数据为文件，支持 JSON 和 CSV 格式
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-5">
+        <CardContent className="space-y-3 pt-0">
           {/* 筛选区域 */}
-          <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
+          <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Filter className="h-4 w-4" />
@@ -537,13 +537,12 @@ export default function DataTransferPage() {
           </div>
 
           {/* 导出按钮 */}
-          <div className="flex gap-3">
+          <div className="flex gap-2">
             <Button
               variant="outline"
               onClick={handleExportJSON}
               disabled={exporting}
-            >
-              {exporting ? (
+            >              {exporting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <Upload className="mr-2 h-4 w-4" />
@@ -560,10 +559,10 @@ export default function DataTransferPage() {
               ) : (
                 <Upload className="mr-2 h-4 w-4" />
               )}
-              导出 CSV
+            导出 CSV
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground -mt-1">
             💡 {hasFilter ? "将按筛选条件导出匹配的记忆数据。" : "未设置筛选条件，将导出全部记忆数据。"}JSON 格式包含完整的记忆数据（含分类、状态等），适合备份和迁移；CSV 格式适合在 Excel 中查看和分析。
           </p>
         </CardContent>
@@ -573,7 +572,7 @@ export default function DataTransferPage() {
 
       {/* 导入数据 */}
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2">
             <Download className="h-5 w-5" />
             导入数据
@@ -582,7 +581,7 @@ export default function DataTransferPage() {
             从 JSON 文件批量导入记忆数据到系统中
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3 pt-0">
           <Button
             variant="outline"
             onClick={() => setImportDialogOpen(true)}
@@ -590,7 +589,7 @@ export default function DataTransferPage() {
             <Download className="mr-2 h-4 w-4" />
             导入 JSON
           </Button>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground -mt-1">
             💡 支持导入之前导出的 JSON 文件，会保留分类和状态信息。支持拖拽上传。
           </p>
         </CardContent>
