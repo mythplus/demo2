@@ -39,7 +39,7 @@ interface OperationRecord {
   id: string;
   type: "导入" | "导出";
   time: string;
-  status: "成功" | "失败";
+  status: "成功" | "失败" | "导入中" | "已取消";
   filename: string;
   blob: Blob | null;
   detail?: string;
@@ -147,19 +147,35 @@ export default function DataTransferPage() {
     }
   };
 
+  // 生成时间字符串
+  const getTimeStr = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+  };
+
   // 添加操作记录
   const addRecord = useCallback(
     (record: Omit<OperationRecord, "id" | "time">) => {
-      const now = new Date();
-      const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       setOperationRecords((prev) => [
         {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          time: timeStr,
+          id,
+          time: getTimeStr(),
           ...record,
         },
         ...prev,
       ]);
+      return id;
+    },
+    []
+  );
+
+  // 更新操作记录
+  const updateRecord = useCallback(
+    (id: string, updates: Partial<Omit<OperationRecord, "id">>) => {
+      setOperationRecords((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, ...updates } : r))
+      );
     },
     []
   );
@@ -437,59 +453,63 @@ export default function DataTransferPage() {
                 <Calendar className="h-3.5 w-3.5" />
                 按时间范围
               </label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="date"
-                  value={filterDateFrom}
-                  onChange={(e) => setFilterDateFrom(e.target.value)}
-                  placeholder="开始日期"
-                  className="flex-1"
-                />
-                <span className="text-sm text-muted-foreground shrink-0">至</span>
-                <Input
-                  type="date"
-                  value={filterDateTo}
-                  onChange={(e) => setFilterDateTo(e.target.value)}
-                  placeholder="结束日期"
-                  className="flex-1"
-                />
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2 flex-1 min-w-[280px]">
+                  <Input
+                    type="date"
+                    value={filterDateFrom}
+                    onChange={(e) => setFilterDateFrom(e.target.value)}
+                    placeholder="开始日期"
+                    className="flex-1"
+                  />
+                  <span className="text-sm text-muted-foreground shrink-0">至</span>
+                  <Input
+                    type="date"
+                    value={filterDateTo}
+                    onChange={(e) => setFilterDateTo(e.target.value)}
+                    placeholder="结束日期"
+                    className="flex-1"
+                  />
+                </div>
 
                 {/* 快捷日期范围按钮 */}
-                {[
-                  { label: "今天", days: 0 },
-                  { label: "近7天", days: 7 },
-                  { label: "近30天", days: 30 },
-                ].map(({ label, days }) => {
-                  const today = new Date();
-                  const todayStr = today.toISOString().split("T")[0];
-                  const fromDate = new Date(today);
-                  fromDate.setDate(today.getDate() - days);
-                  const fromStr = fromDate.toISOString().split("T")[0];
-                  const isActive = filterDateFrom === fromStr && filterDateTo === todayStr;
-                  return (
-                    <button
-                      key={label}
-                      onClick={() => {
-                        if (isActive) {
-                          // 再次点击取消选择
-                          setFilterDateFrom("");
-                          setFilterDateTo("");
-                        } else {
-                          setFilterDateFrom(fromStr);
-                          setFilterDateTo(todayStr);
-                        }
-                      }}
-                      className={cn(
-                        "inline-flex items-center justify-center rounded-md h-9 px-4 text-sm font-medium transition-all cursor-pointer border whitespace-nowrap",
-                        isActive
-                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                          : "bg-background text-foreground border-input hover:bg-accent hover:text-accent-foreground"
-                      )}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
+                <div className="flex items-center gap-2">
+                  {[
+                    { label: "今天", days: 0 },
+                    { label: "近7天", days: 7 },
+                    { label: "近30天", days: 30 },
+                  ].map(({ label, days }) => {
+                    const today = new Date();
+                    const todayStr = today.toISOString().split("T")[0];
+                    const fromDate = new Date(today);
+                    fromDate.setDate(today.getDate() - days);
+                    const fromStr = fromDate.toISOString().split("T")[0];
+                    const isActive = filterDateFrom === fromStr && filterDateTo === todayStr;
+                    return (
+                      <button
+                        key={label}
+                        onClick={() => {
+                          if (isActive) {
+                            // 再次点击取消选择
+                            setFilterDateFrom("");
+                            setFilterDateTo("");
+                          } else {
+                            setFilterDateFrom(fromStr);
+                            setFilterDateTo(todayStr);
+                          }
+                        }}
+                        className={cn(
+                          "inline-flex items-center justify-center rounded-md h-9 px-4 text-sm font-medium transition-all cursor-pointer border whitespace-nowrap",
+                          isActive
+                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                            : "bg-background text-foreground border-input hover:bg-accent hover:text-accent-foreground"
+                        )}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
@@ -589,6 +609,48 @@ export default function DataTransferPage() {
             blob: info.blob,
             detail: `成功 ${info.successCount} 条${info.failedCount > 0 ? `，失败 ${info.failedCount} 条` : ""}`,
           });
+          toast({
+            title: "导入成功",
+            description: `成功导入 ${info.successCount} 条记忆${info.failedCount > 0 ? `，${info.failedCount} 条失败` : ""}`,
+            variant: "success",
+          });
+        }}
+        onBackgroundImport={(info) => {
+          // 后台进行：先添加一条"导入中"记录
+          const recordId = addRecord({
+            type: "导入",
+            status: "导入中",
+            filename: info.filename,
+            blob: info.blob,
+            detail: `正在后台导入 ${info.totalCount} 条记忆...`,
+          });
+          // 返回 recordId 供后续更新
+          return recordId;
+        }}
+        onBackgroundComplete={(recordId, info) => {
+          // 后台导入完成：更新记录状态
+          refreshCount();
+          updateRecord(recordId, {
+            status: info.failedCount === 0 ? "成功" : "失败",
+            detail: `成功 ${info.successCount} 条${info.failedCount > 0 ? `，失败 ${info.failedCount} 条` : ""}`,
+          });
+          toast({
+            title: "导入成功",
+            description: `后台导入完成：成功 ${info.successCount} 条${info.failedCount > 0 ? `，失败 ${info.failedCount} 条` : ""}`,
+            variant: "success",
+          });
+        }}
+        onImportCancelled={(recordId) => {
+          if (recordId) {
+            updateRecord(recordId, {
+              status: "已取消",
+              detail: "用户取消了导入",
+            });
+          }
+          toast({
+            title: "导入已取消",
+            description: "已中止导入操作",
+          });
         }}
       />
 
@@ -627,8 +689,8 @@ export default function DataTransferPage() {
               <p className="text-xs mt-1">执行导入或导出操作后，记录将显示在此处</p>
             </div>
           ) : (
-            <div className="rounded-md border overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="rounded-md border overflow-auto max-h-[400px]">
+              <table className="w-full text-sm min-w-[600px]">
                 <thead>
                   <tr className="border-b bg-muted/50">
                     <th className="px-4 py-2.5 text-left font-medium text-muted-foreground w-[80px]">类型</th>
@@ -645,7 +707,7 @@ export default function DataTransferPage() {
                         <Badge
                           variant="outline"
                           className={cn(
-                            "font-normal",
+                            "font-normal whitespace-nowrap",
                             record.type === "导出"
                               ? "bg-blue-50 text-blue-600 border-blue-200"
                               : "bg-red-50 text-red-600 border-red-200"
@@ -679,14 +741,24 @@ export default function DataTransferPage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-2.5 text-muted-foreground">
+                      <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">
                         {record.detail || "-"}
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-4 py-2.5 whitespace-nowrap">
                         {record.status === "成功" ? (
                           <span className="inline-flex items-center gap-1 text-green-600">
                             <CheckCircle2 className="h-3.5 w-3.5" />
                             成功
+                          </span>
+                        ) : record.status === "导入中" ? (
+                          <span className="inline-flex items-center gap-1 text-blue-600">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            导入中
+                          </span>
+                        ) : record.status === "已取消" ? (
+                          <span className="inline-flex items-center gap-1 text-yellow-600">
+                            <XCircle className="h-3.5 w-3.5" />
+                            已取消
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-red-600">
