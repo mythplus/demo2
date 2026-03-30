@@ -41,7 +41,6 @@ const CATEGORY_COLORS: Record<string, string> = {
 const STATE_COLORS: Record<string, string> = {
   active: "#22c55e",
   paused: "#eab308",
-  archived: "#9ca3af",
   deleted: "#ef4444",
 };
 

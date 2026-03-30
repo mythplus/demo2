@@ -12,7 +12,7 @@ export type Category =
   | "customer_support" | "product_feedback" | "news" | "organization" | "goals";
 
 /** 记忆状态 */
-export type MemoryState = "active" | "paused" | "archived" | "deleted";
+export type MemoryState = "active" | "paused" | "deleted";
 
 // ============ 记忆相关类型 ============
 

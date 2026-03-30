@@ -50,10 +50,10 @@ export function MemoryDetailPanel({
 
   return (
     <>
-      {/* 遮罩层 */}
+      {/* 遮罩层 - 顶部与 Header 底部边框线重合 */}
       {open && (
         <div
-          className="fixed inset-0 z-40 bg-black/50"
+          className="fixed inset-0 top-[3.5rem] z-40 bg-black/50"
           onClick={onClose}
         />
       )}
@@ -61,7 +61,7 @@ export function MemoryDetailPanel({
       {/* 侧边面板 */}
       <div
         className={cn(
-          "fixed right-0 top-0 z-50 h-full w-full sm:w-[480px] transform border-l bg-background shadow-xl transition-transform duration-300",
+          "fixed right-0 top-[3.5rem] z-50 h-[calc(100%-3.5rem)] w-full sm:w-[480px] transform border-l bg-background shadow-xl transition-transform duration-300",
           open ? "translate-x-0" : "translate-x-full"
         )}
       >

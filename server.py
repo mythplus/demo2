@@ -63,7 +63,7 @@ VALID_CATEGORIES = {
     "finance", "shopping", "legal", "entertainment", "messages",
     "customer_support", "product_feedback", "news", "organization", "goals",
 }
-VALID_STATES = {"active", "paused", "archived", "deleted"}
+VALID_STATES = {"active", "paused", "deleted"}
 
 # ============ AI 自动分类 Prompt ============
 CATEGORY_DESCRIPTIONS = {
@@ -183,7 +183,21 @@ def _init_access_log_db():
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_timestamp ON request_logs(timestamp)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_type ON request_logs(request_type)")
-    # 标签快照表（记录每次标签变更，用于修改历史展示）
+    # 自建修改历史表（Mem0 原生 history 时间不准，自己记录完整操作历史）
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS memory_change_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            memory_id TEXT NOT NULL,
+            event TEXT NOT NULL,
+            old_memory TEXT,
+            new_memory TEXT,
+            categories TEXT NOT NULL DEFAULT '[]',
+            timestamp TEXT NOT NULL
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_mcl_memory_id ON memory_change_logs(memory_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_mcl_timestamp ON memory_change_logs(timestamp)")
+    # 保留旧表兼容（不删除）
     conn.execute("""
         CREATE TABLE IF NOT EXISTS category_snapshots (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -214,13 +228,33 @@ def _save_category_snapshot(memory_id: str, categories: list, timestamp: str = "
         logger.warning(f"记录标签快照失败: {e}")
 
 
-def _get_category_snapshots(memory_id: str) -> list:
-    """获取某条记忆的所有标签快照，按时间正序"""
+def _save_change_log(memory_id: str, event: str, new_memory: str,
+                     categories: list, old_memory: str = None):
+    """记录一条修改历史（自建，带真实时间和标签快照）"""
+    try:
+        ts = datetime.now().isoformat()
+        cats_json = json.dumps(categories, ensure_ascii=False)
+        conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
+        conn.execute(
+            """INSERT INTO memory_change_logs
+               (memory_id, event, old_memory, new_memory, categories, timestamp)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (memory_id, event, old_memory or "", new_memory, cats_json, ts),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning(f"记录修改历史失败: {e}")
+
+
+def _get_change_logs(memory_id: str) -> list:
+    """获取某条记忆的自建修改历史（时间正序）"""
     try:
         conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
-            "SELECT categories, timestamp FROM category_snapshots WHERE memory_id = ? ORDER BY timestamp ASC",
+            """SELECT event, old_memory, new_memory, categories, timestamp
+               FROM memory_change_logs WHERE memory_id = ? ORDER BY timestamp ASC""",
             (memory_id,),
         ).fetchall()
         conn.close()
@@ -230,10 +264,18 @@ def _get_category_snapshots(memory_id: str) -> list:
                 cats = json.loads(row["categories"])
             except (json.JSONDecodeError, TypeError):
                 cats = []
-            result.append({"categories": cats, "timestamp": row["timestamp"]})
+            result.append({
+                "id": f"cl-{memory_id[:8]}-{len(result)}",
+                "memory_id": memory_id,
+                "event": row["event"],
+                "old_memory": row["old_memory"] or None,
+                "new_memory": row["new_memory"],
+                "categories": cats,
+                "created_at": row["timestamp"],
+            })
         return result
     except Exception as e:
-        logger.warning(f"查询标签快照失败: {e}")
+        logger.warning(f"查询修改历史失败: {e}")
         return []
 
 
@@ -766,6 +808,9 @@ async def add_memory(request: AddMemoryRequest):
                             init_cats = current_meta.get("categories", [])
                             if init_cats:
                                 _save_category_snapshot(mid, init_cats)
+                            # 记录 ADD 事件到自建历史
+                            memory_text = item.get("memory", "") if isinstance(item, dict) else ""
+                            _save_change_log(mid, "ADD", memory_text, init_cats)
                     except Exception:
                         pass
         except Exception as e2:
@@ -781,7 +826,7 @@ async def add_memory(request: AddMemoryRequest):
 async def get_memories(
     user_id: Optional[str] = Query(None),
     categories: Optional[str] = Query(None, description="逗号分隔的分类列表"),
-    state: Optional[str] = Query(None, description="记忆状态: active/paused/archived/deleted"),
+    state: Optional[str] = Query(None, description="记忆状态: active/paused/deleted"),
     date_from: Optional[str] = Query(None, description="起始日期 ISO 格式"),
     date_to: Optional[str] = Query(None, description="截止日期 ISO 格式"),
     search: Optional[str] = Query(None, description="文本搜索关键词"),
@@ -855,6 +900,25 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
     """更新记忆（支持 text、metadata、categories、state 更新）"""
     try:
         m = get_memory()
+        collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+        qdrant_client = m.vector_store.client
+
+        # 先读取旧数据（更新前快照）
+        old_memory_text = ""
+        old_categories: list = []
+        try:
+            old_points = qdrant_client.retrieve(
+                collection_name=collection_name,
+                ids=[memory_id],
+                with_payload=True,
+            )
+            if old_points:
+                old_payload = old_points[0].payload or {}
+                old_memory_text = old_payload.get("data", old_payload.get("memory", ""))
+                old_meta = old_payload.get("metadata", {}) or {}
+                old_categories = old_meta.get("categories", [])
+        except Exception:
+            pass
 
         # 第一步：如果有文本更新，先通过 Mem0 SDK 更新（这会重写 Qdrant payload）
         if request.text:
@@ -863,19 +927,15 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
             result = {"message": "metadata updated"}
 
         # 第二步：在文本更新完成后，再读取最新 payload 并修改 metadata
-        # 这样可以确保不会被 m.update() 覆盖
         need_metadata_update = (
             request.categories is not None
             or request.state is not None
             or request.metadata is not None
             or request.auto_categorize
         )
+        new_cats = old_categories  # 默认不变
         if need_metadata_update:
             try:
-                collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
-                qdrant_client = m.vector_store.client
-
-                # 读取 m.update() 之后的最新 payload
                 points = qdrant_client.retrieve(
                     collection_name=collection_name,
                     ids=[memory_id],
@@ -887,7 +947,6 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
 
                     # AI 自动重新分类
                     if request.auto_categorize:
-                        # 获取当前记忆文本（可能是更新后的新文本）
                         memory_text = request.text or current_payload.get("data", "")
                         if memory_text:
                             ai_categories = _auto_categorize_memory(memory_text)
@@ -909,18 +968,21 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
                             if k not in ("categories", "state"):
                                 current_metadata[k] = v
 
-                    # 写回 Qdrant - 只更新 metadata 字段
+                    # 写回 Qdrant
                     qdrant_client.set_payload(
                         collection_name=collection_name,
                         payload={"metadata": current_metadata},
                         points=[memory_id],
                     )
-                    # 标签有变更时记录快照
                     new_cats = current_metadata.get("categories", [])
                     _save_category_snapshot(memory_id, new_cats)
                     logger.info(f"已更新记忆 {memory_id} 的 metadata: state={current_metadata.get('state')}, categories={new_cats}")
             except Exception as meta_err:
                 logger.warning(f"更新 metadata 失败: {meta_err}")
+
+        # 记录 UPDATE 事件到自建历史（真实时间 + 旧/新内容 + 当前标签）
+        new_memory_text = request.text or old_memory_text
+        _save_change_log(memory_id, "UPDATE", new_memory_text, new_cats, old_memory_text)
 
         return result
     except Exception as e:
@@ -1020,16 +1082,19 @@ async def search_memories(request: SearchMemoryRequest):
 
 @app.get("/v1/memories/history/{memory_id}/")
 async def get_memory_history(memory_id: str):
-    """获取记忆的修改历史（附加对应时间点的 categories 快照）"""
+    """获取记忆的修改历史（优先使用自建历史，带真实操作时间和标签快照）"""
     try:
+        # 优先查自建历史
+        change_logs = _get_change_logs(memory_id)
+        if change_logs:
+            return change_logs
+
+        # 没有自建记录时，回退到 Mem0 原生 history（兼容旧数据）
         m = get_memory()
         result = m.history(memory_id=memory_id)
         history_list = result if isinstance(result, list) else []
 
-        # 获取该记忆的所有标签快照（按时间正序）
-        snapshots = _get_category_snapshots(memory_id)
-
-        # 获取当前记忆的 categories 作为兜底
+        # 获取当前 categories 作为兜底
         current_categories: list = []
         try:
             collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
@@ -1045,30 +1110,8 @@ async def get_memory_history(memory_id: str):
         except Exception:
             pass
 
-        # 为每条历史记录匹配对应时间点的标签快照
         for item in history_list:
-            if not isinstance(item, dict):
-                continue
-            item_time = item.get("created_at", "")
-            if snapshots:
-                # 找到 <= item_time 的最新快照
-                matched_cats = None
-                for snap in snapshots:
-                    if snap["timestamp"] <= item_time:
-                        matched_cats = snap["categories"]
-                    else:
-                        break
-                # 如果没有匹配到（历史早于所有快照），用第一个快照或当前值
-                if matched_cats is not None:
-                    item["categories"] = matched_cats
-                else:
-                    # ADD 事件且有快照，用第一个快照（就是初始标签）
-                    if item.get("event") == "ADD" and snapshots:
-                        item["categories"] = snapshots[0]["categories"]
-                    else:
-                        item["categories"] = current_categories
-            else:
-                # 没有快照记录，兜底用当前标签
+            if isinstance(item, dict):
                 item["categories"] = current_categories
 
         return history_list

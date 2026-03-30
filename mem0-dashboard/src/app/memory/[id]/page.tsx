@@ -468,16 +468,6 @@ export default function MemoryDetailPage() {
                   暂停
                 </Button>
               )}
-              {memory.state !== "archived" && memory.state !== "deleted" && (
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  onClick={() => handleStateChange("archived")}
-                >
-                  <Archive className="mr-2 h-4 w-4" />
-                  归档
-                </Button>
-              )}
 
               <Separator />
 
