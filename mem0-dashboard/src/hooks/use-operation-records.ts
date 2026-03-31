@@ -23,6 +23,9 @@ export function useOperationRecords() {
   const [records, setRecords] = useState<OperationRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // 动态计算：当前 records 中是否存在"导入中"状态的记录
+  const hasImportingRecord = records.some((r) => r.status === "导入中");
+
   // 用 ref 追踪是否已初始化，避免重复加载
   const initializedRef = useRef(false);
 
@@ -126,6 +129,8 @@ export function useOperationRecords() {
     records,
     /** 是否正在从 IndexedDB 加载 */
     loading,
+    /** 是否存在"导入中"状态的记录（动态计算） */
+    hasImportingRecord,
     /** 添加记录，返回 id */
     addRecord,
     /** 更新记录 */

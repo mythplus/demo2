@@ -14,6 +14,7 @@ import {
   XCircle,
   ClipboardList,
   Trash2,
+  Eye,
 } from "lucide-react";
 import {
   Card,
@@ -34,6 +35,7 @@ import { exportToJSON, exportToCSV, type ExportOutput } from "@/lib/data-transfe
 import { ImportDialog, type ImportSuccessInfo } from "@/components/memories/import-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useOperationRecords, type OperationRecord } from "@/hooks/use-operation-records";
+import { hasRunningImportTask } from "@/lib/import-task-registry";
 
 export default function DataTransferPage() {
   const { toast } = useToast();
@@ -58,6 +60,12 @@ export default function DataTransferPage() {
   // 导入弹窗
   const [importDialogOpen, setImportDialogOpen] = useState(false);
 
+  // 是否正在导入中（用于控制按钮状态）
+  const [isImporting, setIsImporting] = useState(false);
+
+  // 是否有待查看的导入结果
+  const [hasImportResult, setHasImportResult] = useState(false);
+
   // 操作记录（IndexedDB 持久化）
   const {
     records: operationRecords,
@@ -66,7 +74,24 @@ export default function DataTransferPage() {
     updateRecord,
     clearRecords: handleClearRecords,
     downloadRecord: handleDownloadRecord,
+    hasImportingRecord,
   } = useOperationRecords();
+
+  // 页面加载时，如果 IndexedDB 中有"导入中"记录，恢复 isImporting 状态
+  // 注意：仅在当前没有真正在进行的导入时才恢复
+  useEffect(() => {
+    if (hasImportingRecord && !isImporting) {
+      setIsImporting(true);
+    }
+  }, [hasImportingRecord, isImporting]);
+
+  // 判断是否为真正的中断（IndexedDB 有"导入中"记录，但 JS 运行时中没有对应任务）
+  // SPA 路由切换：hasRunningImportTask() = true，说明导入仍在后台执行
+  // 页面刷新：hasRunningImportTask() = false，说明导入真的中断了
+  const isReallyInterrupted = hasImportingRecord && !hasRunningImportTask();
+
+  // 判断是否有后台导入正在执行（SPA 切换页面后仍在后台运行）
+  const isBackgroundRunning = hasImportingRecord && hasRunningImportTask();
 
   // 用户搜索
   const [userSearchQuery, setUserSearchQuery] = useState("");
@@ -297,7 +322,7 @@ export default function DataTransferPage() {
                 <Filter className="h-4 w-4" />
                 导出筛选
                 {hasFilter && (
-                  <Badge variant="secondary" className="ml-1 bg-green-100 text-green-700 border-green-200">
+                  <Badge variant="secondary" className="ml-1 bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">
                     已启用
                   </Badge>
                 )}
@@ -530,13 +555,36 @@ export default function DataTransferPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 pt-0">
-          <Button
-            variant="outline"
-            onClick={() => setImportDialogOpen(true)}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            导入 JSON
-          </Button>
+          <div className="flex gap-2 items-center">
+            <Button
+              variant="outline"
+              onClick={() => setImportDialogOpen(true)}
+              disabled={isImporting}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              导入 JSON
+            </Button>
+            {isImporting && (
+              <Button
+                variant="outline"
+                onClick={() => setImportDialogOpen(true)}
+                className="border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/30"
+              >
+                <Eye className="mr-2 h-4 w-4" />
+                查看导入进度
+              </Button>
+            )}
+            {!isImporting && hasImportResult && (
+              <Button
+                variant="outline"
+                onClick={() => setImportDialogOpen(true)}
+                className="border-green-200 text-green-600 hover:bg-green-50 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-900/30"
+              >
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                查看导入结果
+              </Button>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground -mt-1">
             💡 支持导入之前导出的 JSON 文件，会保留分类和状态信息。支持拖拽上传。
           </p>
@@ -547,6 +595,22 @@ export default function DataTransferPage() {
       <ImportDialog
         open={importDialogOpen}
         onOpenChange={setImportDialogOpen}
+        onImportingChange={setIsImporting}
+        onPendingResultChange={setHasImportResult}
+        isRecovered={isReallyInterrupted}
+        isBackgroundRunning={isBackgroundRunning}
+        onRecoveredConfirm={() => {
+          // 用户确认中断后：将 IndexedDB 中"导入中"的记录标记为"失败"
+          operationRecords
+            .filter((r) => r.status === "导入中")
+            .forEach((r) => {
+              updateRecord(r.id, {
+                status: "失败",
+                detail: `${r.detail?.replace("正在后台导入", "导入中断：") || "导入中断"}（页面刷新导致导入中断）`,
+              });
+            });
+          setIsImporting(false);
+        }}
         onSuccess={(info: ImportSuccessInfo) => {
           refreshCount();
           addRecord({
@@ -554,7 +618,7 @@ export default function DataTransferPage() {
             status: info.failedCount === 0 ? "成功" : "失败",
             filename: info.filename,
             blob: info.blob,
-            detail: `成功 ${info.successCount} 条${info.failedCount > 0 ? `，失败 ${info.failedCount} 条` : ""}`,
+            detail: `导入 ${info.successCount} 条记忆${info.failedCount > 0 ? `，失败 ${info.failedCount} 条` : ""}`,
           });
           toast({
             title: "导入成功",
@@ -579,11 +643,11 @@ export default function DataTransferPage() {
           refreshCount();
           updateRecord(recordId, {
             status: info.failedCount === 0 ? "成功" : "失败",
-            detail: `成功 ${info.successCount} 条${info.failedCount > 0 ? `，失败 ${info.failedCount} 条` : ""}`,
+            detail: `导入 ${info.successCount} 条记忆${info.failedCount > 0 ? `，失败 ${info.failedCount} 条` : ""}`,
           });
           toast({
             title: "导入成功",
-            description: `后台导入完成：成功 ${info.successCount} 条${info.failedCount > 0 ? `，失败 ${info.failedCount} 条` : ""}`,
+            description: `后台导入完成：导入 ${info.successCount} 条记忆${info.failedCount > 0 ? `，${info.failedCount} 条失败` : ""}`,
             variant: "success",
           });
         }}
@@ -649,8 +713,8 @@ export default function DataTransferPage() {
                           className={cn(
                             "font-normal whitespace-nowrap",
                             record.type === "导出"
-                              ? "bg-blue-50 text-blue-600 border-blue-200"
-                              : "bg-red-50 text-red-600 border-red-200"
+                              ? "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800"
+                              : "bg-red-50 text-red-600 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800"
                           )}
                         >
                           {record.type === "导出" ? (

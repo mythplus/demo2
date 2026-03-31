@@ -100,7 +100,7 @@ export function StatsCharts({ stats }: StatsChartsProps) {
                       dataKey="value"
                     >
                       {categoryData.map((entry, index) => (
-                        <Cell key={`cat-${index}`} fill={entry.color} />
+                        <Cell key={`cat-${index}`} fill={entry.color} stroke="none" />
                       ))}
                     </Pie>
                     <Tooltip
@@ -160,7 +160,7 @@ export function StatsCharts({ stats }: StatsChartsProps) {
                       dataKey="value"
                     >
                       {stateData.map((entry, index) => (
-                        <Cell key={`state-${index}`} fill={entry.color} />
+                        <Cell key={`state-${index}`} fill={entry.color} stroke="none" />
                       ))}
                     </Pie>
                     <Tooltip

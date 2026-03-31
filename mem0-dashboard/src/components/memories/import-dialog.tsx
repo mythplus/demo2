@@ -26,6 +26,7 @@ import {
 } from "@/lib/data-transfer";
 import { mem0Api } from "@/lib/api";
 import type { Category, MemoryState } from "@/lib/api/types";
+import { registerImportTask, unregisterImportTask } from "@/lib/import-task-registry";
 
 /** 导入成功回调信息 */
 export interface ImportSuccessInfo {
@@ -56,9 +57,22 @@ interface ImportDialogProps {
   onBackgroundImport?: (info: BackgroundImportInfo) => string;
   /** 后台导入完成回调 */
   onBackgroundComplete?: (recordId: string, info: BackgroundCompleteInfo) => void;
+  /** 导入状态变化回调（true=正在导入中，false=导入结束或未开始） */
+  onImportingChange?: (importing: boolean) => void;
+  /** 后台导入完成且弹窗关闭时通知父组件有待查看的结果 */
+  onPendingResultChange?: (hasPendingResult: boolean) => void;
+  /** 是否为恢复模式（IndexedDB 中有"导入中"记录且 JS 运行时中没有对应任务） */
+  isRecovered?: boolean;
+  /** 恢复模式确认后的回调 */
+  onRecoveredConfirm?: () => void;
+  /** 是否有后台导入正在执行（SPA 切换页面后仍在后台运行） */
+  isBackgroundRunning?: boolean;
 }
 
-type ImportStep = "upload" | "preview" | "importing" | "done";
+type ImportStep = "upload" | "preview" | "importing" | "done" | "interrupted";
+
+// 用于生成全局唯一的导入任务 ID
+let importTaskCounter = 0;
 
 export function ImportDialog({
   open,
@@ -66,6 +80,11 @@ export function ImportDialog({
   onSuccess,
   onBackgroundImport,
   onBackgroundComplete,
+  onImportingChange,
+  onPendingResultChange,
+  isRecovered,
+  onRecoveredConfirm,
+  isBackgroundRunning,
 }: ImportDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<ImportStep>("upload");
@@ -80,8 +99,33 @@ export function ImportDialog({
 
   // 后台导入记录 ID
   const backgroundRecordIdRef = useRef<string | null>(null);
-  // 是否已切换到后台
+  // 是否已切换到后台（手动点击"后台进行"按钮）
   const isBackgroundRef = useRef(false);
+  // 是否正在执行导入（用于判断关闭弹窗时是否需要转后台）
+  const isImportingRef = useRef(false);
+  // 当前导入任务的全局唯一 ID（用于全局注册表）
+  const importTaskIdRef = useRef<string | null>(null);
+
+  // 恢复模式：仅在弹窗打开且确认是真正中断时才显示中断界面
+  React.useEffect(() => {
+    if (open && isRecovered && step === "upload") {
+      setStep("interrupted");
+    }
+  }, [open, isRecovered, step]);
+
+  // 后台运行模式：SPA 切换页面后再切回来，弹窗打开时显示"导入中"界面
+  React.useEffect(() => {
+    if (open && isBackgroundRunning && step === "upload") {
+      setStep("importing");
+    }
+    // 后台导入完成后（isBackgroundRunning 变为 false），如果当前仍在 importing 步骤，
+    // 说明是从后台恢复的查看模式，此时导入已完成，关闭弹窗并重置
+    if (!isBackgroundRunning && !isImportingRef.current && step === "importing") {
+      // 导入已在后台完成，关闭弹窗
+      reset();
+      onOpenChange(false);
+    }
+  }, [open, isBackgroundRunning, step]);
 
   /** 解析文件内容 */
   const processFile = useCallback(async (file: File) => {
@@ -122,6 +166,9 @@ export function ImportDialog({
     setImportFileBlob(null);
     backgroundRecordIdRef.current = null;
     isBackgroundRef.current = false;
+    isImportingRef.current = false;
+    importTaskIdRef.current = null;
+    onPendingResultChange?.(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -158,6 +205,12 @@ export function ImportDialog({
     setStep("importing");
     isBackgroundRef.current = false;
     backgroundRecordIdRef.current = null;
+    isImportingRef.current = true;
+    // 注册全局导入任务（用于区分 SPA 切换 vs 页面刷新）
+    const taskId = `import-${Date.now()}-${++importTaskCounter}`;
+    importTaskIdRef.current = taskId;
+    registerImportTask(taskId);
+    onImportingChange?.(true);
 
     const result: ImportResult = { success: 0, failed: 0, errors: [] };
     const BATCH_SIZE = 5;
@@ -192,20 +245,29 @@ export function ImportDialog({
       setProgress(newProgress);
     }
 
-    // 如果是后台模式，通过回调通知完成
-    if (isBackgroundRef.current && backgroundRecordIdRef.current) {
+    isImportingRef.current = false;
+    // 注销全局导入任务
+    if (importTaskIdRef.current) {
+      unregisterImportTask(importTaskIdRef.current);
+      importTaskIdRef.current = null;
+    }
+    onImportingChange?.(false);
+
+    // 通过回调通知完成（无论前台还是后台）
+    if (backgroundRecordIdRef.current) {
       onBackgroundComplete?.(backgroundRecordIdRef.current, {
         successCount: result.success,
         failedCount: result.failed,
       });
-      // 后台模式下不需要更新弹窗 UI
-      return;
     }
 
-    // 前台模式：正常显示完成结果
+    // 更新弹窗 UI 为完成状态（无论弹窗是否打开，状态都保留）
     setImportResult(result);
     setStep("done");
-    if (result.success > 0) {
+    // 如果弹窗当前是关闭的，通知父组件有待查看的结果
+    onPendingResultChange?.(true);
+    if (result.success > 0 && !backgroundRecordIdRef.current) {
+      // 仅在非后台模式下通过 onSuccess 添加记录（后台模式已通过 onBackgroundImport 添加）
       onSuccess({
         filename: importFileName,
         successCount: result.success,
@@ -215,40 +277,49 @@ export function ImportDialog({
     }
   };
 
-  // 后台进行
+  // 后台进行（手动点击按钮）
   const handleBackgroundImport = () => {
-    if (onBackgroundImport) {
+    ensureBackgroundRecord();
+    isBackgroundRef.current = true;
+    // 关闭弹窗，导入继续在后台执行（不重置状态，保留进度）
+    onOpenChange(false);
+  };
+
+  // 确保已创建后台导入记录
+  const ensureBackgroundRecord = () => {
+    if (!backgroundRecordIdRef.current && onBackgroundImport) {
       const recordId = onBackgroundImport({
         filename: importFileName,
         totalCount: items.length,
         blob: importFileBlob,
       });
       backgroundRecordIdRef.current = recordId;
-      isBackgroundRef.current = true;
     }
-    // 关闭弹窗，导入继续在后台执行
-    onOpenChange(false);
-    // 重置弹窗 UI 状态（但不中断导入）
-    setStep("upload");
-    setItems([]);
-    setParseErrors([]);
-    setImportResult(null);
-    setError("");
-    setProgress(0);
-    setImportFileName("");
-    setImportFileBlob(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // 关闭时重置
+  // 关闭弹窗处理
   const handleClose = (open: boolean) => {
-    if (!open) reset();
+    if (!open) {
+      if (isImportingRef.current) {
+        // 导入中关闭弹窗：自动转为后台模式（不重置状态）
+        ensureBackgroundRecord();
+        isBackgroundRef.current = true;
+      } else if (step === "done") {
+        // 完成界面关闭：重置状态
+        reset();
+      } else {
+        // 其他情况（上传、预览）：正常重置
+        reset();
+      }
+    }
     onOpenChange(open);
   };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent
+        className="sm:max-w-[520px]"
+      >
         <DialogHeader>
           <DialogTitle>导入记忆数据</DialogTitle>
           <DialogDescription>
@@ -386,28 +457,57 @@ export function ImportDialog({
               <Loader2 className="h-10 w-10 animate-spin text-primary" />
               <p className="text-sm font-medium">正在导入记忆数据...</p>
               <p className="text-xs text-muted-foreground">
-                可点击"后台进行"在后台继续导入
+                {isBackgroundRunning ? "导入正在后台执行中，请耐心等待" : "可点击\"后台进行\"在后台继续导入"}
               </p>
             </div>
 
-            {/* 进度条 */}
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>进度</span>
-                <span>{progress}%</span>
+            {/* 进度条（仅在非后台恢复模式下显示，因为后台恢复时没有进度数据） */}
+            {!isBackgroundRunning && (
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>进度</span>
+                  <span>{progress}%</span>
+                </div>
+                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
               </div>
-              <div className="h-2 rounded-full bg-muted overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-300"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
+            )}
+
+            {/* 后台进行按钮（仅在非后台恢复模式下显示） */}
+            {!isBackgroundRunning && (
+              <DialogFooter>
+                <Button onClick={handleBackgroundImport}>
+                  后台进行
+                </Button>
+              </DialogFooter>
+            )}
+          </div>
+        )}
+
+        {/* 步骤 4.5：导入中断（页面刷新后恢复） */}
+        {step === "interrupted" && (
+          <div className="space-y-4 py-4">
+            <div className="flex flex-col items-center gap-3">
+              <AlertTriangle className="h-10 w-10 text-yellow-500" />
+              <p className="text-sm font-medium">导入已中断</p>
+              <p className="text-xs text-muted-foreground text-center">
+                上次的导入任务因页面刷新或关闭已中断，部分数据可能未导入完成。
+                <br />
+                请在操作汇总中查看详情，如需继续请重新导入。
+              </p>
             </div>
 
-            {/* 后台进行按钮 */}
             <DialogFooter>
-              <Button onClick={handleBackgroundImport}>
-                后台进行
+              <Button onClick={() => {
+                onRecoveredConfirm?.();
+                reset();
+                onOpenChange(false);
+              }}>
+                我知道了
               </Button>
             </DialogFooter>
           </div>
