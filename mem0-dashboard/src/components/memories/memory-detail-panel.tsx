@@ -213,21 +213,28 @@ export function MemoryDetailPanel({
                 </>
               )}
 
-              {/* 元数据 */}
+              {/* 元数据（过滤掉已单独展示的 categories 和 state） */}
               {memory.metadata &&
-                Object.keys(memory.metadata).length > 0 && (
-                  <>
-                    <Separator />
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">
-                        元数据
-                      </label>
-                      <pre className="rounded-lg border bg-muted/50 p-3 text-xs overflow-x-auto">
-                        {JSON.stringify(memory.metadata, null, 2)}
-                      </pre>
-                    </div>
-                  </>
-                )}
+                (() => {
+                  const filteredMetadata = Object.fromEntries(
+                    Object.entries(memory.metadata).filter(
+                      ([key]) => key !== "categories" && key !== "state"
+                    )
+                  );
+                  return Object.keys(filteredMetadata).length > 0 ? (
+                    <>
+                      <Separator />
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-muted-foreground">
+                          元数据
+                        </label>
+                        <pre className="rounded-lg border bg-muted/50 p-3 text-xs overflow-x-auto">
+                          {JSON.stringify(filteredMetadata, null, 2)}
+                        </pre>
+                      </div>
+                    </>
+                  ) : null;
+                })()}
             </TabsContent>
 
             {/* 修改历史 Tab */}

@@ -43,7 +43,7 @@ export function MemoryTable({ memories, onView, onEdit, onDelete }: MemoryTableP
         <Table className="min-w-[800px]">
           <TableHeader>
             <TableRow className="bg-muted/40">
-              <TableHead className="min-w-[280px] py-3 font-semibold text-xs uppercase tracking-wider">记忆内容</TableHead>
+              <TableHead className="min-w-[280px] max-w-[500px] py-3 font-semibold text-xs uppercase tracking-wider">记忆内容</TableHead>
               <TableHead className="min-w-[70px] w-[80px] py-3 font-semibold text-xs uppercase tracking-wider">用户</TableHead>
               <TableHead className="min-w-[160px] w-[180px] py-3 font-semibold text-xs uppercase tracking-wider">分类</TableHead>
               <TableHead className="min-w-[70px] w-[80px] py-3 font-semibold text-xs uppercase tracking-wider">状态</TableHead>
@@ -58,10 +58,10 @@ export function MemoryTable({ memories, onView, onEdit, onDelete }: MemoryTableP
                 className="cursor-pointer hover:bg-accent/50 transition-colors"
                 onClick={() => onView(memory)}
               >
-                <TableCell className="py-3">
+                <TableCell className="py-3 max-w-[500px]">
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <p className="text-sm line-clamp-2 leading-relaxed break-words">
+                      <p className="text-sm line-clamp-2 leading-relaxed break-all overflow-hidden">
                         {memory.memory}
                       </p>
                     </TooltipTrigger>

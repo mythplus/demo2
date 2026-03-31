@@ -128,7 +128,7 @@ export default function UsersPage() {
   const totalMemories = users.reduce((sum, u) => sum + u.memory_count, 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 页面头部 */}
       <div className="flex items-center justify-between">
         <div>
@@ -145,35 +145,35 @@ export default function UsersPage() {
       {/* 统计卡片 */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pt-3 pb-1">
             <CardTitle className="text-sm font-medium">用户总数</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 pb-3 pt-0">
             <div className="text-2xl font-bold">
               {loading ? "..." : users.length}
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pt-3 pb-1">
             <CardTitle className="text-sm font-medium">记忆总数</CardTitle>
             <Brain className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 pb-3 pt-0">
             <div className="text-2xl font-bold">
               {loading ? "..." : totalMemories}
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pt-3 pb-1">
             <CardTitle className="text-sm font-medium">
               平均记忆数
             </CardTitle>
             <Brain className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 pb-3 pt-0">
             <div className="text-2xl font-bold">
               {loading
                 ? "..."

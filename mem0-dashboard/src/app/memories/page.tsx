@@ -284,13 +284,13 @@ export default function MemoriesPage() {
                   >
                     {/* 左侧内容 */}
                     <div
-                      className="flex-1 cursor-pointer"
+                      className="flex-1 min-w-0 cursor-pointer"
                       onClick={() => handleViewDetail(memory)}
                     >
                       <div className="flex items-center gap-2 mb-1">
                         <StateBadge state={memory.state} />
                       </div>
-                      <p className="text-sm leading-relaxed">{memory.memory}</p>
+                      <p className="text-sm leading-relaxed line-clamp-2 break-all">{memory.memory}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         {memory.user_id && (
                           <Badge variant="secondary" className="text-xs">

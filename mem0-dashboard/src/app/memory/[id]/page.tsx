@@ -185,8 +185,8 @@ export default function MemoryDetailPage() {
               <CardTitle>记忆内容</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="rounded-lg border bg-muted/50 p-4">
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">
+              <div className="rounded-lg border bg-muted/50 p-4 overflow-hidden">
+                <p className="text-sm leading-relaxed whitespace-pre-wrap break-all">
                   {memory.memory}
                 </p>
               </div>
@@ -290,7 +290,7 @@ export default function MemoryDetailPage() {
                             {item.old_memory && (
                               <div className="rounded bg-red-50 dark:bg-red-950/20 p-2">
                                 <p className="text-xs text-muted-foreground mb-1">旧内容：</p>
-                                <p className="text-sm line-through text-muted-foreground">
+                                <p className="text-sm line-through text-muted-foreground break-all">
                                   {item.old_memory}
                                 </p>
                               </div>
