@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { Filter, X, CalendarDays, Check } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import { Filter, X, CalendarDays, Check, Search, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -100,23 +100,12 @@ export function MemoryFilters({
           </SelectContent>
         </Select>
 
-        {/* 用户筛选 */}
-        <Select
-          value={filters.user_id || "all"}
-          onValueChange={(v) => updateFilter("user_id", v === "all" ? undefined : v)}
-        >
-          <SelectTrigger className="h-8 w-[160px]">
-            <SelectValue placeholder="全部用户" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部用户</SelectItem>
-            {users.map((u) => (
-              <SelectItem key={u} value={u}>
-                {u}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* 用户筛选（带搜索） */}
+        <UserFilterDropdown
+          value={filters.user_id}
+          users={users}
+          onChange={(v) => updateFilter("user_id", v)}
+        />
 
         {/* 清除筛选 */}
         {hasActiveFilters && (
@@ -264,6 +253,94 @@ export function MemoryFilters({
               )}
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 带搜索的用户筛选下拉 */
+function UserFilterDropdown({
+  value,
+  users,
+  onChange,
+}: {
+  value?: string;
+  users: string[];
+  onChange: (v: string | undefined) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const filtered = search
+    ? users.filter((u) => u.toLowerCase().includes(search.toLowerCase()))
+    : users;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={cn(
+          "flex h-8 w-[160px] items-center justify-between rounded-md border border-input bg-background px-3 text-sm",
+          "hover:bg-accent/50 transition-colors"
+        )}
+      >
+        <span className={value ? "text-foreground" : "text-muted-foreground"}>
+          {value || "全部用户"}
+        </span>
+        <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-[200px] rounded-md border bg-popover text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
+          <div className="flex items-center border-b px-2 py-1.5">
+            <Search className="mr-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="搜索用户..."
+              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              autoFocus
+            />
+          </div>
+          <div className="max-h-48 overflow-y-auto p-1">
+            <div
+              onClick={() => { onChange(undefined); setOpen(false); setSearch(""); }}
+              className={cn(
+                "flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent",
+                !value && "bg-accent"
+              )}
+            >
+              {!value && <Check className="mr-2 h-3.5 w-3.5" />}
+              <span className={!value ? "" : "pl-5"}>全部用户</span>
+            </div>
+            {filtered.map((u) => (
+              <div
+                key={u}
+                onClick={() => { onChange(u); setOpen(false); setSearch(""); }}
+                className={cn(
+                  "flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent",
+                  value === u && "bg-accent"
+                )}
+              >
+                {value === u && <Check className="mr-2 h-3.5 w-3.5" />}
+                <span className={value === u ? "" : "pl-5"}>{u}</span>
+              </div>
+            ))}
+            {filtered.length === 0 && (
+              <p className="px-2 py-3 text-center text-xs text-muted-foreground">未找到用户</p>
+            )}
+          </div>
         </div>
       )}
     </div>

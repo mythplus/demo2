@@ -305,14 +305,14 @@ export default function SearchPage() {
           </CardHeader>
           <CardContent>
             {results.length > 0 ? (
-              <div className="space-y-3">
+              <div className="max-h-[calc(100vh-300px)] overflow-y-auto overflow-x-auto space-y-3 pr-1">
                 {results.map((result, index) => (
                   <div
                     key={result.id}
                     className="rounded-lg border p-4 transition-colors hover:bg-accent/30 cursor-pointer"
                     onClick={() => handleViewDetail(result)}
                   >
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start justify-between gap-4 min-w-[500px]">
                       {/* 序号 + 内容 */}
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
@@ -467,3 +467,5 @@ export default function SearchPage() {
     </div>
   );
 }
+
+

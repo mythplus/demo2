@@ -219,11 +219,6 @@ export default function UsersPage() {
       <Card>
         <CardHeader>
           <CardTitle>用户列表</CardTitle>
-          <CardDescription>
-            共 {filteredUsers.length} 个用户
-            {searchText && `（搜索: "${searchText}"）`}
-            {filteredUsers.length > pageSize && `　第 ${currentPage}/${totalPages} 页`}
-          </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
