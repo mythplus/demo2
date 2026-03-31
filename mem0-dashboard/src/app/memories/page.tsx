@@ -356,7 +356,7 @@ export default function MemoriesPage() {
                   <p className="text-sm text-muted-foreground">
                     第 {currentPage} / {totalPages} 页，共 {filteredMemories.length} 条
                   </p>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <Button
                       variant="outline"
                       size="sm"

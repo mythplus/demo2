@@ -39,16 +39,16 @@ interface MemoryTableProps {
 export function MemoryTable({ memories, onView, onEdit, onDelete }: MemoryTableProps) {
   return (
     <TooltipProvider>
-      <div className="rounded-md border overflow-hidden">
-        <Table className="table-fixed">
+      <div className="rounded-md border overflow-x-auto">
+        <Table className="min-w-[800px]">
           <TableHeader>
             <TableRow className="bg-muted/40">
-              <TableHead className="w-[44%] py-3 font-semibold text-xs uppercase tracking-wider">记忆内容</TableHead>
-              <TableHead className="w-[10%] py-3 font-semibold text-xs uppercase tracking-wider">用户</TableHead>
-              <TableHead className="w-[16%] py-3 font-semibold text-xs uppercase tracking-wider">分类</TableHead>
-              <TableHead className="w-[10%] py-3 font-semibold text-xs uppercase tracking-wider">状态</TableHead>
-              <TableHead className="w-[14%] py-3 font-semibold text-xs uppercase tracking-wider">创建时间</TableHead>
-              <TableHead className="w-[6%] py-3 font-semibold text-xs uppercase tracking-wider text-right">操作</TableHead>
+              <TableHead className="min-w-[280px] py-3 font-semibold text-xs uppercase tracking-wider">记忆内容</TableHead>
+              <TableHead className="min-w-[70px] w-[80px] py-3 font-semibold text-xs uppercase tracking-wider">用户</TableHead>
+              <TableHead className="min-w-[100px] w-[130px] py-3 font-semibold text-xs uppercase tracking-wider">分类</TableHead>
+              <TableHead className="min-w-[70px] w-[80px] py-3 font-semibold text-xs uppercase tracking-wider">状态</TableHead>
+              <TableHead className="min-w-[100px] w-[120px] py-3 font-semibold text-xs uppercase tracking-wider">创建时间</TableHead>
+              <TableHead className="w-[50px] py-3 font-semibold text-xs uppercase tracking-wider text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
