@@ -56,8 +56,6 @@ interface ImportDialogProps {
   onBackgroundImport?: (info: BackgroundImportInfo) => string;
   /** 后台导入完成回调 */
   onBackgroundComplete?: (recordId: string, info: BackgroundCompleteInfo) => void;
-  /** 取消导入回调 */
-  onImportCancelled?: (recordId: string | null) => void;
 }
 
 type ImportStep = "upload" | "preview" | "importing" | "done";
@@ -68,7 +66,6 @@ export function ImportDialog({
   onSuccess,
   onBackgroundImport,
   onBackgroundComplete,
-  onImportCancelled,
 }: ImportDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<ImportStep>("upload");
@@ -81,8 +78,6 @@ export function ImportDialog({
   const [importFileName, setImportFileName] = useState("");
   const [importFileBlob, setImportFileBlob] = useState<Blob | null>(null);
 
-  // 取消导入控制器
-  const abortControllerRef = useRef<AbortController | null>(null);
   // 后台导入记录 ID
   const backgroundRecordIdRef = useRef<string | null>(null);
   // 是否已切换到后台
@@ -125,7 +120,6 @@ export function ImportDialog({
     setProgress(0);
     setImportFileName("");
     setImportFileBlob(null);
-    abortControllerRef.current = null;
     backgroundRecordIdRef.current = null;
     isBackgroundRef.current = false;
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -162,29 +156,18 @@ export function ImportDialog({
   // 执行导入（并发批量，每批 5 条）
   const handleImport = async () => {
     setStep("importing");
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
     isBackgroundRef.current = false;
     backgroundRecordIdRef.current = null;
 
     const result: ImportResult = { success: 0, failed: 0, errors: [] };
     const BATCH_SIZE = 5;
     let completed = 0;
-    let cancelled = false;
 
     for (let i = 0; i < items.length; i += BATCH_SIZE) {
-      // 检查是否被取消
-      if (abortController.signal.aborted) {
-        cancelled = true;
-        break;
-      }
-
       const batch = items.slice(i, i + BATCH_SIZE);
 
       const promises = batch.map(async (item, batchIdx) => {
         const globalIdx = i + batchIdx;
-        // 每个请求前也检查取消
-        if (abortController.signal.aborted) return;
         try {
           await mem0Api.addMemory({
             messages: [{ role: "user", content: item.content }],
@@ -195,7 +178,6 @@ export function ImportDialog({
           });
           result.success++;
         } catch (err) {
-          if (abortController.signal.aborted) return;
           result.failed++;
           result.errors.push(
             `第 ${globalIdx + 1} 条: ${err instanceof Error ? err.message : "导入失败"}`
@@ -205,29 +187,9 @@ export function ImportDialog({
 
       await Promise.all(promises);
 
-      // 每批完成后再次检查是否已取消
-      if (abortController.signal.aborted) {
-        cancelled = true;
-        break;
-      }
-
       completed += batch.length;
       const newProgress = Math.round((completed / items.length) * 100);
       setProgress(newProgress);
-    }
-
-    // 最终再检查一次取消状态（防止在最后一批期间被取消）
-    if (abortController.signal.aborted) {
-      cancelled = true;
-    }
-
-    // 导入完成或取消后
-    if (cancelled) {
-      // 如果是后台模式被取消
-      if (isBackgroundRef.current && backgroundRecordIdRef.current) {
-        onImportCancelled?.(backgroundRecordIdRef.current);
-      }
-      return;
     }
 
     // 如果是后台模式，通过回调通知完成
@@ -276,30 +238,6 @@ export function ImportDialog({
     setImportFileName("");
     setImportFileBlob(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  // 取消导入
-  const handleCancelImport = () => {
-    // 先触发 abort，让异步循环感知到取消
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    // 如果还在前台（弹窗打开），通知取消
-    if (!isBackgroundRef.current) {
-      onImportCancelled?.(null);
-    }
-    // 关闭弹窗，但不调用 reset（避免清除 abortController 导致异步循环检测不到取消）
-    // 只重置 UI 状态
-    setStep("upload");
-    setItems([]);
-    setParseErrors([]);
-    setImportResult(null);
-    setError("");
-    setProgress(0);
-    setImportFileName("");
-    setImportFileBlob(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    onOpenChange(false);
   };
 
   // 关闭时重置
@@ -390,25 +328,27 @@ export function ImportDialog({
             </div>
 
             {/* 预览列表 */}
-            <div className="max-h-[300px] overflow-y-auto space-y-2 rounded-lg border p-3">
-              {items.slice(0, 10).map((item, index) => (
-                <div
-                  key={index}
-                  className="rounded border p-2 text-sm"
-                >
-                  <p className="truncate">{item.content}</p>
-                  {item.user_id && (
-                    <Badge variant="secondary" className="mt-1 text-xs">
-                      {item.user_id}
-                    </Badge>
-                  )}
-                </div>
-              ))}
-              {items.length > 10 && (
-                <p className="text-center text-xs text-muted-foreground py-2">
-                  ... 还有 {items.length - 10} 条未显示
-                </p>
-              )}
+            <div className="max-h-[300px] overflow-y-auto rounded-lg border">
+              <div className="divide-y">
+                {items.slice(0, 10).map((item, index) => (
+                  <div
+                    key={index}
+                    className="px-3 py-2 text-sm"
+                  >
+                    <p className="break-all line-clamp-2">{item.content}</p>
+                    {item.user_id && (
+                      <Badge variant="secondary" className="mt-1 text-xs">
+                        {item.user_id}
+                      </Badge>
+                    )}
+                  </div>
+                ))}
+                {items.length > 10 && (
+                  <div className="px-3 py-2 text-center text-xs text-muted-foreground">
+                    ... 还有 {items.length - 10} 条未显示
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* 解析警告 */}
@@ -464,15 +404,8 @@ export function ImportDialog({
               </div>
             </div>
 
-            {/* 后台进行 & 取消导入按钮 */}
-            <DialogFooter className="flex gap-2 sm:gap-2">
-              <Button
-                variant="outline"
-                onClick={handleCancelImport}
-                className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
-              >
-                取消导入
-              </Button>
+            {/* 后台进行按钮 */}
+            <DialogFooter>
               <Button onClick={handleBackgroundImport}>
                 后台进行
               </Button>

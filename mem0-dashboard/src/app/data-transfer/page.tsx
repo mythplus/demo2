@@ -33,17 +33,7 @@ import type { Memory } from "@/lib/api";
 import { exportToJSON, exportToCSV, type ExportOutput } from "@/lib/data-transfer";
 import { ImportDialog, type ImportSuccessInfo } from "@/components/memories/import-dialog";
 import { useToast } from "@/hooks/use-toast";
-
-/** 操作记录类型 */
-interface OperationRecord {
-  id: string;
-  type: "导入" | "导出";
-  time: string;
-  status: "成功" | "失败" | "导入中" | "已取消";
-  filename: string;
-  blob: Blob | null;
-  detail?: string;
-}
+import { useOperationRecords, type OperationRecord } from "@/hooks/use-operation-records";
 
 export default function DataTransferPage() {
   const { toast } = useToast();
@@ -68,8 +58,15 @@ export default function DataTransferPage() {
   // 导入弹窗
   const [importDialogOpen, setImportDialogOpen] = useState(false);
 
-  // 操作记录
-  const [operationRecords, setOperationRecords] = useState<OperationRecord[]>([]);
+  // 操作记录（IndexedDB 持久化）
+  const {
+    records: operationRecords,
+    loading: recordsLoading,
+    addRecord,
+    updateRecord,
+    clearRecords: handleClearRecords,
+    downloadRecord: handleDownloadRecord,
+  } = useOperationRecords();
 
   // 用户搜索
   const [userSearchQuery, setUserSearchQuery] = useState("");
@@ -147,56 +144,7 @@ export default function DataTransferPage() {
     }
   };
 
-  // 生成时间字符串
-  const getTimeStr = () => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
-  };
 
-  // 添加操作记录
-  const addRecord = useCallback(
-    (record: Omit<OperationRecord, "id" | "time">) => {
-      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      setOperationRecords((prev) => [
-        {
-          id,
-          time: getTimeStr(),
-          ...record,
-        },
-        ...prev,
-      ]);
-      return id;
-    },
-    []
-  );
-
-  // 更新操作记录
-  const updateRecord = useCallback(
-    (id: string, updates: Partial<Omit<OperationRecord, "id">>) => {
-      setOperationRecords((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, ...updates } : r))
-      );
-    },
-    []
-  );
-
-  // 下载操作记录中的文件
-  const handleDownloadRecord = useCallback((record: OperationRecord) => {
-    if (!record.blob) return;
-    const url = URL.createObjectURL(record.blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = record.filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }, []);
-
-  // 清空操作记录
-  const handleClearRecords = useCallback(() => {
-    setOperationRecords([]);
-  }, []);
 
   // 获取筛选后的记忆数据
   const getFilteredMemories = useCallback(async (): Promise<Memory[]> => {
@@ -349,7 +297,7 @@ export default function DataTransferPage() {
                 <Filter className="h-4 w-4" />
                 导出筛选
                 {hasFilter && (
-                  <Badge variant="secondary" className="ml-1">
+                  <Badge variant="secondary" className="ml-1 bg-green-100 text-green-700 border-green-200">
                     已启用
                   </Badge>
                 )}
@@ -639,18 +587,6 @@ export default function DataTransferPage() {
             variant: "success",
           });
         }}
-        onImportCancelled={(recordId) => {
-          if (recordId) {
-            updateRecord(recordId, {
-              status: "已取消",
-              detail: "用户取消了导入",
-            });
-          }
-          toast({
-            title: "导入已取消",
-            description: "已中止导入操作",
-          });
-        }}
       />
 
       {/* 操作汇总 */}
@@ -664,19 +600,24 @@ export default function DataTransferPage() {
                 操作汇总
               </CardTitle>
               <CardDescription>
-                记录本次会话中的导入导出操作，关闭页面后记录将清空
+                记录导入导出操作历史，数据持久化存储在浏览器中
               </CardDescription>
             </div>
             {operationRecords.length > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleClearRecords}
-                className="h-8 px-3 text-xs"
-              >
-                <Trash2 className="mr-1 h-3 w-3" />
-                清空记录
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClearRecords}
+                  className="h-8 px-3 text-xs"
+                >
+                  <Trash2 className="mr-1 h-3 w-3" />
+                  清空记录
+                </Button>
+                <span className="text-sm text-muted-foreground whitespace-nowrap">
+                  共 {operationRecords.length} 条记录
+                </span>
+              </div>
             )}
           </div>
         </CardHeader>
@@ -753,11 +694,6 @@ export default function DataTransferPage() {
                           <span className="inline-flex items-center gap-1 text-blue-600">
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             导入中
-                          </span>
-                        ) : record.status === "已取消" ? (
-                          <span className="inline-flex items-center gap-1 text-yellow-600">
-                            <XCircle className="h-3.5 w-3.5" />
-                            已取消
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-red-600">
