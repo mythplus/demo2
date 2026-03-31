@@ -246,10 +246,10 @@ export default function MemoriesPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <div>
+            <div className="space-y-1.5">
               <CardTitle>记忆列表</CardTitle>
               <CardDescription>
-                共 {filteredMemories.length} 条记忆
+                共 <span className="font-semibold text-foreground text-base">{filteredMemories.length}</span> 条记忆
                 {searchText && `（搜索: "${searchText}"）`}
               </CardDescription>
             </div>

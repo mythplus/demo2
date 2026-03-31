@@ -9,6 +9,7 @@ import {
   X,
   Sparkles,
   ArrowRight,
+  RotateCcw,
 } from "lucide-react";
 import {
   Card,
@@ -226,6 +227,27 @@ export default function SearchPage() {
                   <SelectItem value="50">显示 50 条</SelectItem>
                 </SelectContent>
               </Select>
+
+              {/* 刷新按钮 - 重置搜索回到初始状态 */}
+              {searched && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 shrink-0"
+                  title="重置搜索"
+                  onClick={() => {
+                    setQuery("");
+                    setUserId("all");
+                    setLimit("10");
+                    setResults([]);
+                    setSearched(false);
+                    setError("");
+                  }}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           </form>
         </CardContent>
@@ -337,10 +359,9 @@ export default function SearchPage() {
                 搜索历史
               </CardTitle>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={clearHistory}
-                className="text-muted-foreground"
               >
                 清除历史
               </Button>
