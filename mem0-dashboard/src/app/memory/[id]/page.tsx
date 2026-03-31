@@ -205,19 +205,26 @@ export default function MemoryDetailPage() {
             </Card>
           )}
 
-          {/* 元数据 */}
-          {memory.metadata && Object.keys(memory.metadata).length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">元数据</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <pre className="rounded-lg border bg-muted/50 p-3 text-xs overflow-x-auto font-mono">
-                  {JSON.stringify(memory.metadata, null, 2)}
-                </pre>
-              </CardContent>
-            </Card>
-          )}
+          {/* 元数据（过滤掉已单独展示的 categories 和 state） */}
+          {memory.metadata && (() => {
+            const filteredMetadata = Object.fromEntries(
+              Object.entries(memory.metadata).filter(
+                ([key]) => key !== "categories" && key !== "state"
+              )
+            );
+            return Object.keys(filteredMetadata).length > 0 ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">元数据</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <pre className="rounded-lg border bg-muted/50 p-3 text-xs overflow-x-auto font-mono">
+                    {JSON.stringify(filteredMetadata, null, 2)}
+                  </pre>
+                </CardContent>
+              </Card>
+            ) : null;
+          })()}
 
           {/* 修改历史时间线 */}
           <Card>
