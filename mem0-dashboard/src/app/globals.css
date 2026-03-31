@@ -57,3 +57,9 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* 分类标签深色模式颜色覆盖 */
+.dark .category-badge {
+  background-color: var(--cat-dark-bg) !important;
+  color: var(--cat-dark-text) !important;
+}

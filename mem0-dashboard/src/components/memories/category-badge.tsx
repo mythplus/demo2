@@ -27,13 +27,19 @@ export function CategoryBadge({ category, className, size = "sm" }: CategoryBadg
         <TooltipTrigger asChild>
           <span
             className={cn(
-              "inline-flex items-center rounded-full font-medium border transition-colors cursor-default",
-              info.bgColor,
-              info.textColor,
+              "inline-flex items-center rounded-full font-medium border transition-colors cursor-default category-badge",
               "border-gray-200 dark:border-gray-700",
               size === "sm" ? "px-2.5 py-0.5 text-xs" : "px-3 py-1 text-sm",
               className
             )}
+            style={{
+              "--cat-light-bg": info.lightBg,
+              "--cat-light-text": info.lightText,
+              "--cat-dark-bg": info.darkBg,
+              "--cat-dark-text": info.darkText,
+              backgroundColor: "var(--cat-light-bg)",
+              color: "var(--cat-light-text)",
+            } as React.CSSProperties}
           >
             {info.label}
           </span>

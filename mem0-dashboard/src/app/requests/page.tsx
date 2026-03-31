@@ -392,11 +392,11 @@ export default function RequestsPage() {
                           </TableCell>
                           <TableCell className="text-center">
                             {isSuccess ? (
-                              <CheckCircle className="h-4 w-4 text-green-500 mx-auto" />
+                              <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400 mx-auto" />
                             ) : (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <XCircle className="h-4 w-4 text-red-500 mx-auto cursor-help" />
+                                  <XCircle className="h-4 w-4 text-red-500 dark:text-red-400 mx-auto cursor-help" />
                                 </TooltipTrigger>
                                 <TooltipContent>
                                   {log.status_code} {log.error || ""}

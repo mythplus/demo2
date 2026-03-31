@@ -120,7 +120,7 @@ export function MemoryFilters({
 
         {/* 清除筛选 */}
         {hasActiveFilters && (
-          <Button variant="outline" size="sm" onClick={clearFilters} className="gap-1 h-8 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-400">
+          <Button variant="outline" size="sm" onClick={clearFilters} className="gap-1 h-8 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-400 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30 dark:hover:text-red-300 dark:hover:border-red-700">
             <X className="h-3.5 w-3.5" />
             清除
           </Button>

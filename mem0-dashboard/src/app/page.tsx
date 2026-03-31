@@ -49,7 +49,7 @@ function StatsCard({
       </CardHeader>
       <CardContent>
         {trend ? (
-          <div className="text-2xl font-bold text-green-600">{trend}</div>
+          <div className="text-2xl font-bold text-green-600 dark:text-green-400">{trend}</div>
         ) : (
           <div className="text-2xl font-bold">{value}</div>
         )}

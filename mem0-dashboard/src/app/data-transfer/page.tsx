@@ -750,17 +750,17 @@ export default function DataTransferPage() {
                       </td>
                       <td className="px-4 py-2.5 whitespace-nowrap">
                         {record.status === "成功" ? (
-                          <span className="inline-flex items-center gap-1 text-green-600">
+                          <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
                             <CheckCircle2 className="h-3.5 w-3.5" />
                             成功
                           </span>
                         ) : record.status === "导入中" ? (
-                          <span className="inline-flex items-center gap-1 text-blue-600">
+                          <span className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400">
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             导入中
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-red-600">
+                          <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400">
                             <XCircle className="h-3.5 w-3.5" />
                             失败
                           </span>

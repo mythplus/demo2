@@ -23,19 +23,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { StatsResponse } from "@/lib/api";
-import { CATEGORY_LIST, STATE_LIST } from "@/lib/constants";
-
-// 分类对应的 hex 颜色
-const CATEGORY_COLORS: Record<string, string> = {
-  personal: "#3b82f6",
-  work: "#a855f7",
-  health: "#22c55e",
-  finance: "#f97316",
-  travel: "#06b6d4",
-  education: "#6366f1",
-  preferences: "#ec4899",
-  relationships: "#ef4444",
-};
+import { CATEGORY_LIST, CATEGORY_MAP, STATE_LIST } from "@/lib/constants";
 
 const STATE_COLORS: Record<string, string> = {
   active: "#22c55e",
@@ -53,7 +41,7 @@ export function StatsCharts({ stats }: StatsChartsProps) {
     .map((cat) => ({
       name: cat.label,
       value: stats.category_distribution[cat.value] || 0,
-      color: CATEGORY_COLORS[cat.value] || "#94a3b8",
+      color: CATEGORY_MAP.get(cat.value)?.color || "#94a3b8",
     }))
     .filter((d) => d.value > 0);
 

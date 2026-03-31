@@ -527,13 +527,13 @@ export function ImportDialog({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg border p-3 text-center">
-                <p className="text-2xl font-bold text-green-600">
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                   {importResult.success}
                 </p>
                 <p className="text-xs text-muted-foreground">成功</p>
               </div>
               <div className="rounded-lg border p-3 text-center">
-                <p className="text-2xl font-bold text-red-600">
+                <p className="text-2xl font-bold text-red-600 dark:text-red-400">
                   {importResult.failed}
                 </p>
                 <p className="text-xs text-muted-foreground">失败</p>

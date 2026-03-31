@@ -129,7 +129,7 @@ export default function SettingsPage() {
               </div>
             )}
             {testStatus === "error" && (
-              <div className="flex items-center gap-2 text-sm text-red-600">
+              <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
                 <XCircle className="h-4 w-4" />
                 连接失败，请检查 API 地址和服务状态
               </div>

@@ -413,7 +413,7 @@ export default function MemoryDetailPage() {
                     onClick={handleCopyId}
                   >
                     {copied ? (
-                      <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+                      <CheckCircle className="h-3.5 w-3.5 text-green-500 dark:text-green-400" />
                     ) : (
                       <Copy className="h-3.5 w-3.5" />
                     )}
