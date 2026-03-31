@@ -45,7 +45,7 @@ export function MemoryTable({ memories, onView, onEdit, onDelete }: MemoryTableP
             <TableRow className="bg-muted/40">
               <TableHead className="min-w-[280px] py-3 font-semibold text-xs uppercase tracking-wider">记忆内容</TableHead>
               <TableHead className="min-w-[70px] w-[80px] py-3 font-semibold text-xs uppercase tracking-wider">用户</TableHead>
-              <TableHead className="min-w-[100px] w-[130px] py-3 font-semibold text-xs uppercase tracking-wider">分类</TableHead>
+              <TableHead className="min-w-[160px] w-[180px] py-3 font-semibold text-xs uppercase tracking-wider">分类</TableHead>
               <TableHead className="min-w-[70px] w-[80px] py-3 font-semibold text-xs uppercase tracking-wider">状态</TableHead>
               <TableHead className="min-w-[100px] w-[120px] py-3 font-semibold text-xs uppercase tracking-wider">创建时间</TableHead>
               <TableHead className="w-[50px] py-3 font-semibold text-xs uppercase tracking-wider text-right">操作</TableHead>
@@ -78,7 +78,7 @@ export function MemoryTable({ memories, onView, onEdit, onDelete }: MemoryTableP
                   )}
                 </TableCell>
                 <TableCell className="py-3">
-                  <CategoryBadges categories={memory.categories} max={2} />
+                  <CategoryBadges categories={memory.categories} max={2} nowrap />
                 </TableCell>
                 <TableCell className="py-3 whitespace-nowrap">
                   <StateBadge state={memory.state} />

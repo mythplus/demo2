@@ -27,7 +27,7 @@ export function CategoryBadge({ category, className, size = "sm" }: CategoryBadg
         <TooltipTrigger asChild>
           <span
             className={cn(
-              "inline-flex items-center rounded-full font-medium border transition-colors cursor-default category-badge",
+              "inline-flex items-center rounded-full font-medium border transition-colors cursor-default category-badge whitespace-nowrap",
               "border-gray-200 dark:border-gray-700",
               size === "sm" ? "px-2.5 py-0.5 text-xs" : "px-3 py-1 text-sm",
               className
@@ -57,10 +57,13 @@ export function CategoryBadges({
   categories,
   className,
   max,
+  nowrap,
 }: {
   categories?: Category[];
   className?: string;
   max?: number;
+  /** 不换行模式，适用于表格等紧凑场景 */
+  nowrap?: boolean;
 }) {
   if (!categories || categories.length === 0) return null;
 
@@ -69,7 +72,7 @@ export function CategoryBadges({
   const hiddenCategories = max ? categories.slice(max) : [];
 
   return (
-    <div className={cn("flex flex-wrap gap-1.5 items-center", className)}>
+    <div className={cn("flex gap-1.5 items-center", nowrap ? "flex-nowrap" : "flex-wrap", className)}>
       {shown.map((cat) => (
         <CategoryBadge key={cat} category={cat} />
       ))}
