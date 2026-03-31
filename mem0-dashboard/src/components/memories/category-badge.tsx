@@ -28,8 +28,9 @@ export function CategoryBadge({ category, className, size = "sm" }: CategoryBadg
           <span
             className={cn(
               "inline-flex items-center rounded-full font-medium border transition-colors cursor-default",
+              info.bgColor,
               info.textColor,
-              `border-${info.color}-200 dark:border-${info.color}-700/40`,
+              "border-gray-200 dark:border-gray-700",
               size === "sm" ? "px-2.5 py-0.5 text-xs" : "px-3 py-1 text-sm",
               className
             )}

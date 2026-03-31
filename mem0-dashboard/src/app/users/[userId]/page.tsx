@@ -33,6 +33,7 @@ import {
 import { EditMemoryDialog } from "@/components/memories/edit-memory-dialog";
 import { DeleteConfirmDialog } from "@/components/memories/delete-confirm-dialog";
 import { MemoryDetailPanel } from "@/components/memories/memory-detail-panel";
+import { CategoryBadges } from "@/components/memories/category-badge";
 import { mem0Api } from "@/lib/api";
 import type { Memory } from "@/lib/api";
 
@@ -186,11 +187,7 @@ export default function UserDetailPage() {
                   >
                     <p className="text-sm leading-relaxed">{memory.memory}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {memory.categories?.map((cat) => (
-                        <Badge key={cat} variant="outline" className="text-xs">
-                          {cat}
-                        </Badge>
-                      ))}
+                      <CategoryBadges categories={memory.categories} />
                       {memory.created_at && (
                         <span className="text-xs text-muted-foreground">
                           <Clock className="mr-1 inline h-3 w-3" />
