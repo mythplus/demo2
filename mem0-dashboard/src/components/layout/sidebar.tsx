@@ -97,7 +97,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {/* 主导航 */}
         <nav className="flex-1 space-y-1 p-2">
           {navItems.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             const navLink = (
               <Link
                 key={item.href}
@@ -135,7 +135,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {/* 底部导航 */}
         <div className="space-y-1 p-2">
           {bottomNavItems.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             const navLink = (
               <Link
                 key={item.href}
