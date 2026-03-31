@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   Trash2,
   Loader2,
+  X,
 } from "lucide-react";
 import {
   Card,
@@ -191,8 +192,17 @@ export default function UsersPage() {
           placeholder="搜索用户 ID..."
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
-          className="pl-9"
+          className="pl-9 pr-9"
         />
+        {searchText && (
+          <button
+            type="button"
+            onClick={() => setSearchText("")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-red-300 p-1 text-red-500 hover:bg-red-50 hover:text-red-600 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30 dark:hover:text-red-300 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* 错误提示 */}

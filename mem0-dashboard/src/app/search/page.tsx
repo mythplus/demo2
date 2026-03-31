@@ -11,8 +11,6 @@ import {
   ArrowRight,
   RotateCcw,
   ExternalLink,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 import {
   Card,
@@ -53,10 +51,7 @@ export default function SearchPage() {
   // 搜索状态
   const [query, setQuery] = useState("");
   const [userId, setUserId] = useState<string>("");
-  const [limit, setLimit] = useState("50");
-  const [pageSize, setPageSize] = useState("5");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [jumpPage, setJumpPage] = useState("");
+  const [limit, setLimit] = useState("10");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -243,6 +238,18 @@ export default function SearchPage() {
                 </SelectContent>
               </Select>
 
+              {/* 查找条数选择 */}
+              <Select value={limit} onValueChange={setLimit}>
+                <SelectTrigger className="w-[130px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">查找 5 条</SelectItem>
+                  <SelectItem value="10">查找 10 条</SelectItem>
+                  <SelectItem value="20">查找 20 条</SelectItem>
+                </SelectContent>
+              </Select>
+
               {/* 刷新按钮 - 重置搜索回到初始状态 */}
               {searched && (
                 <Button
@@ -254,9 +261,7 @@ export default function SearchPage() {
                   onClick={() => {
                     setQuery("");
                     setUserId("");
-                    setLimit("50");
-                    setPageSize("5");
-                    setCurrentPage(1);
+                    setLimit("10");
                     setResults([]);
                     setSearched(false);
                     setError("");
@@ -281,32 +286,7 @@ export default function SearchPage() {
       )}
 
       {/* 搜索结果 */}
-      {searched && !loading && (() => {
-        const pageSizeNum = parseInt(pageSize);
-        const totalPages = Math.max(1, Math.ceil(results.length / pageSizeNum));
-        const safePage = Math.min(currentPage, totalPages);
-        const startIndex = (safePage - 1) * pageSizeNum;
-        const endIndex = startIndex + pageSizeNum;
-        const pagedResults = results.slice(startIndex, endIndex);
-
-        // 生成页码列表
-        const getPageNumbers = () => {
-          const pages: (number | string)[] = [];
-          if (totalPages <= 7) {
-            for (let i = 1; i <= totalPages; i++) pages.push(i);
-          } else {
-            pages.push(1);
-            if (safePage > 3) pages.push("...");
-            const start = Math.max(2, safePage - 1);
-            const end = Math.min(totalPages - 1, safePage + 1);
-            for (let i = start; i <= end; i++) pages.push(i);
-            if (safePage < totalPages - 2) pages.push("...");
-            pages.push(totalPages);
-          }
-          return pages;
-        };
-
-        return (
+      {searched && !loading && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -321,24 +301,12 @@ export default function SearchPage() {
                   按语义相似度从高到低排序
                 </CardDescription>
               </div>
-              {results.length > 0 && (
-                <Select value={pageSize} onValueChange={(v) => { setPageSize(v); setCurrentPage(1); }}>
-                  <SelectTrigger className="w-[120px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">5 条/页</SelectItem>
-                    <SelectItem value="10">10 条/页</SelectItem>
-                    <SelectItem value="20">20 条/页</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
             </div>
           </CardHeader>
           <CardContent>
             {results.length > 0 ? (
               <div className="space-y-3">
-                {pagedResults.map((result, index) => (
+                {results.map((result, index) => (
                   <div
                     key={result.id}
                     className="rounded-lg border p-4 transition-colors hover:bg-accent/30 cursor-pointer"
@@ -349,7 +317,7 @@ export default function SearchPage() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
                           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                            {startIndex + index + 1}
+                            {index + 1}
                           </span>
                           {result.user_id && (
                             <Badge variant="secondary" className="text-xs">
@@ -415,88 +383,9 @@ export default function SearchPage() {
               </div>
             )}
 
-            {/* 分页控件 */}
-            {results.length > 0 && totalPages > 1 && (
-              <div className="mt-6 flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">
-                  第 {safePage}/{totalPages} 页，共 {results.length} 条
-                </span>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={safePage <= 1}
-                    onClick={() => setCurrentPage(safePage - 1)}
-                  >
-                    <ChevronLeft className="mr-1 h-4 w-4" />
-                    上一页
-                  </Button>
-                  {getPageNumbers().map((p, i) =>
-                    typeof p === "string" ? (
-                      <span key={`ellipsis-${i}`} className="px-2 text-muted-foreground">…</span>
-                    ) : (
-                      <Button
-                        key={p}
-                        variant={p === safePage ? "default" : "outline"}
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => setCurrentPage(p)}
-                      >
-                        {p}
-                      </Button>
-                    )
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={safePage >= totalPages}
-                    onClick={() => setCurrentPage(safePage + 1)}
-                  >
-                    下一页
-                    <ChevronRight className="ml-1 h-4 w-4" />
-                  </Button>
-
-                  {/* 跳转页数 */}
-                  <span className="ml-3 text-sm text-muted-foreground whitespace-nowrap">跳转到</span>
-                  <Input
-                    className="h-8 w-14 text-center text-sm px-1"
-                    value={jumpPage}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/[^0-9]/g, "");
-                      setJumpPage(val);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        const page = parseInt(jumpPage);
-                        if (page >= 1 && page <= totalPages) {
-                          setCurrentPage(page);
-                          setJumpPage("");
-                        }
-                      }
-                    }}
-                    placeholder="页码"
-                  />
-                  <span className="text-sm text-muted-foreground">页</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const page = parseInt(jumpPage);
-                      if (page >= 1 && page <= totalPages) {
-                        setCurrentPage(page);
-                        setJumpPage("");
-                      }
-                    }}
-                  >
-                    确定
-                  </Button>
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
-        );
-      })()}
+      )}
 
       {/* 搜索历史 */}
       {!searched && searchHistory.length > 0 && (
