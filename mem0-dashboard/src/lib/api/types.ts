@@ -267,3 +267,92 @@ export interface BatchImportResponse {
   failed: number;
   results: BatchImportResultItem[];
 }
+
+// ============ 图谱记忆 (Graph Memory) ============
+
+/** 图谱节点 */
+export interface GraphNode {
+  id: string;
+  name: string;
+  user_id?: string;
+  labels?: string[];
+  val?: number;
+}
+
+/** 图谱边/链接 */
+export interface GraphLink {
+  source: string;
+  target: string;
+  relation: string;
+}
+
+/** 图谱数据（用于可视化） */
+export interface GraphData {
+  nodes: GraphNode[];
+  links: GraphLink[];
+  node_count: number;
+  link_count: number;
+}
+
+/** 图谱实体 */
+export interface GraphEntity {
+  name: string;
+  user_id?: string;
+  labels?: string[];
+  element_id?: string;
+  relation_count?: number;
+}
+
+/** 图谱实体列表响应 */
+export interface GraphEntitiesResponse {
+  entities: GraphEntity[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/** 图谱关系三元组 */
+export interface GraphRelation {
+  source: string;
+  relation: string;
+  target: string;
+  source_user_id?: string;
+  target_user_id?: string;
+  element_id?: string;
+}
+
+/** 图谱关系列表响应 */
+export interface GraphRelationsResponse {
+  relations: GraphRelation[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/** 图谱搜索请求 */
+export interface GraphSearchRequest {
+  query: string;
+  user_id?: string;
+  limit?: number;
+}
+
+/** 图谱搜索响应 */
+export interface GraphSearchResponse {
+  relations: GraphRelation[];
+  isolated_entities: GraphEntity[];
+  total: number;
+}
+
+/** 图谱统计 */
+export interface GraphStatsResponse {
+  entity_count: number;
+  relation_count: number;
+  relation_type_distribution: Record<string, number>;
+  user_entity_distribution: Record<string, number>;
+}
+
+/** 图谱健康检查 */
+export interface GraphHealthResponse {
+  status: "connected" | "disconnected" | "error";
+  message: string;
+}

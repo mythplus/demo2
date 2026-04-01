@@ -314,18 +314,18 @@ export default function MemoryDetailPage() {
 
                         {/* 标签信息 - 对比显示变更 */}
                         {item.event !== "DELETE" && (() => {
-                          const oldCats = item.old_categories || [];
-                          const newCats = item.categories || [];
-                          const added = newCats.filter((c: string) => !oldCats.includes(c));
-                          const removed = oldCats.filter((c: string) => !newCats.includes(c));
-                          const unchanged = newCats.filter((c: string) => oldCats.includes(c));
+                          const oldCats = (item.old_categories || []) as string[];
+                          const newCats = (item.categories || []) as string[];
+                          const added = newCats.filter((c) => !oldCats.includes(c)) as import("@/lib/api").Category[];
+                          const removed = oldCats.filter((c) => !newCats.includes(c)) as import("@/lib/api").Category[];
+                          const unchanged = newCats.filter((c) => oldCats.includes(c)) as import("@/lib/api").Category[];
                           const hasChange = added.length > 0 || removed.length > 0;
 
                           if (item.event === "ADD") {
                             return newCats.length > 0 ? (
                               <div className="pt-1">
                                 <p className="text-xs text-muted-foreground mb-1">标签：</p>
-                                <CategoryBadges categories={newCats} />
+                                <CategoryBadges categories={newCats as import("@/lib/api").Category[]} />
                               </div>
                             ) : null;
                           }
@@ -334,7 +334,7 @@ export default function MemoryDetailPage() {
                             return (
                               <div className="pt-1">
                                 <p className="text-xs text-muted-foreground mb-1">标签：</p>
-                                <CategoryBadges categories={newCats} />
+                                <CategoryBadges categories={newCats as import("@/lib/api").Category[]} />
                               </div>
                             );
                           }
