@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { CategoryBadges } from "./category-badge";
 import { StateBadge } from "./state-badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { Memory } from "@/lib/api";
 import {
   Tooltip,
@@ -34,15 +35,40 @@ interface MemoryTableProps {
   onView: (memory: Memory) => void;
   onEdit: (memory: Memory) => void;
   onDelete: (memory: Memory) => void;
+  selectionMode?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
+  onToggleAll?: (checked: boolean) => void;
 }
 
-export function MemoryTable({ memories, onView, onEdit, onDelete }: MemoryTableProps) {
+export function MemoryTable({
+  memories,
+  onView,
+  onEdit,
+  onDelete,
+  selectionMode = false,
+  selectedIds = new Set(),
+  onToggleSelect,
+  onToggleAll,
+}: MemoryTableProps) {
+  const allSelected = memories.length > 0 && memories.every((m) => selectedIds.has(m.id));
+  const someSelected = memories.some((m) => selectedIds.has(m.id)) && !allSelected;
+
   return (
     <TooltipProvider>
       <div className="rounded-md border overflow-x-auto">
         <Table className="min-w-[800px]">
           <TableHeader>
             <TableRow className="bg-muted/40">
+              {selectionMode && (
+                <TableHead className="w-[40px] py-3">
+                  <Checkbox
+                    checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                    onCheckedChange={(checked) => onToggleAll?.(!!checked)}
+                    aria-label="全选"
+                  />
+                </TableHead>
+              )}
               <TableHead className="min-w-[280px] max-w-[500px] py-3 font-semibold text-xs uppercase tracking-wider">记忆内容</TableHead>
               <TableHead className="min-w-[70px] w-[80px] py-3 font-semibold text-xs uppercase tracking-wider">用户</TableHead>
               <TableHead className="min-w-[160px] w-[180px] py-3 font-semibold text-xs uppercase tracking-wider">分类</TableHead>
@@ -55,9 +81,25 @@ export function MemoryTable({ memories, onView, onEdit, onDelete }: MemoryTableP
             {memories.map((memory) => (
               <TableRow
                 key={memory.id}
-                className="cursor-pointer hover:bg-accent/50 transition-colors"
-                onClick={() => onView(memory)}
+                className={`cursor-pointer hover:bg-accent/50 transition-colors ${selectionMode && selectedIds.has(memory.id) ? "bg-accent/30" : ""}`}
+                onClick={() => {
+                  if (selectionMode) {
+                    onToggleSelect?.(memory.id);
+                  } else {
+                    onView(memory);
+                  }
+                }}
               >
+                {selectionMode && (
+                  <TableCell className="py-3">
+                    <Checkbox
+                      checked={selectedIds.has(memory.id)}
+                      onCheckedChange={() => onToggleSelect?.(memory.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label={`选择记忆 ${memory.id}`}
+                    />
+                  </TableCell>
+                )}
                 <TableCell className="py-3 max-w-[500px]">
                   <Tooltip>
                     <TooltipTrigger asChild>
