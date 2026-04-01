@@ -20,6 +20,8 @@ import type {
   AccessLogsResponse,
   RequestLogsResponse,
   RequestLogsStats,
+  BatchImportRequest,
+  BatchImportResponse,
 } from "./types";
 
 // API 基础地址
@@ -69,6 +71,17 @@ export const mem0Api = {
    */
   async addMemory(data: AddMemoryRequest): Promise<AddMemoryResponse> {
     return request<AddMemoryResponse>("/v1/memories/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * 批量导入记忆
+   * @param data 包含多条记忆和默认配置
+   */
+  async batchImport(data: BatchImportRequest): Promise<BatchImportResponse> {
+    return request<BatchImportResponse>("/v1/memories/batch", {
       method: "POST",
       body: JSON.stringify(data),
     });

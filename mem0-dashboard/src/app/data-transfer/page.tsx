@@ -24,7 +24,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+
+
 import { Input } from "@/components/ui/input";
 import { Search, ChevronDown, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -541,8 +542,6 @@ export default function DataTransferPage() {
         </CardContent>
       </Card>
 
-      <Separator />
-
       {/* 导入数据 */}
       <Card>
         <CardHeader className="pb-3">
@@ -654,7 +653,6 @@ export default function DataTransferPage() {
       />
 
       {/* 操作汇总 */}
-      <Separator />
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">

@@ -295,7 +295,7 @@ function UserFilterDropdown({
           "hover:bg-accent/50 transition-colors"
         )}
       >
-        <span className={value ? "text-foreground" : "text-muted-foreground"}>
+        <span className="text-foreground">
           {value || "全部用户"}
         </span>
         <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", open && "rotate-180")} />

@@ -835,6 +835,147 @@ async def add_memory(request: AddMemoryRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class BatchImportItem(BaseModel):
+    """批量导入中的单条记忆"""
+    content: str
+    user_id: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+    categories: Optional[List[str]] = None
+    state: Optional[str] = "active"
+
+
+class BatchImportRequest(BaseModel):
+    """批量导入请求"""
+    items: List[BatchImportItem]
+    default_user_id: Optional[str] = None  # 覆盖所有记忆的 user_id
+    infer: Optional[bool] = False  # 默认原文存储
+    auto_categorize: Optional[bool] = True  # 默认 AI 自动分类
+
+
+class BatchImportResultItem(BaseModel):
+    index: int
+    success: bool
+    id: Optional[str] = None
+    memory: Optional[str] = None
+    error: Optional[str] = None
+
+
+class BatchImportResponse(BaseModel):
+    total: int
+    success: int
+    failed: int
+    results: List[BatchImportResultItem]
+
+
+@app.post("/v1/memories/batch")
+async def batch_import_memories(request: BatchImportRequest):
+    """批量导入记忆 — 一次性接收多条记忆，逐条写入并返回结果汇总"""
+    if not request.items:
+        raise HTTPException(status_code=400, detail="items 不能为空")
+
+    m = get_memory()
+    results: List[BatchImportResultItem] = []
+    success_count = 0
+    failed_count = 0
+
+    for idx, item in enumerate(request.items):
+        try:
+            # 确定 user_id：default_user_id 优先 > item.user_id > "default"
+            uid = (request.default_user_id or "").strip() or (item.user_id or "").strip() or "default"
+
+            # 合并 metadata
+            final_metadata: Dict[str, Any] = dict(item.metadata or {})
+            user_selected_categories = False
+
+            if item.categories:
+                valid_cats = [c for c in item.categories if c in VALID_CATEGORIES]
+                if valid_cats:
+                    final_metadata["categories"] = valid_cats
+                    user_selected_categories = True
+
+            # 批量导入的记忆统一为 active 状态
+            final_metadata["state"] = "active"
+
+            # AI 自动分类
+            if not user_selected_categories and request.auto_categorize:
+                ai_categories = _auto_categorize_memory(item.content)
+                if ai_categories:
+                    final_metadata["categories"] = ai_categories
+
+            kwargs: Dict[str, Any] = {"user_id": uid}
+            if final_metadata:
+                kwargs["metadata"] = final_metadata
+
+            messages = [{"role": "user", "content": item.content}]
+            result = m.add(messages=messages, infer=request.infer, **kwargs)
+
+            # 补写 metadata 到 Qdrant（与 add_memory 逻辑一致）
+            try:
+                added_ids = []
+                if isinstance(result, dict) and "results" in result:
+                    added_ids = [r for r in result["results"] if r.get("id")]
+                elif isinstance(result, list):
+                    added_ids = [r for r in result if r.get("id")]
+
+                if added_ids:
+                    collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+                    qdrant_client = m.vector_store.client
+                    for added_item in added_ids:
+                        mid = added_item.get("id") if isinstance(added_item, dict) else added_item
+                        try:
+                            points = qdrant_client.retrieve(
+                                collection_name=collection_name,
+                                ids=[mid],
+                                with_payload=True,
+                            )
+                            if points:
+                                current_meta = dict((points[0].payload or {}).get("metadata", {}) or {})
+                                if "categories" in final_metadata and "categories" not in current_meta:
+                                    current_meta["categories"] = final_metadata["categories"]
+                                if "state" in final_metadata:
+                                    current_meta["state"] = final_metadata["state"]
+                                qdrant_client.set_payload(
+                                    collection_name=collection_name,
+                                    payload={"metadata": current_meta},
+                                    points=[mid],
+                                )
+                                init_cats = current_meta.get("categories", [])
+                                if init_cats:
+                                    _save_category_snapshot(mid, init_cats)
+                                memory_text = added_item.get("memory", "") if isinstance(added_item, dict) else ""
+                                _save_change_log(mid, "ADD", memory_text, init_cats)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+            # 取第一条结果的 id
+            first_id = None
+            first_memory = None
+            if isinstance(result, dict) and "results" in result and result["results"]:
+                first_id = result["results"][0].get("id")
+                first_memory = result["results"][0].get("memory")
+
+            results.append(BatchImportResultItem(
+                index=idx, success=True, id=first_id, memory=first_memory
+            ))
+            success_count += 1
+
+        except Exception as e:
+            logger.warning(f"批量导入第 {idx+1} 条失败: {e}")
+            results.append(BatchImportResultItem(
+                index=idx, success=False, error=str(e)
+            ))
+            failed_count += 1
+
+    return BatchImportResponse(
+        total=len(request.items),
+        success=success_count,
+        failed=failed_count,
+        results=results,
+    )
+
+
 @app.get("/v1/memories/")
 async def get_memories(
     user_id: Optional[str] = Query(None),

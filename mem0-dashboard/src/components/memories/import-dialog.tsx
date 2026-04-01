@@ -205,7 +205,7 @@ export function ImportDialog({
     if (file) processFile(file);
   }, [processFile]);
 
-  // 执行导入（并发批量，每批 5 条）
+  // 执行导入（使用批量接口，一次性提交）
   const handleImport = async () => {
     setStep("importing");
     isBackgroundRef.current = false;
@@ -218,38 +218,41 @@ export function ImportDialog({
     onImportingChange?.(true);
 
     const result: ImportResult = { success: 0, failed: 0, errors: [] };
-    const BATCH_SIZE = 5;
-    let completed = 0;
 
-    for (let i = 0; i < items.length; i += BATCH_SIZE) {
-      const batch = items.slice(i, i + BATCH_SIZE);
+    try {
+      setProgress(10); // 开始请求
 
-      const promises = batch.map(async (item, batchIdx) => {
-        const globalIdx = i + batchIdx;
-        try {
-          await mem0Api.addMemory({
-            messages: [{ role: "user", content: item.content }],
-            user_id: defaultUserId.trim() || item.user_id || "default",
-            metadata: item.metadata,
-            categories: item.categories as Category[] | undefined,
-            state: item.state as MemoryState | undefined,
-            infer: false,           // 导入时原文整条存储，不让 AI 拆分
-            auto_categorize: true,  // AI 自动识别标签
-          });
-          result.success++;
-        } catch (err) {
-          result.failed++;
-          result.errors.push(
-            `第 ${globalIdx + 1} 条: ${err instanceof Error ? err.message : "导入失败"}`
-          );
-        }
+      const response = await mem0Api.batchImport({
+        items: items.map((item) => ({
+          content: item.content,
+          user_id: item.user_id,
+          metadata: item.metadata,
+          categories: item.categories as Category[] | undefined,
+          state: item.state as MemoryState | undefined,
+        })),
+        default_user_id: defaultUserId.trim() || undefined,
+        infer: false,           // 导入时原文整条存储，不让 AI 拆分
+        auto_categorize: true,  // AI 自动识别标签
       });
 
-      await Promise.all(promises);
+      result.success = response.success;
+      result.failed = response.failed;
 
-      completed += batch.length;
-      const newProgress = Math.round((completed / items.length) * 100);
-      setProgress(newProgress);
+      // 收集失败项的错误信息
+      for (const item of response.results) {
+        if (!item.success && item.error) {
+          result.errors.push(`第 ${item.index + 1} 条: ${item.error}`);
+        }
+      }
+
+      setProgress(100);
+    } catch (err) {
+      // 整个请求失败，所有记忆视为导入失败
+      result.failed = items.length;
+      result.errors.push(
+        `批量导入请求失败: ${err instanceof Error ? err.message : "未知错误"}`
+      );
+      setProgress(100);
     }
 
     isImportingRef.current = false;

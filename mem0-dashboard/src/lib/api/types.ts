@@ -231,3 +231,39 @@ export interface RequestLogsStats {
   daily_trend: Array<Record<string, unknown>>;
   types: string[];
 }
+
+// ============ 批量导入 ============
+
+/** 批量导入单条记忆 */
+export interface BatchImportItem {
+  content: string;
+  user_id?: string;
+  metadata?: Record<string, unknown>;
+  categories?: Category[];
+  state?: MemoryState;
+}
+
+/** 批量导入请求 */
+export interface BatchImportRequest {
+  items: BatchImportItem[];
+  default_user_id?: string;
+  infer?: boolean;
+  auto_categorize?: boolean;
+}
+
+/** 批量导入结果项 */
+export interface BatchImportResultItem {
+  index: number;
+  success: boolean;
+  id?: string;
+  memory?: string;
+  error?: string;
+}
+
+/** 批量导入响应 */
+export interface BatchImportResponse {
+  total: number;
+  success: number;
+  failed: number;
+  results: BatchImportResultItem[];
+}
