@@ -37,7 +37,7 @@ export function DeleteConfirmDialog({
             <AlertTriangle className="h-5 w-5" />
             {title}
           </DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogDescription className="break-all whitespace-pre-wrap">{description}</DialogDescription>
         </DialogHeader>
 
         <DialogFooter>

@@ -66,7 +66,7 @@ export function MemoryTable({ memories, onView, onEdit, onDelete }: MemoryTableP
                       </p>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="max-w-sm">
-                      <p className="text-xs">{memory.memory}</p>
+                      <p className="text-xs break-all">{memory.memory}</p>
                     </TooltipContent>
                   </Tooltip>
                 </TableCell>
@@ -119,7 +119,10 @@ export function MemoryTable({ memories, onView, onEdit, onDelete }: MemoryTableP
                         <Eye className="mr-2 h-4 w-4" />
                         查看详情
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(memory); }}>
+                      <DropdownMenuItem
+                        onClick={(e) => { e.stopPropagation(); onEdit(memory); }}
+                        disabled={memory.state === "deleted"}
+                      >
                         <Pencil className="mr-2 h-4 w-4" />
                         编辑
                       </DropdownMenuItem>
@@ -127,6 +130,7 @@ export function MemoryTable({ memories, onView, onEdit, onDelete }: MemoryTableP
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
                         onClick={(e) => { e.stopPropagation(); onDelete(memory); }}
+                        disabled={memory.state === "deleted"}
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
                         删除

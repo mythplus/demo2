@@ -332,7 +332,10 @@ export default function MemoriesPage() {
                           <Eye className="mr-2 h-4 w-4" />
                           查看详情
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleEdit(memory)}>
+                        <DropdownMenuItem
+                          onClick={() => handleEdit(memory)}
+                          disabled={memory.state === "deleted"}
+                        >
                           <Pencil className="mr-2 h-4 w-4" />
                           编辑
                         </DropdownMenuItem>
@@ -340,6 +343,7 @@ export default function MemoriesPage() {
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
                           onClick={() => handleDeleteClick(memory)}
+                          disabled={memory.state === "deleted"}
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
                           删除

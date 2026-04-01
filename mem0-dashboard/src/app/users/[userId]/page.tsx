@@ -185,7 +185,7 @@ export default function UserDetailPage() {
                       setDetailPanelOpen(true);
                     }}
                   >
-                    <p className="text-sm leading-relaxed">{memory.memory}</p>
+                    <p className="text-sm leading-relaxed break-all whitespace-pre-wrap">{memory.memory}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <CategoryBadges categories={memory.categories} />
                       {memory.created_at && (
@@ -222,6 +222,7 @@ export default function UserDetailPage() {
                           setSelectedMemory(memory);
                           setEditDialogOpen(true);
                         }}
+                        disabled={memory.state === "deleted"}
                       >
                         <Pencil className="mr-2 h-4 w-4" />
                         编辑
@@ -233,6 +234,7 @@ export default function UserDetailPage() {
                           setSelectedMemory(memory);
                           setDeleteDialogOpen(true);
                         }}
+                        disabled={memory.state === "deleted"}
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
                         删除

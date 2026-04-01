@@ -332,9 +332,9 @@ export default function DataTransferPage() {
                   variant="outline"
                   size="sm"
                   onClick={handleResetFilter}
-                  className="h-8 px-3 text-xs"
+                  className="h-9 px-4 text-sm"
                 >
-                  <X className="mr-1 h-3 w-3" />
+                  <X className="mr-1 h-4 w-4" />
                   重置
                 </Button>
               )}

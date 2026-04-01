@@ -31,7 +31,7 @@ export function AccessLogList({ memoryId, className }: AccessLogListProps) {
     let cancelled = false;
     setLoading(true);
     mem0Api
-      .getAccessLogs(memoryId, 20)
+      .getAccessLogs(memoryId, 10)
       .then((res) => {
         if (!cancelled) setLogs(res.logs || []);
       })
@@ -46,14 +46,14 @@ export function AccessLogList({ memoryId, className }: AccessLogListProps) {
 
   return (
     <Card className={className}>
-      <CardHeader>
+      <CardHeader className="px-4 py-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <ScrollText className="h-4 w-4" />
           访问日志
         </CardTitle>
         <CardDescription>记录该记忆的访问历史</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-4 pb-3 pt-0">
         {loading ? (
           <div className="space-y-2">
             {[1, 2, 3].map((i) => (
@@ -61,7 +61,7 @@ export function AccessLogList({ memoryId, className }: AccessLogListProps) {
             ))}
           </div>
         ) : logs.length > 0 ? (
-          <div className="space-y-1">
+          <div className="space-y-1 max-h-[400px] overflow-y-auto">
             {logs.map((log) => {
               const config = ACTION_CONFIG[log.action as keyof typeof ACTION_CONFIG] || ACTION_CONFIG.view;
               const ActionIcon = config.icon;
@@ -93,7 +93,7 @@ export function AccessLogList({ memoryId, className }: AccessLogListProps) {
             })}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-6 text-center">
+          <div className="flex flex-col items-center justify-center py-3 text-center">
             <ScrollText className="mb-2 h-8 w-8 text-muted-foreground/30" />
             <p className="text-sm text-muted-foreground">暂无访问记录</p>
           </div>

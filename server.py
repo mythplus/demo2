@@ -1028,6 +1028,10 @@ async def delete_memory_by_id(memory_id: str):
             old_memory_text = payload.get("data", "")
             old_categories = metadata.get("categories", [])
 
+            # 检查是否已经是 deleted 状态，防止重复删除
+            if metadata.get("state") == "deleted":
+                raise HTTPException(status_code=400, detail="该记忆已处于删除状态，无法重复删除")
+
             # 将 state 标记为 deleted
             metadata["state"] = "deleted"
             qdrant_client.set_payload(
@@ -1299,7 +1303,7 @@ async def get_access_logs_api(
 @app.get("/v1/memories/{memory_id}/access-logs/")
 async def get_memory_access_logs(
     memory_id: str,
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(10, ge=1, le=100),
 ):
     """获取单条记忆的访问日志"""
     try:

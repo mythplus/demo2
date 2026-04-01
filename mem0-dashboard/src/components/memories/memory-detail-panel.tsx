@@ -154,8 +154,8 @@ export function MemoryDetailPanel({
                 <label className="text-xs font-medium text-muted-foreground">
                   记忆内容
                 </label>
-                <div className="rounded-lg border bg-muted/50 p-4">
-                  <p className="text-sm leading-relaxed">{memory.memory}</p>
+                <div className="rounded-lg border bg-muted/50 p-4 overflow-hidden">
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap break-all">{memory.memory}</p>
                 </div>
               </div>
 
@@ -289,19 +289,19 @@ export function MemoryDetailPanel({
                           <div className="pt-1 space-y-1.5">
                             <p className="text-xs text-muted-foreground mb-1">内容变更：</p>
                             <div className="rounded bg-red-50 dark:bg-red-950/20 p-2">
-                              <p className="text-sm line-through text-muted-foreground">
+                              <p className="text-sm line-through text-muted-foreground break-all whitespace-pre-wrap">
                                 {item.old_memory}
                               </p>
                             </div>
                             <div className="rounded bg-green-50 dark:bg-green-950/20 p-2">
-                              <p className="text-sm">{item.new_memory}</p>
+                              <p className="text-sm break-all whitespace-pre-wrap">{item.new_memory}</p>
                             </div>
                           </div>
                         ) : (
                           <div className="pt-1 space-y-1.5">
                             <p className="text-xs text-muted-foreground mb-1">{item.event === "ADD" ? "内容：" : "内容变更："}</p>
                             <div className="rounded bg-green-50 dark:bg-green-950/20 p-2">
-                              <p className="text-sm">{item.new_memory}</p>
+                              <p className="text-sm break-all whitespace-pre-wrap">{item.new_memory}</p>
                             </div>
                           </div>
                         )

@@ -328,7 +328,7 @@ export default function SearchPage() {
                             </span>
                           )}
                         </div>
-                        <p className="text-sm leading-relaxed">
+                        <p className="text-sm leading-relaxed break-all whitespace-pre-wrap">
                           {result.memory}
                         </p>
                         {/* 分类标签 + 详情页链接 */}

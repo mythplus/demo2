@@ -60,16 +60,14 @@ export function RelatedMemories({ memoryId, className }: RelatedMemoriesProps) {
 
   return (
     <Card className={className}>
-      <CardHeader>
+      <CardHeader className="px-4 py-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <Link2 className="h-4 w-4" />
-          关联记忆
         </CardTitle>
         <CardDescription>语义相关的记忆推荐</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-4 pb-3 pt-0">
         {loading ? (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex items-center justify-center py-4">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : related.length > 0 ? (
@@ -81,7 +79,7 @@ export function RelatedMemories({ memoryId, className }: RelatedMemoriesProps) {
                 className="flex items-start gap-3 rounded-lg border p-3 transition-colors hover:bg-accent/50"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm line-clamp-2 leading-relaxed">
+                  <p className="text-sm line-clamp-2 leading-relaxed break-all">
                     {item.memory}
                   </p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -105,8 +103,8 @@ export function RelatedMemories({ memoryId, className }: RelatedMemoriesProps) {
             ))}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <Link2 className="mb-3 h-8 w-8 text-muted-foreground/30" />
+          <div className="flex flex-col items-center justify-center py-4 text-center">
+            <Link2 className="mb-2 h-8 w-8 text-muted-foreground/30" />
             <p className="text-sm text-muted-foreground">暂无关联记忆</p>
           </div>
         )}
