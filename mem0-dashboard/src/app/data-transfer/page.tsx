@@ -128,13 +128,14 @@ export default function DataTransferPage() {
     const fetchData = async () => {
       try {
         const memories = await mem0Api.getMemories();
-        const data = (Array.isArray(memories) ? memories : []).filter((m) => m.state !== "deleted");
-        setMemoryCount(data.length);
+        const allMemories = Array.isArray(memories) ? memories : [];
+        const activeData = allMemories.filter((m) => m.state !== "deleted");
+        setMemoryCount(activeData.length);
 
-        // 提取去重的用户列表
+        // 从所有记忆（含已删除）中提取用户，确保用户不会因记忆全部删除而消失
         const users = Array.from(
           new Set(
-            data
+            allMemories
               .map((m) => m.user_id)
               .filter((id): id is string => !!id)
           )
@@ -153,13 +154,14 @@ export default function DataTransferPage() {
   const refreshCount = async () => {
     try {
       const memories = await mem0Api.getMemories();
-      const data = (Array.isArray(memories) ? memories : []).filter((m) => m.state !== "deleted");
-      setMemoryCount(data.length);
+      const allMemories = Array.isArray(memories) ? memories : [];
+      const activeData = allMemories.filter((m) => m.state !== "deleted");
+      setMemoryCount(activeData.length);
 
-      // 同时刷新用户列表
+      // 从所有记忆（含已删除）中提取用户，确保用户不会因记忆全部删除而消失
       const users = Array.from(
         new Set(
-          data
+          allMemories
             .map((m) => m.user_id)
             .filter((id): id is string => !!id)
         )

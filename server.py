@@ -1238,6 +1238,31 @@ async def delete_all_memories(user_id: Optional[str] = Query(None)):
 
 # ============ 搜索接口 ============
 
+def _get_real_states(memory_ids: list) -> dict:
+    """从 Qdrant 直接查询记忆的真实 state（Mem0 search 返回的 metadata 可能不含自定义 state）"""
+    if not memory_ids:
+        return {}
+    try:
+        m = get_memory()
+        collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+        qdrant_client = m.vector_store.client
+        points = qdrant_client.retrieve(
+            collection_name=collection_name,
+            ids=memory_ids,
+            with_payload=True,
+        )
+        state_map = {}
+        for p in points:
+            pid = str(p.id)
+            payload = p.payload or {}
+            metadata = payload.get("metadata", {}) or {}
+            state_map[pid] = metadata.get("state", "active")
+        return state_map
+    except Exception as e:
+        logger.warning(f"查询记忆真实状态失败: {e}")
+        return {}
+
+
 @app.post("/v1/memories/search/")
 async def search_memories(request: SearchMemoryRequest):
     """语义搜索记忆"""
@@ -1256,24 +1281,33 @@ async def search_memories(request: SearchMemoryRequest):
         result = m.search(**kwargs)
 
         # 统一返回格式并附加 categories/state
+        formatted = []
         if isinstance(result, dict) and "results" in result:
             formatted = [format_mem0_result(item) for item in result["results"]]
             # 保留 score 字段
             for i, item in enumerate(result["results"]):
                 if "score" in item:
                     formatted[i]["score"] = item["score"]
-            # 过滤掉已删除的记忆，语义搜索中不应出现已删除记忆
-            formatted = [m for m in formatted if m.get("state", "active") != "deleted"]
-            return {"results": formatted}
-        if isinstance(result, list):
+        elif isinstance(result, list):
             formatted = [format_mem0_result(item) for item in result]
             for i, item in enumerate(result):
                 if "score" in item:
                     formatted[i]["score"] = item["score"]
-            # 过滤掉已删除的记忆
-            formatted = [m for m in formatted if m.get("state", "active") != "deleted"]
-            return {"results": formatted}
-        return {"results": result}
+        else:
+            return {"results": result}
+
+        # 从 Qdrant 直接查询每条记忆的真实 state（Mem0 search 返回的 metadata 可能不含 state）
+        memory_ids = [item["id"] for item in formatted if item.get("id")]
+        real_states = _get_real_states(memory_ids)
+
+        # 用真实 state 替换，并过滤掉已删除的记忆
+        for item in formatted:
+            mid = item.get("id", "")
+            if mid in real_states:
+                item["state"] = real_states[mid]
+        formatted = [item for item in formatted if item.get("state", "active") != "deleted"]
+
+        return {"results": formatted}
     except Exception as e:
         logger.error(f"搜索记忆失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1327,39 +1361,42 @@ async def get_memory_history(memory_id: str):
 async def get_stats():
     """获取统计数据（分类分布、状态分布、每日趋势）"""
     try:
-        memories = _get_all_memories_raw()
+        all_memories = _get_all_memories_raw()
 
-        # 基础统计
-        total_memories = len(memories)
+        # 活跃记忆（排除已删除），用于统计 total_memories、total_users、分类分布、每日趋势
+        active_memories = [m for m in all_memories if m.get("state", "active") != "deleted"]
+
+        # 基础统计（仅统计活跃记忆）
+        total_memories = len(active_memories)
         user_set = set()
-        for m in memories:
+        for m in active_memories:
             uid = m.get("user_id")
             if uid:
                 user_set.add(uid)
         total_users = len(user_set)
 
-        # 分类分布
+        # 分类分布（仅统计活跃记忆）
         category_distribution = {cat: 0 for cat in VALID_CATEGORIES}
-        for m in memories:
+        for m in active_memories:
             for cat in (m.get("categories") or []):
                 if cat in category_distribution:
                     category_distribution[cat] += 1
 
-        # 状态分布
+        # 状态分布（统计全部记忆，包含已删除，方便查看各状态数量）
         state_distribution = {s: 0 for s in VALID_STATES}
-        for m in memories:
+        for m in all_memories:
             s = m.get("state", "active")
             if s in state_distribution:
                 state_distribution[s] += 1
 
-        # 近 30 天每日趋势
+        # 近 30 天每日趋势（仅统计活跃记忆）
         daily_trend = []
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         for i in range(29, -1, -1):
             day = today - timedelta(days=i)
             day_str = day.strftime("%Y-%m-%d")
             count = 0
-            for m in memories:
+            for m in active_memories:
                 created = m.get("created_at")
                 if created:
                     try:
@@ -1417,8 +1454,18 @@ async def get_related_memories(memory_id: str, limit: int = Query(5, ge=1, le=20
             if "score" in item:
                 formatted["score"] = item["score"]
             results.append(formatted)
-            if len(results) >= limit:
-                break
+
+        # 从 Qdrant 直接查询每条记忆的真实 state，过滤已删除记忆
+        memory_ids = [item["id"] for item in results if item.get("id")]
+        real_states = _get_real_states(memory_ids)
+        for item in results:
+            mid = item.get("id", "")
+            if mid in real_states:
+                item["state"] = real_states[mid]
+        results = [item for item in results if item.get("state", "active") != "deleted"]
+
+        # 截取到 limit 条
+        results = results[:limit]
 
         return {"results": results}
     except HTTPException:

@@ -111,16 +111,19 @@ export default function DashboardPage() {
     return () => clearInterval(retryInterval);
   }, [connectionStatus]);
 
+  // 排除已删除记忆，仪表盘只展示活跃记忆数据
+  const activeMemories = memories.filter((m) => m.state !== "deleted");
+
   // 统计数据
-  const totalMemories = stats?.total_memories ?? memories.length;
-  const uniqueUserCount = stats?.total_users ?? new Set(memories.map((m) => m.user_id).filter(Boolean)).size;
+  const totalMemories = stats?.total_memories ?? activeMemories.length;
+  const uniqueUserCount = stats?.total_users ?? new Set(activeMemories.map((m) => m.user_id).filter(Boolean)).size;
 
   // 今日新增（从 stats.daily_trend 取今天的数据，避免时区问题）
   const todayStr = new Date().toISOString().slice(0, 10); // "2026-03-30"
   const todayCount = stats?.daily_trend?.find((d) => d.date === todayStr)?.count ?? 0;
 
-  // 最近记忆（按时间排序）
-  const recentMemories = [...memories]
+  // 最近记忆（按时间排序，排除已删除记忆）
+  const recentMemories = [...activeMemories]
     .sort((a, b) => {
       const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
       const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
@@ -128,9 +131,9 @@ export default function DashboardPage() {
     })
     .slice(0, 5);
 
-  // 用户记忆排行
+  // 用户记忆排行（排除已删除记忆）
   const userMemoryCount = new Map<string, number>();
-  memories.forEach((m) => {
+  activeMemories.forEach((m) => {
     if (m.user_id) {
       userMemoryCount.set(
         m.user_id,

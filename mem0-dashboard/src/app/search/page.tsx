@@ -86,10 +86,10 @@ export default function SearchPage() {
   const loadUsers = async () => {
     try {
       const memories = await mem0Api.getMemories();
+      // 从所有记忆（含已删除）中提取用户，确保用户不会因记忆全部删除而消失
       const uniqueUsers = Array.from(
         new Set(
           (Array.isArray(memories) ? memories : [])
-            .filter((m: Memory) => m.state !== "deleted")
             .map((m: Memory) => m.user_id)
             .filter(Boolean)
         )
