@@ -11,12 +11,14 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Upload,
   FileJson,
   Loader2,
   CheckCircle,
   AlertTriangle,
+  User,
 } from "lucide-react";
 import {
   parseImportJSON,
@@ -96,6 +98,8 @@ export function ImportDialog({
   const [isDragging, setIsDragging] = useState(false);
   const [importFileName, setImportFileName] = useState("");
   const [importFileBlob, setImportFileBlob] = useState<Blob | null>(null);
+  // 默认 user_id（用于没有 user_id 的导入记忆）
+  const [defaultUserId, setDefaultUserId] = useState("");
 
   // 后台导入记录 ID
   const backgroundRecordIdRef = useRef<string | null>(null);
@@ -164,6 +168,7 @@ export function ImportDialog({
     setProgress(0);
     setImportFileName("");
     setImportFileBlob(null);
+    setDefaultUserId("");
     backgroundRecordIdRef.current = null;
     isBackgroundRef.current = false;
     isImportingRef.current = false;
@@ -224,10 +229,12 @@ export function ImportDialog({
         try {
           await mem0Api.addMemory({
             messages: [{ role: "user", content: item.content }],
-            user_id: item.user_id,
+            user_id: defaultUserId.trim() || item.user_id || "default",
             metadata: item.metadata,
             categories: item.categories as Category[] | undefined,
             state: item.state as MemoryState | undefined,
+            infer: false,           // 导入时原文整条存储，不让 AI 拆分
+            auto_categorize: true,  // AI 自动识别标签
           });
           result.success++;
         } catch (err) {
@@ -438,6 +445,42 @@ export function ImportDialog({
                 ))}
               </div>
             )}
+
+            {/* 默认 user_id 设置 */}
+            {(() => {
+              const noUserCount = items.filter((item) => !item.user_id?.trim()).length;
+              return (
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                  <label className="flex items-center gap-1.5 text-sm font-medium">
+                    <User className="h-4 w-4" />
+                    默认用户 ID
+                    {noUserCount > 0 && (
+                      <Badge variant="destructive" className="ml-1 text-xs">
+                        {noUserCount} 条缺少用户ID
+                      </Badge>
+                    )}
+                  </label>
+                  <Input
+                    value={defaultUserId}
+                    onChange={(e) => setDefaultUserId(e.target.value)}
+                    placeholder={noUserCount > 0 ? "必填：为缺少用户ID的记忆指定默认值" : "填写后将覆盖所有记忆的用户ID"}
+                    className="h-9"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {noUserCount > 0
+                      ? `有 ${noUserCount} 条记忆缺少 user_id，请输入默认值，否则将使用 "default" 作为用户ID`
+                      : "填写后所有记忆都将使用此用户ID导入；留空则使用每条记忆原有的 user_id"}
+                  </p>
+                </div>
+              );
+            })()}
+
+            {/* 导入说明 */}
+            <div className="rounded-md bg-blue-50 dark:bg-blue-950/20 p-3">
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                💡 导入流程：每条记忆将通过后端 API 写入数据库，AI 会自动识别并添加分类标签。记忆内容将原文存储，不会被 AI 拆分。
+              </p>
+            </div>
 
             <DialogFooter>
               <Button variant="outline" onClick={reset}>

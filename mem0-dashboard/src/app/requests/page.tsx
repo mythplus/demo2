@@ -423,43 +423,13 @@ export default function RequestsPage() {
                         disabled={page <= 0}
                         onClick={() => setPage((p) => p - 1)}
                       >
-                        <ChevronLeft className="h-4 w-4 mr-1" />
+                      <ChevronLeft className="h-4 w-4 mr-1" />
                         上一页
                       </Button>
 
-                      {/* 智能页码显示 */}
-                      {(() => {
-                        const pages: (number | string)[] = [];
-                        const current = page + 1; // 显示用的页码从1开始
-                        if (totalPages <= 7) {
-                          for (let i = 1; i <= totalPages; i++) pages.push(i);
-                        } else {
-                          pages.push(1);
-                          if (current > 3) pages.push("...");
-                          const start = Math.max(2, current - 1);
-                          const end = Math.min(totalPages - 1, current + 1);
-                          for (let i = start; i <= end; i++) pages.push(i);
-                          if (current < totalPages - 2) pages.push("...");
-                          pages.push(totalPages);
-                        }
-                        return pages.map((p, idx) =>
-                          typeof p === "string" ? (
-                            <span key={`ellipsis-${idx}`} className="px-1 text-muted-foreground text-sm">
-                              ···
-                            </span>
-                          ) : (
-                            <Button
-                              key={p}
-                              variant={p === page + 1 ? "default" : "outline"}
-                              size="sm"
-                              className="w-8 h-8 p-0"
-                              onClick={() => setPage(p - 1)}
-                            >
-                              {p}
-                            </Button>
-                          )
-                        );
-                      })()}
+                      <span className="text-sm font-medium px-2">
+                        {page + 1} / {totalPages}
+                      </span>
 
                       <Button
                         variant="outline"

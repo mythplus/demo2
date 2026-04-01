@@ -12,6 +12,8 @@ import {
   Pencil,
   Eye,
   Clock,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   Card,
@@ -21,6 +23,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -34,17 +37,28 @@ import { EditMemoryDialog } from "@/components/memories/edit-memory-dialog";
 import { DeleteConfirmDialog } from "@/components/memories/delete-confirm-dialog";
 import { MemoryDetailPanel } from "@/components/memories/memory-detail-panel";
 import { CategoryBadges } from "@/components/memories/category-badge";
+import { PageSizeSelector } from "@/components/memories/page-size-selector";
 import { mem0Api } from "@/lib/api";
 import type { Memory } from "@/lib/api";
+import { usePreferences } from "@/hooks/use-preferences";
 
 export default function UserDetailPage() {
   const params = useParams();
   const router = useRouter();
   const userId = decodeURIComponent(params.userId as string);
 
+  // 用户偏好设置
+  const { preferences } = usePreferences();
+  const sortOrder = preferences.sortOrder;
+
   const [memories, setMemories] = useState<Memory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // 分页状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [jumpPage, setJumpPage] = useState("");
 
   // 弹窗状态
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -156,10 +170,21 @@ export default function UserDetailPage() {
       {/* 记忆列表 */}
       <Card>
         <CardHeader>
-          <CardTitle>记忆列表</CardTitle>
-          <CardDescription>
-            用户 {userId} 的所有记忆条目
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div className="space-y-1.5">
+              <CardTitle>记忆列表</CardTitle>
+              <CardDescription>
+                用户 {userId} 的所有记忆条目，共 <span className="font-semibold text-foreground text-base">{memories.length}</span> 条
+              </CardDescription>
+            </div>
+            <PageSizeSelector
+              value={pageSize}
+              onChange={(size) => {
+                setPageSize(size);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -172,8 +197,20 @@ export default function UserDetailPage() {
               ))}
             </div>
           ) : memories.length > 0 ? (
+            (() => {
+              const sortedMemories = [...memories].sort((a, b) => {
+                const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+                const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                return sortOrder === "newest" ? timeB - timeA : timeA - timeB;
+              });
+              const totalPages = Math.ceil(sortedMemories.length / pageSize);
+              const paginatedMemories = sortedMemories.slice(
+                (currentPage - 1) * pageSize,
+                currentPage * pageSize
+              );
+              return (
             <div className="space-y-2">
-              {memories.map((memory) => (
+              {paginatedMemories.map((memory) => (
                 <div
                   key={memory.id}
                   className="group flex items-start justify-between rounded-lg border p-4 transition-colors hover:bg-accent/50"
@@ -243,7 +280,81 @@ export default function UserDetailPage() {
                   </DropdownMenu>
                 </div>
               ))}
+
+              {/* 分页 */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-4 flex-wrap gap-3">
+                  <p className="text-sm text-muted-foreground">
+                    第 {currentPage} / {totalPages} 页，共 {sortedMemories.length} 条
+                  </p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage <= 1}
+                      onClick={() => setCurrentPage((p) => p - 1)}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      上一页
+                    </Button>
+
+                    <span className="text-sm font-medium px-2">
+                      {currentPage} / {totalPages}
+                    </span>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage >= totalPages}
+                      onClick={() => setCurrentPage((p) => p + 1)}
+                    >
+                      下一页
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+
+                    {/* 跳转到指定页 */}
+                    <div className="flex items-center gap-1.5 ml-3">
+                      <span className="text-sm text-muted-foreground whitespace-nowrap">跳转到</span>
+                      <Input
+                        className="w-16 h-8 text-center text-sm"
+                        value={jumpPage}
+                        placeholder="页码"
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === "" || /^\d+$/.test(val)) {
+                            setJumpPage(val);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && jumpPage) {
+                            const page = Math.max(1, Math.min(totalPages, parseInt(jumpPage)));
+                            setCurrentPage(page);
+                            setJumpPage("");
+                          }
+                        }}
+                      />
+                      <span className="text-sm text-muted-foreground">页</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        onClick={() => {
+                          if (jumpPage) {
+                            const page = Math.max(1, Math.min(totalPages, parseInt(jumpPage)));
+                            setCurrentPage(page);
+                            setJumpPage("");
+                          }
+                        }}
+                      >
+                        确定
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
+              );
+            })()
           ) : (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Brain className="mb-4 h-16 w-16 text-muted-foreground/30" />

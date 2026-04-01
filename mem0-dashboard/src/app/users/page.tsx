@@ -319,42 +319,9 @@ export default function UsersPage() {
                   上一页
                 </Button>
 
-                {/* 智能页码显示 */}
-                {(() => {
-                  const pages: (number | string)[] = [];
-                  if (totalPages <= 7) {
-                    // 页数较少时全部显示
-                    for (let i = 1; i <= totalPages; i++) pages.push(i);
-                  } else {
-                    // 始终显示第1页
-                    pages.push(1);
-                    if (currentPage > 3) pages.push("...");
-                    // 当前页附近的页码
-                    const start = Math.max(2, currentPage - 1);
-                    const end = Math.min(totalPages - 1, currentPage + 1);
-                    for (let i = start; i <= end; i++) pages.push(i);
-                    if (currentPage < totalPages - 2) pages.push("...");
-                    // 始终显示最后一页
-                    pages.push(totalPages);
-                  }
-                  return pages.map((page, idx) =>
-                    typeof page === "string" ? (
-                      <span key={`ellipsis-${idx}`} className="px-1 text-muted-foreground text-sm">
-                        ···
-                      </span>
-                    ) : (
-                      <Button
-                        key={page}
-                        variant={page === currentPage ? "default" : "outline"}
-                        size="sm"
-                        className="w-8 h-8 p-0"
-                        onClick={() => setCurrentPage(page)}
-                      >
-                        {page}
-                      </Button>
-                    )
-                  );
-                })()}
+                <span className="text-sm font-medium px-2">
+                  {currentPage} / {totalPages}
+                </span>
 
                 <Button
                   variant="outline"

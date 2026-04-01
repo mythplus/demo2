@@ -251,32 +251,11 @@ export default function MemoriesPage() {
   return (
     <div className="space-y-6">
       {/* 页面头部 */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">记忆管理</h2>
-          <p className="text-muted-foreground">
-            管理所有存储的记忆条目，支持添加、编辑、删除操作
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" size="icon" onClick={fetchMemories}>
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          </Button>
-          <Button
-            variant={selectionMode ? "secondary" : "outline"}
-            onClick={handleToggleSelectionMode}
-            className={selectionMode ? "border-primary text-primary" : ""}
-          >
-            <CheckSquare className="mr-2 h-4 w-4" />
-            <span className="hidden sm:inline">{selectionMode ? "退出多选" : "多选操作"}</span>
-            <span className="sm:hidden">{selectionMode ? "退出" : "多选"}</span>
-          </Button>
-          <Button onClick={() => setAddDialogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            <span className="hidden sm:inline">添加记忆</span>
-            <span className="sm:hidden">添加</span>
-          </Button>
-        </div>
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight">记忆管理</h2>
+        <p className="text-muted-foreground">
+          管理所有存储的记忆条目，支持添加、编辑、删除操作
+        </p>
       </div>
 
       {/* 筛选栏 */}
@@ -284,36 +263,58 @@ export default function MemoriesPage() {
         <CardContent className="pt-6">
           <div className="space-y-3">
             {/* 搜索框 */}
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="搜索记忆内容、用户 ID..."
-                  value={searchText}
-                  onChange={(e) => {
-                    setSearchText(e.target.value);
-                    if (!isComposing) {
-                      setCurrentPage(1);
-                    }
-                  }}
-                  onCompositionStart={() => setIsComposing(true)}
-                  onCompositionEnd={(e) => {
-                    setIsComposing(false);
-                    setSearchText((e.target as HTMLInputElement).value);
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="搜索记忆内容、用户 ID..."
+                value={searchText}
+                onChange={(e) => {
+                  setSearchText(e.target.value);
+                  if (!isComposing) {
                     setCurrentPage(1);
-                  }}
-                  className="pl-9"
-                />
-              </div>
+                  }
+                }}
+                onCompositionStart={() => setIsComposing(true)}
+                onCompositionEnd={(e) => {
+                  setIsComposing(false);
+                  setSearchText((e.target as HTMLInputElement).value);
+                  setCurrentPage(1);
+                }}
+                className="pl-9"
+              />
             </div>
 
-            {/* 视图切换 + 多维筛选器 */}
-            <MemoryFilters
-              filters={filters}
-              onFiltersChange={handleFiltersChange}
-              users={uniqueUsers}
-              prefix={<ViewToggle mode={viewMode} onChange={setViewMode} className="h-8" />}
-            />
+            {/* 视图切换 + 多维筛选器 + 操作按钮 */}
+            <div className="flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <MemoryFilters
+                  filters={filters}
+                  onFiltersChange={handleFiltersChange}
+                  users={uniqueUsers}
+                  prefix={<ViewToggle mode={viewMode} onChange={setViewMode} className="h-8" />}
+                />
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button variant="outline" size="icon" onClick={fetchMemories} className="h-8 w-8">
+                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                </Button>
+                <Button
+                  variant={selectionMode ? "secondary" : "outline"}
+                  onClick={handleToggleSelectionMode}
+                  size="sm"
+                  className={selectionMode ? "border-primary text-primary" : ""}
+                >
+                  <CheckSquare className="mr-1.5 h-4 w-4" />
+                  <span className="hidden sm:inline">{selectionMode ? "退出多选" : "多选操作"}</span>
+                  <span className="sm:hidden">{selectionMode ? "退出" : "多选"}</span>
+                </Button>
+                <Button size="sm" onClick={() => setAddDialogOpen(true)}>
+                  <Plus className="mr-1.5 h-4 w-4" />
+                  <span className="hidden sm:inline">添加记忆</span>
+                  <span className="sm:hidden">添加</span>
+                </Button>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -330,26 +331,42 @@ export default function MemoriesPage() {
 
       {/* 多选操作栏 */}
       {selectionMode && (
-        <Card className="border-primary/30 bg-primary/5">
+        <Card className="border-primary/30">
           <CardContent className="flex items-center justify-between py-3 px-4">
             <div className="flex items-center gap-3">
               <CheckSquare className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium">
-                已选择 <span className="text-primary font-bold">{selectedIds.size}</span> 条记忆
+              <span className="text-base font-medium">
+                已选择 <span className="text-primary font-bold text-lg">{selectedIds.size}</span> 条记忆
               </span>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className="text-xs h-7"
+                className="text-sm"
                 onClick={() => handleToggleAll(true)}
               >
-                全选（{filteredMemories.filter((m) => m.state !== "deleted").length}）
+                全选
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-sm"
+                onClick={() => {
+                  const newIds = new Set<string>();
+                  filteredMemories.forEach((m) => {
+                    if (m.state !== "deleted" && !selectedIds.has(m.id)) {
+                      newIds.add(m.id);
+                    }
+                  });
+                  setSelectedIds(newIds);
+                }}
+              >
+                反选
               </Button>
               {selectedIds.size > 0 && (
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  className="text-xs h-7"
+                  className="text-sm"
                   onClick={() => setSelectedIds(new Set())}
                 >
                   取消选择
@@ -367,7 +384,7 @@ export default function MemoriesPage() {
                 删除选中（{selectedIds.size}）
               </Button>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={handleToggleSelectionMode}
               >
@@ -539,38 +556,9 @@ export default function MemoriesPage() {
                       上一页
                     </Button>
 
-                    {/* 智能页码显示 */}
-                    {(() => {
-                      const pages: (number | string)[] = [];
-                      if (totalPages <= 7) {
-                        for (let i = 1; i <= totalPages; i++) pages.push(i);
-                      } else {
-                        pages.push(1);
-                        if (currentPage > 3) pages.push("...");
-                        const start = Math.max(2, currentPage - 1);
-                        const end = Math.min(totalPages - 1, currentPage + 1);
-                        for (let i = start; i <= end; i++) pages.push(i);
-                        if (currentPage < totalPages - 2) pages.push("...");
-                        pages.push(totalPages);
-                      }
-                      return pages.map((page, idx) =>
-                        typeof page === "string" ? (
-                          <span key={`ellipsis-${idx}`} className="px-1 text-muted-foreground text-sm">
-                            ···
-                          </span>
-                        ) : (
-                          <Button
-                            key={page}
-                            variant={page === currentPage ? "default" : "outline"}
-                            size="sm"
-                            className="w-8 h-8 p-0"
-                            onClick={() => setCurrentPage(page)}
-                          >
-                            {page}
-                          </Button>
-                        )
-                      );
-                    })()}
+                    <span className="text-sm font-medium px-2">
+                      {currentPage} / {totalPages}
+                    </span>
 
                     <Button
                       variant="outline"
