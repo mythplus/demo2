@@ -50,10 +50,13 @@ export default function UsersPage() {
       const memories = await mem0Api.getMemories();
       const memoriesArr = Array.isArray(memories) ? memories : [];
 
+      // 排除已删除的记忆，只统计活跃/暂停状态的记忆
+      const activeMemories = memoriesArr.filter((m: Memory) => m.state !== "deleted");
+
       // 从记忆数据中聚合用户信息
       const userMap = new Map<string, UserInfo>();
 
-      memoriesArr.forEach((m: Memory) => {
+      activeMemories.forEach((m: Memory) => {
         if (!m.user_id) return;
         const existing = userMap.get(m.user_id);
         if (existing) {

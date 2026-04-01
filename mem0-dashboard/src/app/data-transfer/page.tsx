@@ -128,7 +128,7 @@ export default function DataTransferPage() {
     const fetchData = async () => {
       try {
         const memories = await mem0Api.getMemories();
-        const data = Array.isArray(memories) ? memories : [];
+        const data = (Array.isArray(memories) ? memories : []).filter((m) => m.state !== "deleted");
         setMemoryCount(data.length);
 
         // 提取去重的用户列表
@@ -153,7 +153,7 @@ export default function DataTransferPage() {
   const refreshCount = async () => {
     try {
       const memories = await mem0Api.getMemories();
-      const data = Array.isArray(memories) ? memories : [];
+      const data = (Array.isArray(memories) ? memories : []).filter((m) => m.state !== "deleted");
       setMemoryCount(data.length);
 
       // 同时刷新用户列表
@@ -179,7 +179,7 @@ export default function DataTransferPage() {
       date_from: filterDateFrom || undefined,
       date_to: filterDateTo || undefined,
     });
-    return Array.isArray(memories) ? memories : [];
+    return (Array.isArray(memories) ? memories : []).filter((m) => m.state !== "deleted");
   }, [filterUserId, filterDateFrom, filterDateTo]);
 
   // 预览筛选结果数量
@@ -222,7 +222,7 @@ export default function DataTransferPage() {
     try {
       const data = hasFilter
         ? await getFilteredMemories()
-        : await mem0Api.getMemories().then((m) => (Array.isArray(m) ? m : []));
+        : await mem0Api.getMemories().then((m) => (Array.isArray(m) ? m : []).filter((item) => item.state !== "deleted"));
       const result: ExportOutput = exportToJSON(data as Memory[]);
       addRecord({
         type: "导出",
@@ -261,7 +261,7 @@ export default function DataTransferPage() {
     try {
       const data = hasFilter
         ? await getFilteredMemories()
-        : await mem0Api.getMemories().then((m) => (Array.isArray(m) ? m : []));
+        : await mem0Api.getMemories().then((m) => (Array.isArray(m) ? m : []).filter((item) => item.state !== "deleted"));
       const result: ExportOutput = exportToCSV(data as Memory[]);
       addRecord({
         type: "导出",

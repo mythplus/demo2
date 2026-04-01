@@ -1262,12 +1262,16 @@ async def search_memories(request: SearchMemoryRequest):
             for i, item in enumerate(result["results"]):
                 if "score" in item:
                     formatted[i]["score"] = item["score"]
+            # 过滤掉已删除的记忆，语义搜索中不应出现已删除记忆
+            formatted = [m for m in formatted if m.get("state", "active") != "deleted"]
             return {"results": formatted}
         if isinstance(result, list):
             formatted = [format_mem0_result(item) for item in result]
             for i, item in enumerate(result):
                 if "score" in item:
                     formatted[i]["score"] = item["score"]
+            # 过滤掉已删除的记忆
+            formatted = [m for m in formatted if m.get("state", "active") != "deleted"]
             return {"results": formatted}
         return {"results": result}
     except Exception as e:

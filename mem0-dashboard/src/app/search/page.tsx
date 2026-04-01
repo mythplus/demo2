@@ -89,6 +89,7 @@ export default function SearchPage() {
       const uniqueUsers = Array.from(
         new Set(
           (Array.isArray(memories) ? memories : [])
+            .filter((m: Memory) => m.state !== "deleted")
             .map((m: Memory) => m.user_id)
             .filter(Boolean)
         )
@@ -129,7 +130,9 @@ export default function SearchPage() {
         limit: parseInt(limit),
       });
 
-      const searchResults = response.results || [];
+      const searchResults = (response.results || []).filter(
+        (r) => r.state !== "deleted"
+      );
       setResults(searchResults);
 
       // 保存搜索历史

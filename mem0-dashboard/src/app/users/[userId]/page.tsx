@@ -73,7 +73,9 @@ export default function UserDetailPage() {
     setError("");
     try {
       const data = await mem0Api.getMemories(userId);
-      setMemories(Array.isArray(data) ? data : []);
+      const allMemories = Array.isArray(data) ? data : [];
+      // 过滤掉已删除的记忆，用户管理中不展示已删除记忆
+      setMemories(allMemories.filter((m) => m.state !== "deleted"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "获取记忆失败");
     } finally {
