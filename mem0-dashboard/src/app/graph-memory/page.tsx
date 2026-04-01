@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import {
   Search,
@@ -11,14 +11,9 @@ import {
   RefreshCw,
   Users,
   Filter,
-  ChevronDown,
-  ChevronUp,
   AlertCircle,
   CheckCircle2,
   Loader2,
-  ZoomIn,
-  ZoomOut,
-  Maximize2,
 } from "lucide-react";
 import {
   Card,
@@ -60,13 +55,13 @@ import type {
   GraphHealthResponse,
 } from "@/lib/api";
 
-// 动态导入 ForceGraph2D（SSR 不兼容）
-const ForceGraph2D = dynamic(
-  () => import("react-force-graph-2d").then((mod) => mod.default || mod),
+// 动态导入图谱可视化组件（完全禁用 SSR，避免 window is not defined）
+const ForceGraphViewer = dynamic(
+  () => import("@/components/graph/force-graph-viewer"),
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-[500px] items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     ),
@@ -143,13 +138,6 @@ export default function GraphMemoryPage() {
     total: number;
   } | null>(null);
   const [searching, setSearching] = useState(false);
-
-  // 图谱可视化引用
-  const graphRef = useRef<any>(null);
-
-  // 图谱容器宽度（响应式）
-  const graphContainerRef = useRef<HTMLDivElement>(null);
-  const [graphWidth, setGraphWidth] = useState(800);
 
   // 用户列表（从统计数据中提取）
   const userList = useMemo(() => {
@@ -235,20 +223,6 @@ export default function GraphMemoryPage() {
       setLoading(false);
     };
     init();
-  }, []);
-
-  // 监听容器宽度变化
-  useEffect(() => {
-    const container = graphContainerRef.current;
-    if (!container) return;
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setGraphWidth(entry.contentRect.width);
-      }
-    });
-    observer.observe(container);
-    setGraphWidth(container.clientWidth);
-    return () => observer.disconnect();
   }, []);
 
   // 用户筛选变化时重新加载
@@ -556,73 +530,17 @@ export default function GraphMemoryPage() {
                 : "加载中..."}
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => graphRef.current?.zoomToFit(400)}
-              title="适应画布"
-            >
-              <Maximize2 className="h-4 w-4" />
-            </Button>
-          </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div ref={graphContainerRef} className="relative h-[500px] w-full border-t">
+          <div className="relative h-[500px] w-full border-t">
             {graphLoading ? (
               <div className="flex h-full items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : graphDataForViz.nodes.length > 0 ? (
-              <ForceGraph2D
-                ref={graphRef}
-                graphData={graphDataForViz}
-                nodeLabel={(node: any) =>
-                  `${node.name}${node.user_id ? ` (${node.user_id})` : ""}`
-                }
-                nodeColor={(node: any) => node.color || "#94a3b8"}
-                nodeRelSize={6}
-                nodeVal={(node: any) => Math.max(node.val || 1, 1)}
-                linkLabel={(link: any) => link.relation}
-                linkColor={(link: any) => link.color || "rgba(156, 163, 175, 0.4)"}
-                linkDirectionalArrowLength={4}
-                linkDirectionalArrowRelPos={1}
-                linkWidth={1.5}
-                linkCurvature={0.1}
-                nodeCanvasObject={(node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-                  const label = node.name;
-                  const fontSize = Math.max(12 / globalScale, 2);
-                  ctx.font = `${fontSize}px Sans-Serif`;
-                  const nodeR = Math.max(Math.sqrt(node.val || 1) * 4, 4);
-
-                  // 绘制节点圆
-                  ctx.beginPath();
-                  ctx.arc(node.x, node.y, nodeR, 0, 2 * Math.PI, false);
-                  ctx.fillStyle = node.color || "#94a3b8";
-                  ctx.fill();
-                  ctx.strokeStyle = "rgba(255,255,255,0.8)";
-                  ctx.lineWidth = 1.5 / globalScale;
-                  ctx.stroke();
-
-                  // 绘制标签
-                  if (globalScale > 0.6) {
-                    ctx.textAlign = "center";
-                    ctx.textBaseline = "middle";
-                    ctx.fillStyle = "rgba(0,0,0,0.8)";
-                    ctx.fillText(label, node.x, node.y + nodeR + fontSize);
-                  }
-                }}
-                onNodeClick={(node: any) => {
-                  // 点击节点时高亮
-                  if (graphRef.current) {
-                    graphRef.current.centerAt(node.x, node.y, 500);
-                    graphRef.current.zoom(3, 500);
-                  }
-                }}
-                cooldownTicks={100}
-                warmupTicks={50}
-                width={graphWidth}
-                height={500}
+              <ForceGraphViewer
+                nodes={graphDataForViz.nodes}
+                links={graphDataForViz.links}
               />
             ) : (
               <div className="flex h-full flex-col items-center justify-center text-muted-foreground">

@@ -1,14 +1,8 @@
 "use client";
 
 import React, { useRef, useEffect, useState } from "react";
-import dynamic from "next/dynamic";
+import ForceGraph2D from "react-force-graph-2d";
 import { Loader2 } from "lucide-react";
-
-// 动态导入 ForceGraph2D（完全禁用 SSR，避免 window is not defined）
-const ForceGraph2D = dynamic(
-  () => import("react-force-graph-2d").then((mod) => mod.default || mod),
-  { ssr: false }
-);
 
 interface GraphNode {
   id: string;
