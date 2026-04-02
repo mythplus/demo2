@@ -316,7 +316,6 @@ export default function GraphMemoryPage() {
       })),
       links: graphData.links.map((l) => ({
         ...l,
-        color: "rgba(156, 163, 175, 0.4)",
       })),
     };
   }, [graphData, userList]);
