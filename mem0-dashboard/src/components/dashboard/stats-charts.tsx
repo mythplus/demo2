@@ -37,13 +37,26 @@ interface StatsChartsProps {
 
 export function StatsCharts({ stats }: StatsChartsProps) {
   // 分类饼图数据
-  const categoryData = CATEGORY_LIST
+  const categoryData: Array<{ name: string; value: number; color: string }> = CATEGORY_LIST
     .map((cat) => ({
       name: cat.label,
       value: stats.category_distribution[cat.value] || 0,
       color: CATEGORY_MAP.get(cat.value)?.color || "#94a3b8",
     }))
     .filter((d) => d.value > 0);
+
+  // 增加"未分类"项
+  const uncategorizedCount = stats.uncategorized_count || 0;
+  if (uncategorizedCount > 0) {
+    categoryData.push({
+      name: "未分类",
+      value: uncategorizedCount,
+      color: "#d1d5db",
+    });
+  }
+
+  // 标签总计（所有分类数字之和，含未分类）
+  const tagTotal = categoryData.reduce((sum, d) => sum + d.value, 0);
 
   // 状态饼图数据
   const stateData = STATE_LIST
@@ -70,7 +83,9 @@ export function StatsCharts({ stats }: StatsChartsProps) {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">分类分布</CardTitle>
-          <CardDescription>各分类的记忆占比</CardDescription>
+          <CardDescription>
+            各分类的记忆占比（一条记忆可能属于多个分类，标签总计 {tagTotal} 次）
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {hasAnyCategoryData ? (

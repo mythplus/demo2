@@ -1385,10 +1385,15 @@ async def get_stats():
 
         # 分类分布（仅统计活跃记忆）
         category_distribution = {cat: 0 for cat in VALID_CATEGORIES}
+        uncategorized_count = 0
         for m in active_memories:
-            for cat in (m.get("categories") or []):
-                if cat in category_distribution:
-                    category_distribution[cat] += 1
+            cats = m.get("categories") or []
+            if not cats:
+                uncategorized_count += 1
+            else:
+                for cat in cats:
+                    if cat in category_distribution:
+                        category_distribution[cat] += 1
 
         # 状态分布（统计全部记忆，包含已删除，方便查看各状态数量）
         state_distribution = {s: 0 for s in VALID_STATES}
@@ -1419,6 +1424,7 @@ async def get_stats():
             "total_memories": total_memories,
             "total_users": total_users,
             "category_distribution": category_distribution,
+            "uncategorized_count": uncategorized_count,
             "state_distribution": state_distribution,
             "daily_trend": daily_trend,
         }

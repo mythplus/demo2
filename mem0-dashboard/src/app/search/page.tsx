@@ -9,7 +9,6 @@ import {
   X,
   Sparkles,
   ArrowRight,
-  RotateCcw,
   ExternalLink,
   ChevronDown,
   Check,
@@ -248,14 +247,13 @@ export default function SearchPage() {
                 </SelectContent>
               </Select>
 
-              {/* 刷新按钮 - 重置搜索回到初始状态 */}
+              {/* 清除按钮 - 重置搜索回到初始状态 */}
               {searched && (
                 <Button
                   type="button"
                   variant="outline"
-                  size="icon"
-                  className="h-10 w-10 shrink-0"
-                  title="重置搜索"
+                  className="shrink-0 border-red-300 text-red-500 hover:bg-red-50 hover:text-red-600"
+                  title="清除搜索"
                   onClick={() => {
                     setQuery("");
                     setUserId("");
@@ -265,7 +263,8 @@ export default function SearchPage() {
                     setError("");
                   }}
                 >
-                  <RotateCcw className="h-4 w-4" />
+                  <X className="mr-1 h-4 w-4" />
+                  清除
                 </Button>
               )}
             </div>

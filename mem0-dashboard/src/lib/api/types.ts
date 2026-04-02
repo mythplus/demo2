@@ -132,6 +132,7 @@ export interface StatsResponse {
   total_memories: number;
   total_users: number;
   category_distribution: Record<Category, number>;
+  uncategorized_count?: number;
   state_distribution: Record<MemoryState, number>;
   daily_trend: Array<{ date: string; count: number }>;
 }
