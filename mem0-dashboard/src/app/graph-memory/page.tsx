@@ -54,6 +54,8 @@ import {
 } from "@/components/ui/command";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { mem0Api } from "@/lib/api";
+import { DeleteConfirmDialog } from "@/components/memories/delete-confirm-dialog";
+import { useToast } from "@/hooks/use-toast";
 import type {
   GraphData,
   GraphEntity,
@@ -147,6 +149,16 @@ export default function GraphMemoryPage() {
   } | null>(null);
   const [searching, setSearching] = useState(false);
 
+  // 删除确认弹窗状态
+  const [deleteEntityDialogOpen, setDeleteEntityDialogOpen] = useState(false);
+  const [deleteEntityName, setDeleteEntityName] = useState("");
+  const [deleteEntityLoading, setDeleteEntityLoading] = useState(false);
+  const [deleteRelationDialogOpen, setDeleteRelationDialogOpen] = useState(false);
+  const [deleteRelationInfo, setDeleteRelationInfo] = useState<{ source: string; relation: string; target: string } | null>(null);
+  const [deleteRelationLoading, setDeleteRelationLoading] = useState(false);
+
+  const { toast } = useToast();
+
   // 用户列表（从统计数据中提取）
   const userList = useMemo(() => {
     if (!graphStats?.user_entity_distribution) return [];
@@ -191,7 +203,7 @@ export default function GraphMemoryPage() {
   const fetchEntities = useCallback(async (userId?: string, search?: string) => {
     try {
       const params: any = { limit: 100 };
-      if (userId && userId !== "__all__") params.user_id = userId;
+      if (userId) params.user_id = userId;
       if (search) params.search = search;
       const res = await mem0Api.getGraphEntities(params);
       setEntities(res.entities);
@@ -204,7 +216,7 @@ export default function GraphMemoryPage() {
   const fetchRelations = useCallback(async (userId?: string, search?: string) => {
     try {
       const params: any = { limit: 100 };
-      if (userId && userId !== "__all__") params.user_id = userId;
+      if (userId) params.user_id = userId;
       if (search) params.search = search;
       const res = await mem0Api.getGraphRelations(params);
       setRelations(res.relations);
@@ -295,23 +307,44 @@ export default function GraphMemoryPage() {
 
   // ============ 删除操作 ============
 
-  const handleDeleteEntity = async (entityName: string) => {
-    if (!confirm(`确定要删除实体「${entityName}」及其所有关联关系吗？`)) return;
+  const handleDeleteEntityClick = (entityName: string) => {
+    setDeleteEntityName(entityName);
+    setDeleteEntityDialogOpen(true);
+  };
+
+  const handleDeleteEntityConfirm = async () => {
+    setDeleteEntityLoading(true);
     try {
-      await mem0Api.deleteGraphEntity(entityName, selectedUserId || undefined);
+      await mem0Api.deleteGraphEntity(deleteEntityName, selectedUserId || undefined);
+      setDeleteEntityDialogOpen(false);
+      setDeleteEntityName("");
       handleRefresh();
+      toast({ title: "删除成功", description: `实体「${deleteEntityName}」已删除` });
     } catch (e: any) {
-      alert(`删除失败: ${e.message}`);
+      toast({ title: "删除失败", description: e.message, variant: "destructive" });
+    } finally {
+      setDeleteEntityLoading(false);
     }
   };
 
-  const handleDeleteRelation = async (source: string, relation: string, target: string) => {
-    if (!confirm(`确定要删除关系「${source} → ${relation} → ${target}」吗？`)) return;
+  const handleDeleteRelationClick = (source: string, relation: string, target: string) => {
+    setDeleteRelationInfo({ source, relation, target });
+    setDeleteRelationDialogOpen(true);
+  };
+
+  const handleDeleteRelationConfirm = async () => {
+    if (!deleteRelationInfo) return;
+    setDeleteRelationLoading(true);
     try {
-      await mem0Api.deleteGraphRelation(source, relation, target);
+      await mem0Api.deleteGraphRelation(deleteRelationInfo.source, deleteRelationInfo.relation, deleteRelationInfo.target);
+      setDeleteRelationDialogOpen(false);
+      setDeleteRelationInfo(null);
       handleRefresh();
+      toast({ title: "删除成功", description: `关系已删除` });
     } catch (e: any) {
-      alert(`删除失败: ${e.message}`);
+      toast({ title: "删除失败", description: e.message, variant: "destructive" });
+    } finally {
+      setDeleteRelationLoading(false);
     }
   };
 
@@ -490,7 +523,7 @@ export default function GraphMemoryPage() {
             {searchResults && (
               <Button
                 size="sm"
-                variant="ghost"
+                variant="outline"
                 onClick={() => {
                   setSearchResults(null);
                   setSearchQuery("");
@@ -600,21 +633,7 @@ export default function GraphMemoryPage() {
               </div>
             )}
           </div>
-          {/* 用户颜色图例 */}
-          {userList.length > 0 && (
-            <div className="flex flex-wrap items-center gap-3 border-t px-4 py-2">
-              <span className="text-xs text-muted-foreground">用户图例:</span>
-              {userList.map((uid) => (
-                <div key={uid} className="flex items-center gap-1">
-                  <div
-                    className="h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: getUserColor(uid, userList) }}
-                  />
-                  <span className="text-xs">{uid}</span>
-                </div>
-              ))}
-            </div>
-          )}
+
         </CardContent>
       </Card>
 
@@ -707,7 +726,7 @@ export default function GraphMemoryPage() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-destructive hover:text-destructive"
-                            onClick={() => handleDeleteEntity(entity.name)}
+                            onClick={() => handleDeleteEntityClick(entity.name)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -781,7 +800,7 @@ export default function GraphMemoryPage() {
                             size="icon"
                             className="h-8 w-8 text-destructive hover:text-destructive"
                             onClick={() =>
-                              handleDeleteRelation(rel.source, rel.relation, rel.target)
+                              handleDeleteRelationClick(rel.source, rel.relation, rel.target)
                             }
                           >
                             <Trash2 className="h-4 w-4" />
@@ -850,6 +869,26 @@ export default function GraphMemoryPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* 删除实体确认弹窗 */}
+      <DeleteConfirmDialog
+        open={deleteEntityDialogOpen}
+        onOpenChange={setDeleteEntityDialogOpen}
+        onConfirm={handleDeleteEntityConfirm}
+        loading={deleteEntityLoading}
+        title="删除实体"
+        description={`确定要删除实体「${deleteEntityName}」及其所有关联关系吗？此操作不可撤销。`}
+      />
+
+      {/* 删除关系确认弹窗 */}
+      <DeleteConfirmDialog
+        open={deleteRelationDialogOpen}
+        onOpenChange={setDeleteRelationDialogOpen}
+        onConfirm={handleDeleteRelationConfirm}
+        loading={deleteRelationLoading}
+        title="删除关系"
+        description={deleteRelationInfo ? `确定要删除关系「${deleteRelationInfo.source} → ${deleteRelationInfo.relation} → ${deleteRelationInfo.target}」吗？此操作不可撤销。` : ""}
+      />
     </div>
   );
 }
