@@ -286,7 +286,7 @@ function UserFilterDropdown({
     : users;
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative ml-2" ref={ref}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -301,7 +301,7 @@ function UserFilterDropdown({
         <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", open && "rotate-180")} />
       </button>
       {open && (
-        <div className="absolute right-0 z-50 mt-1 w-[220px] rounded-md border bg-popover text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95 overflow-hidden">
+        <div className="absolute left-0 z-50 mt-1 w-[220px] rounded-md border bg-popover text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95 overflow-hidden">
           <div className="flex items-center border-b px-2 py-1.5">
             <Search className="mr-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <input
