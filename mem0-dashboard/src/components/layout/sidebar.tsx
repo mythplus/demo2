@@ -48,7 +48,7 @@ title: "仪表盘",
     icon: Users,
   },
   {
-    title: "请求监控",
+title: "请求日志",
     href: "/requests",
     icon: Activity,
   },

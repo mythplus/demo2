@@ -231,6 +231,8 @@ export interface RequestLogsStats {
   type_distribution: Record<string, number>;
   daily_trend: Array<Record<string, unknown>>;
   types: string[];
+  /** 数据粒度：'30min' 表示30分钟粒度，'day' 表示按天 */
+  granularity?: "30min" | "day";
 }
 
 // ============ 批量导入 ============

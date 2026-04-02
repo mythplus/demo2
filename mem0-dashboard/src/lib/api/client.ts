@@ -221,10 +221,11 @@ export const mem0Api = {
   /**
    * 获取请求日志列表
    */
-  async getRequestLogs(params?: { request_type?: string; since?: string; limit?: number; offset?: number }): Promise<RequestLogsResponse> {
+  async getRequestLogs(params?: { request_type?: string; since?: string; until?: string; limit?: number; offset?: number }): Promise<RequestLogsResponse> {
     const qs = new URLSearchParams();
     if (params?.request_type) qs.set("request_type", params.request_type);
     if (params?.since) qs.set("since", params.since);
+    if (params?.until) qs.set("until", params.until);
     if (params?.limit) qs.set("limit", String(params.limit));
     if (params?.offset) qs.set("offset", String(params.offset));
     const q = qs.toString();
@@ -234,9 +235,12 @@ export const mem0Api = {
   /**
    * 获取请求日志统计
    */
-  async getRequestLogsStats(since?: string): Promise<RequestLogsStats> {
-    const qs = since ? `?since=${encodeURIComponent(since)}` : "";
-    return request<RequestLogsStats>(`/v1/request-logs/stats/${qs}`);
+  async getRequestLogsStats(since?: string, until?: string): Promise<RequestLogsStats> {
+    const qs = new URLSearchParams();
+    if (since) qs.set("since", since);
+    if (until) qs.set("until", until);
+    const q = qs.toString();
+    return request<RequestLogsStats>(`/v1/request-logs/stats/${q ? `?${q}` : ""}`);
   },
 
   // ============ 健康检查 ============
