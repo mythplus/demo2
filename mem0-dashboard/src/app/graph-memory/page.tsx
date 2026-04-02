@@ -40,12 +40,19 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
 import { mem0Api } from "@/lib/api";
 import type {
   GraphData,
@@ -126,7 +133,8 @@ export default function GraphMemoryPage() {
   const [graphLoading, setGraphLoading] = useState(false);
 
   // 筛选
-  const [selectedUserId, setSelectedUserId] = useState<string>("__all__");
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [userComboboxOpen, setUserComboboxOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [entitySearch, setEntitySearch] = useState("");
   const [relationSearch, setRelationSearch] = useState("");
@@ -168,11 +176,10 @@ export default function GraphMemoryPage() {
   }, []);
 
   const fetchGraphData = useCallback(async (userId?: string) => {
+    if (!userId) return;
     setGraphLoading(true);
     try {
-      const data = userId && userId !== "__all__"
-        ? await mem0Api.getUserGraph(userId)
-        : await mem0Api.getAllGraph();
+      const data = await mem0Api.getUserGraph(userId);
       setGraphData(data);
     } catch (e) {
       console.error("获取图谱数据失败:", e);
@@ -207,43 +214,48 @@ export default function GraphMemoryPage() {
     }
   }, []);
 
-  // 初始加载
+  // 初始加载（仅加载健康检查和统计数据，不加载图谱）
   useEffect(() => {
     const init = async () => {
       setLoading(true);
       const connected = await fetchHealth();
       if (connected) {
-        await Promise.all([
-          fetchStats(),
-          fetchGraphData(),
-          fetchEntities(),
-          fetchRelations(),
-        ]);
+        await fetchStats();
       }
       setLoading(false);
     };
     init();
   }, []);
 
-  // 用户筛选变化时重新加载
+  // 用户筛选变化时重新加载（仅在选择了具体用户后才加载）
   useEffect(() => {
     if (!graphHealth || graphHealth.status !== "connected") return;
-    const uid = selectedUserId === "__all__" ? undefined : selectedUserId;
-    fetchGraphData(uid);
-    fetchEntities(uid, entitySearch);
-    fetchRelations(uid, relationSearch);
+    if (!selectedUserId) {
+      // 未选择用户时清空数据
+      setGraphData(null);
+      setEntities([]);
+      setEntitiesTotalCount(0);
+      setRelations([]);
+      setRelationsTotalCount(0);
+      return;
+    }
+    fetchGraphData(selectedUserId);
+    fetchEntities(selectedUserId, entitySearch);
+    fetchRelations(selectedUserId, relationSearch);
   }, [selectedUserId]);
 
   // 刷新全部数据
   const handleRefresh = async () => {
     setLoading(true);
-    const uid = selectedUserId === "__all__" ? undefined : selectedUserId;
-    await Promise.all([
-      fetchStats(),
-      fetchGraphData(uid),
-      fetchEntities(uid, entitySearch),
-      fetchRelations(uid, relationSearch),
-    ]);
+    const tasks: Promise<any>[] = [fetchStats()];
+    if (selectedUserId) {
+      tasks.push(
+        fetchGraphData(selectedUserId),
+        fetchEntities(selectedUserId, entitySearch),
+        fetchRelations(selectedUserId, relationSearch),
+      );
+    }
+    await Promise.all(tasks);
     setLoading(false);
   };
 
@@ -256,10 +268,9 @@ export default function GraphMemoryPage() {
     }
     setSearching(true);
     try {
-      const uid = selectedUserId === "__all__" ? undefined : selectedUserId;
       const res = await mem0Api.searchGraph({
         query: searchQuery,
-        user_id: uid,
+        user_id: selectedUserId || undefined,
         limit: 50,
       });
       setSearchResults(res);
@@ -272,14 +283,14 @@ export default function GraphMemoryPage() {
 
   // 实体搜索
   const handleEntitySearch = () => {
-    const uid = selectedUserId === "__all__" ? undefined : selectedUserId;
-    fetchEntities(uid, entitySearch);
+    if (!selectedUserId) return;
+    fetchEntities(selectedUserId, entitySearch);
   };
 
   // 关系搜索
   const handleRelationSearch = () => {
-    const uid = selectedUserId === "__all__" ? undefined : selectedUserId;
-    fetchRelations(uid, relationSearch);
+    if (!selectedUserId) return;
+    fetchRelations(selectedUserId, relationSearch);
   };
 
   // ============ 删除操作 ============
@@ -287,8 +298,7 @@ export default function GraphMemoryPage() {
   const handleDeleteEntity = async (entityName: string) => {
     if (!confirm(`确定要删除实体「${entityName}」及其所有关联关系吗？`)) return;
     try {
-      const uid = selectedUserId === "__all__" ? undefined : selectedUserId;
-      await mem0Api.deleteGraphEntity(entityName, uid);
+      await mem0Api.deleteGraphEntity(entityName, selectedUserId || undefined);
       handleRefresh();
     } catch (e: any) {
       alert(`删除失败: ${e.message}`);
@@ -407,26 +417,59 @@ export default function GraphMemoryPage() {
         <CardContent className="flex items-center gap-4 p-4">
           <Filter className="h-4 w-4 text-muted-foreground" />
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">用户筛选:</span>
-            <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="全部用户" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">全部用户</SelectItem>
-                {userList.map((uid) => (
-                  <SelectItem key={uid} value={uid}>
+            <span className="text-sm text-muted-foreground">选择用户:</span>
+            <Popover open={userComboboxOpen} onOpenChange={setUserComboboxOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={userComboboxOpen}
+                  className="w-[220px] justify-between font-normal"
+                >
+                  {selectedUserId ? (
                     <div className="flex items-center gap-2">
                       <div
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{ backgroundColor: getUserColor(uid, userList) }}
+                        className="h-2.5 w-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: getUserColor(selectedUserId, userList) }}
                       />
-                      {uid}
+                      <span className="truncate">{selectedUserId}</span>
                     </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  ) : (
+                    <span className="text-muted-foreground">请选择用户...</span>
+                  )}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[220px] p-0">
+                <Command>
+                  <CommandInput placeholder="搜索用户..." />
+                  <CommandList>
+                    <CommandEmpty>未找到匹配用户</CommandEmpty>
+                    <CommandGroup>
+                      {userList.map((uid) => (
+                        <CommandItem
+                          key={uid}
+                          value={uid}
+                          onSelect={(value) => {
+                            setSelectedUserId(value === selectedUserId ? "" : value);
+                            setUserComboboxOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={`mr-2 h-4 w-4 ${selectedUserId === uid ? "opacity-100" : "opacity-0"}`}
+                          />
+                          <div
+                            className="mr-2 h-2.5 w-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: getUserColor(uid, userList) }}
+                          />
+                          {uid}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
           <div className="flex flex-1 items-center gap-2">
             <Input
@@ -524,15 +567,23 @@ export default function GraphMemoryPage() {
           <div>
             <CardTitle>知识图谱</CardTitle>
             <CardDescription>
-              {graphData
-                ? `${graphData.node_count} 个节点, ${graphData.link_count} 条关系`
-                : "加载中..."}
+              {!selectedUserId
+                ? "请选择用户以查看图谱"
+                : graphData
+                  ? `${graphData.node_count} 个节点, ${graphData.link_count} 条关系`
+                  : "加载中..."}
             </CardDescription>
           </div>
         </CardHeader>
         <CardContent className="p-0">
           <div className="relative h-[500px] w-full border-t">
-            {graphLoading ? (
+            {!selectedUserId ? (
+              <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
+                <Users className="mb-3 h-12 w-12 opacity-50" />
+                <p className="text-sm font-medium">请先选择一个用户</p>
+                <p className="text-xs">在上方筛选栏中选择用户后，将加载该用户的知识图谱</p>
+              </div>
+            ) : graphLoading ? (
               <div className="flex h-full items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
@@ -544,7 +595,7 @@ export default function GraphMemoryPage() {
             ) : (
               <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
                 <Network className="mb-3 h-12 w-12 opacity-50" />
-                <p className="text-sm">暂无图谱数据</p>
+                <p className="text-sm">该用户暂无图谱数据</p>
                 <p className="text-xs">添加记忆后，系统会自动提取实体和关系</p>
               </div>
             )}
