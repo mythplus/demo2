@@ -377,7 +377,7 @@ export default function GraphMemoryPage() {
         </div>
         <div className="flex items-center gap-2">
           {graphHealth?.status === "connected" && (
-            <Badge variant="outline" className="text-green-600 border-green-300">
+            <Badge variant="outline" className="text-green-600 border-green-600/40 dark:text-green-400 dark:border-green-400/30">
               <CheckCircle2 className="mr-1 h-3 w-3" />
               Neo4j 已连接
             </Badge>
@@ -419,7 +419,7 @@ export default function GraphMemoryPage() {
 
       {/* 图谱可视化 */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center gap-4">
           <div>
             <CardTitle>知识图谱</CardTitle>
             <CardDescription>
@@ -431,8 +431,6 @@ export default function GraphMemoryPage() {
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">选择用户:</span>
             <Popover open={userComboboxOpen} onOpenChange={setUserComboboxOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -441,8 +439,9 @@ export default function GraphMemoryPage() {
                   aria-expanded={userComboboxOpen}
                   className="w-[220px] justify-between font-normal"
                 >
+                  <Filter className="h-4 w-4 shrink-0 text-muted-foreground" />
                   {selectedUserId ? (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
                       <div
                         className="h-2.5 w-2.5 rounded-full shrink-0"
                         style={{ backgroundColor: getUserColor(selectedUserId, userList) }}
@@ -450,7 +449,7 @@ export default function GraphMemoryPage() {
                       <span className="truncate">{selectedUserId}</span>
                     </div>
                   ) : (
-                    <span className="text-muted-foreground">请选择用户...</span>
+                    <span className="flex-1 text-left text-muted-foreground">选择用户...</span>
                   )}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>

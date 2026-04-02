@@ -295,8 +295,9 @@ export default function MemoriesPage() {
                 />
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <Button variant="outline" size="icon" onClick={fetchMemories} className="h-8 w-8">
+                <Button variant="outline" size="sm" onClick={fetchMemories} className="h-8 gap-1.5">
                   <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                  刷新
                 </Button>
                 <Button
                   variant={selectionMode ? "secondary" : "outline"}

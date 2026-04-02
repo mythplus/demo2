@@ -14,7 +14,7 @@ const pageTitles: Record<string, string> = {
   "/search": "语义搜索",
   "/users": "用户管理",
 "/requests": "请求日志",
-  "/data-transfer": "记忆导出",
+"/data-transfer": "数据导出",
   "/settings": "系统设置",
 };
 
@@ -22,7 +22,7 @@ function getPageTitle(pathname: string): string {
   if (pageTitles[pathname]) return pageTitles[pathname];
   if (pathname.startsWith("/memory/")) return "记忆详情";
   if (pathname.startsWith("/users/")) return "用户详情";
-  return "Mem0 Dashboard";
+  return "图谱记忆";
 }
 
 interface HeaderProps {

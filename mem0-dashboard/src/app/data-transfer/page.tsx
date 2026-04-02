@@ -300,7 +300,7 @@ export default function DataTransferPage() {
     <div className="space-y-4">
       {/* 页面头部 */}
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">记忆导出</h2>
+<h2 className="text-2xl font-bold tracking-tight">数据导出</h2>
         <p className="text-muted-foreground">
           导入和导出记忆数据，方便备份和迁移
         </p>

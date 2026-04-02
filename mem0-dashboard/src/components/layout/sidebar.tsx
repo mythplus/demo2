@@ -58,7 +58,7 @@ title: "请求日志",
     icon: Network,
   },
   {
-    title: "记忆导出",
+title: "数据导出",
     href: "/data-transfer",
     icon: Database,
   },
@@ -95,7 +95,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               <Brain className="h-5 w-5" />
             </div>
             {!collapsed && (
-              <span className="text-lg font-bold">Mem0 Dashboard</span>
+<span className="text-lg font-bold">图谱记忆</span>
             )}
           </Link>
         </div>

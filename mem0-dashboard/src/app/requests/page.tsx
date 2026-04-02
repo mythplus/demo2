@@ -86,14 +86,12 @@ function formatLatency(ms: number): string {
 }
 
 function formatRelativeTime(timestamp: string): string {
-  const diff = Date.now() - new Date(timestamp).getTime();
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return "刚刚";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  const date = new Date(timestamp);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${month}/${day} ${hours}:${minutes}`;
 }
 
 // 格式化日期为 "MM-DD" 数字日期格式（直接从字符串提取，避免时区偏移）
@@ -264,6 +262,9 @@ export default function RequestsPage() {
 
           {/* 右侧操作按钮 */}
           <div className="flex items-center gap-2">
+            <span className="inline-flex items-center h-9 px-3 rounded-md border border-border bg-background text-sm text-muted-foreground whitespace-nowrap">
+              共 <span className="font-semibold text-foreground text-base mx-0.5">{total}</span> 条日志
+            </span>
             <Button
               variant="outline"
               size="sm"
@@ -396,11 +397,11 @@ export default function RequestsPage() {
                     const types = stats?.types || [];
                     const totalCount = data._total || 0;
 
-                    // 格式化日期为 dd/MM/yyyy
+                    // 格式化日期为 YYYY/M/D
                     let formattedDate = rawDate;
                     try {
                       const d = new Date(rawDate);
-                      formattedDate = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+                      formattedDate = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
                     } catch { /* keep raw */ }
 
                     return (

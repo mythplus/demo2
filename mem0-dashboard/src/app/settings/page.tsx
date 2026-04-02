@@ -138,17 +138,13 @@ export default function SettingsPage() {
 
           <Separator />
 
-          <div className="rounded-lg bg-muted p-4">
-            <p className="text-sm font-medium">💡 提示</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              API 地址通过环境变量{" "}
+          <div className="rounded-lg bg-muted px-4 py-3">
+            <p className="text-xs text-muted-foreground">
+              💡 API 地址通过环境变量{" "}
               <code className="rounded bg-background px-1 py-0.5">
                 NEXT_PUBLIC_MEM0_API_URL
               </code>{" "}
-              配置。修改后需要重启前端服务才能生效。
-            </p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              启动 Mem0 API Server：
+              配置。修改后需要重启前端服务才能生效。启动 Mem0 API Server：
               <code className="ml-1 rounded bg-background px-1 py-0.5">
                 mem0 server start --port 8080
               </code>
@@ -281,7 +277,7 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-muted-foreground">
           <p>
-            <strong>Mem0 Dashboard</strong> — 基于 Mem0 开源版 API
+            <strong>图谱记忆</strong> — 基于 Mem0 开源版 API
             的前端管理界面
           </p>
           <p>技术栈：Next.js 14 + shadcn/ui + Tailwind CSS</p>

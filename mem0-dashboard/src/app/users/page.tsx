@@ -142,8 +142,9 @@ export default function UsersPage() {
             查看和管理所有拥有记忆的用户，数据从记忆中自动聚合
           </p>
         </div>
-        <Button variant="outline" size="icon" onClick={fetchUsers}>
+        <Button variant="outline" size="sm" onClick={fetchUsers} className="gap-1.5">
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          刷新
         </Button>
       </div>
 

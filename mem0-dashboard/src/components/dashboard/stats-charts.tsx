@@ -84,7 +84,7 @@ export function StatsCharts({ stats }: StatsChartsProps) {
         <CardHeader>
           <CardTitle className="text-base">分类分布</CardTitle>
           <CardDescription>
-            各分类的记忆占比（一条记忆可能属于多个分类，标签总计 {tagTotal} 次）
+            各分类的记忆占比
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -206,7 +206,7 @@ export function StatsCharts({ stats }: StatsChartsProps) {
         <CardContent>
           {hasAnyTrendData ? (
             <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={trendData}>
+              <LineChart data={trendData} margin={{ top: 5, right: 10, bottom: 0, left: -20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis
                   dataKey="date"
