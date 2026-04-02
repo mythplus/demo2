@@ -137,17 +137,8 @@ export default function GraphMemoryPage() {
   // 筛选
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [userComboboxOpen, setUserComboboxOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [entitySearch, setEntitySearch] = useState("");
   const [relationSearch, setRelationSearch] = useState("");
-
-  // 搜索结果
-  const [searchResults, setSearchResults] = useState<{
-    relations: GraphRelation[];
-    isolated_entities: GraphEntity[];
-    total: number;
-  } | null>(null);
-  const [searching, setSearching] = useState(false);
 
   // 删除确认弹窗状态
   const [deleteEntityDialogOpen, setDeleteEntityDialogOpen] = useState(false);
@@ -271,28 +262,6 @@ export default function GraphMemoryPage() {
     setLoading(false);
   };
 
-  // ============ 搜索 ============
-
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      setSearchResults(null);
-      return;
-    }
-    setSearching(true);
-    try {
-      const res = await mem0Api.searchGraph({
-        query: searchQuery,
-        user_id: selectedUserId || undefined,
-        limit: 50,
-      });
-      setSearchResults(res);
-    } catch (e) {
-      console.error("图谱搜索失败:", e);
-    } finally {
-      setSearching(false);
-    }
-  };
-
   // 实体搜索
   const handleEntitySearch = () => {
     if (!selectedUserId) return;
@@ -357,9 +326,12 @@ export default function GraphMemoryPage() {
         ...n,
         color: getUserColor(n.user_id, userList),
       })),
-      links: graphData.links.map((l) => ({
-        ...l,
-      })),
+      // 过滤掉自环线（source 和 target 相同的关系）
+      links: graphData.links
+        .filter((l) => l.source !== l.target)
+        .map((l) => ({
+          ...l,
+        })),
     };
   }, [graphData, userList]);
 
@@ -445,11 +417,21 @@ export default function GraphMemoryPage() {
         />
       </div>
 
-      {/* 筛选栏 */}
+      {/* 图谱可视化 */}
       <Card>
-        <CardContent className="flex items-center gap-4 p-4">
-          <Filter className="h-4 w-4 text-muted-foreground" />
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>知识图谱</CardTitle>
+            <CardDescription>
+              {!selectedUserId
+                ? "请选择用户以查看图谱"
+                : graphData
+                  ? `${graphData.node_count} 个节点, ${graphData.link_count} 条关系`
+                  : "加载中..."}
+            </CardDescription>
+          </div>
           <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground">选择用户:</span>
             <Popover open={userComboboxOpen} onOpenChange={setUserComboboxOpen}>
               <PopoverTrigger asChild>
@@ -487,15 +469,16 @@ export default function GraphMemoryPage() {
                             setSelectedUserId(value === selectedUserId ? "" : value);
                             setUserComboboxOpen(false);
                           }}
+                          className="flex items-center gap-2"
                         >
                           <Check
-                            className={`mr-2 h-4 w-4 ${selectedUserId === uid ? "opacity-100" : "opacity-0"}`}
+                            className={`h-4 w-4 shrink-0 ${selectedUserId === uid ? "opacity-100" : "opacity-0"}`}
                           />
                           <div
-                            className="mr-2 h-2.5 w-2.5 rounded-full shrink-0"
+                            className="h-2.5 w-2.5 rounded-full shrink-0"
                             style={{ backgroundColor: getUserColor(uid, userList) }}
                           />
-                          {uid}
+                          <span className="truncate">{uid}</span>
                         </CommandItem>
                       ))}
                     </CommandGroup>
@@ -503,109 +486,6 @@ export default function GraphMemoryPage() {
                 </Command>
               </PopoverContent>
             </Popover>
-          </div>
-          <div className="flex flex-1 items-center gap-2">
-            <Input
-              placeholder="搜索实体或关系..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              className="max-w-sm"
-            />
-            <Button size="sm" onClick={handleSearch} disabled={searching}>
-              {searching ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Search className="mr-2 h-4 w-4" />
-              )}
-              搜索
-            </Button>
-            {searchResults && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setSearchResults(null);
-                  setSearchQuery("");
-                }}
-              >
-                清除搜索
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 搜索结果 */}
-      {searchResults && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              搜索结果
-              <Badge variant="secondary" className="ml-2">
-                {searchResults.total} 条
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {searchResults.relations.length > 0 && (
-              <div className="mb-4">
-                <h4 className="text-sm font-medium mb-2">关系匹配</h4>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>源实体</TableHead>
-                      <TableHead>关系</TableHead>
-                      <TableHead>目标实体</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {searchResults.relations.map((rel, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell className="font-medium">{rel.source}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{rel.relation}</Badge>
-                        </TableCell>
-                        <TableCell className="font-medium">{rel.target}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-            {searchResults.isolated_entities.length > 0 && (
-              <div>
-                <h4 className="text-sm font-medium mb-2">孤立实体</h4>
-                <div className="flex flex-wrap gap-2">
-                  {searchResults.isolated_entities.map((entity, idx) => (
-                    <Badge key={idx} variant="secondary">
-                      {entity.name}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            )}
-            {searchResults.total === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                未找到匹配的实体或关系
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 图谱可视化 */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>知识图谱</CardTitle>
-            <CardDescription>
-              {!selectedUserId
-                ? "请选择用户以查看图谱"
-                : graphData
-                  ? `${graphData.node_count} 个节点, ${graphData.link_count} 条关系`
-                  : "加载中..."}
-            </CardDescription>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -664,8 +544,8 @@ export default function GraphMemoryPage() {
         <TabsContent value="entities">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">实体列表</CardTitle>
+              <div className="flex items-center gap-4">
+                <CardTitle className="text-lg">实体列表</CardTitle>
                 <div className="flex items-center gap-2">
                   <Input
                     placeholder="搜索实体名称..."
@@ -686,9 +566,9 @@ export default function GraphMemoryPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>实体名称</TableHead>
-                      <TableHead>用户</TableHead>
                       <TableHead>标签</TableHead>
-                      <TableHead className="text-right">关系数</TableHead>
+<TableHead className="whitespace-nowrap">关系数</TableHead>
+                      <TableHead className="pl-8">用户</TableHead>
                       <TableHead className="w-[80px]">操作</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -697,6 +577,18 @@ export default function GraphMemoryPage() {
                       <TableRow key={idx}>
                         <TableCell className="font-medium">{entity.name}</TableCell>
                         <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {(entity.labels || []).map((label, i) => (
+                              <Badge key={i} variant="outline" className="text-xs">
+                                {label}
+                              </Badge>
+                            ))}
+                          </div>
+                        </TableCell>
+<TableCell>
+                          {entity.relation_count ?? 0}
+                        </TableCell>
+                        <TableCell className="pl-8">
                           {entity.user_id ? (
                             <div className="flex items-center gap-1.5">
                               <div
@@ -708,18 +600,6 @@ export default function GraphMemoryPage() {
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {(entity.labels || []).map((label, i) => (
-                              <Badge key={i} variant="outline" className="text-xs">
-                                {label}
-                              </Badge>
-                            ))}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {entity.relation_count ?? 0}
                         </TableCell>
                         <TableCell>
                           <Button
