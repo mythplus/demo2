@@ -34,12 +34,12 @@ graph_store:
   config:
     url: "bolt://9.134.231.238:7687"
     username: "neo4j"
-    password: "${NEO4J_PASSWORD}"
+    password: "mem0_neo4j_2024"
 
 # 安全配置
 security:
   # API Key 认证（为空则不启用认证，建议生产环境必须设置）
-  api_key: "${MEM0_API_KEY}"
+  api_key: ""
   # CORS 允许的来源（逗号分隔，* 表示允许所有）
   cors_origins: "http://localhost:3000,http://127.0.0.1:3000"
   # 速率限制（每分钟最大请求数，0 表示不限制）
