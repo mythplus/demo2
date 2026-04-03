@@ -16,29 +16,58 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 import uvicorn
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ============ 环境模式 ============
+# 通过环境变量 MEM0_ENV 控制，production 为生产模式，其他为开发模式
+IS_PRODUCTION = os.environ.get("MEM0_ENV", "development").lower() == "production"
+
 # ============ Qdrant 本地文件存储路径 ============
 # 使用项目目录下的 qdrant_data 文件夹，基于当前文件位置动态计算
 QDRANT_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "qdrant_data")
+
+def _safe_error_detail(e: Exception) -> str:
+    """安全的异常信息：生产环境返回通用提示，开发环境返回详细错误"""
+    if IS_PRODUCTION:
+        return "服务器内部错误，请稍后重试"
+    return str(e)
 
 # ============ 配置文件路径 ============
 CONFIG_FILE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.yaml")
 
 
+import re as _re
+
+def _resolve_env_vars(value):
+    """递归替换配置值中的 ${ENV_VAR} 为环境变量实际值"""
+    if isinstance(value, str):
+        def _replace(match):
+            env_name = match.group(1)
+            return os.environ.get(env_name, "")
+        return _re.sub(r'\$\{(\w+)\}', _replace, value)
+    elif isinstance(value, dict):
+        return {k: _resolve_env_vars(v) for k, v in value.items()}
+    elif isinstance(value, list):
+        return [_resolve_env_vars(item) for item in value]
+    return value
+
 def load_config_from_yaml() -> dict:
-    """从 config.yaml 文件实时读取配置，返回与 MEM0_CONFIG 兼容的字典格式"""
+    """从 config.yaml 文件实时读取配置，返回与 MEM0_CONFIG 兼容的字典格式。
+    支持 ${ENV_VAR} 语法引用环境变量。"""
     try:
         with open(CONFIG_FILE_PATH, "r", encoding="utf-8") as f:
             yaml_config = yaml.safe_load(f)
         if not yaml_config:
             logger.warning("config.yaml 为空，使用默认配置")
             return {}
+
+        # 递归替换环境变量
+        yaml_config = _resolve_env_vars(yaml_config)
 
         # 构建与 MEM0_CONFIG 兼容的格式
         config = {}
@@ -78,6 +107,10 @@ def load_config_from_yaml() -> dict:
         # 版本号
         if "version" in yaml_config:
             config["version"] = yaml_config["version"]
+
+        # 安全配置
+        if "security" in yaml_config:
+            config["security"] = yaml_config["security"]
 
         return config
     except FileNotFoundError:
@@ -223,9 +256,18 @@ def _auto_categorize_memory(memory_text: str) -> List[str]:
 ACCESS_LOG_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "access_logs.db")
 
 
+def _get_db_conn():
+    """获取 SQLite 连接（统一工厂函数，自动设置 busy_timeout 避免并发锁定）"""
+    conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
+    conn.execute("PRAGMA busy_timeout=5000")
+    return conn
+
+
 def _init_access_log_db():
     """初始化访问日志和请求日志数据库"""
-    conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
+    conn = _get_db_conn()
+    # 启用 WAL 模式（持久化设置，只需初始化时执行一次）
+    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS access_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -294,7 +336,7 @@ def _save_category_snapshot(memory_id: str, categories: list, timestamp: str = "
     try:
         ts = timestamp or datetime.now().isoformat()
         cats_json = json.dumps(categories, ensure_ascii=False)
-        conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
+        conn = _get_db_conn()
         conn.execute(
             "INSERT INTO category_snapshots (memory_id, categories, timestamp) VALUES (?, ?, ?)",
             (memory_id, cats_json, ts),
@@ -313,7 +355,7 @@ def _save_change_log(memory_id: str, event: str, new_memory: str,
         ts = datetime.now().isoformat()
         cats_json = json.dumps(categories, ensure_ascii=False)
         old_cats_json = json.dumps(old_categories or [], ensure_ascii=False)
-        conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
+        conn = _get_db_conn()
         conn.execute(
             """INSERT INTO memory_change_logs
                (memory_id, event, old_memory, new_memory, categories, old_categories, timestamp)
@@ -329,7 +371,7 @@ def _save_change_log(memory_id: str, event: str, new_memory: str,
 def _get_change_logs(memory_id: str) -> list:
     """获取某条记忆的自建修改历史（时间正序）"""
     try:
-        conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
+        conn = _get_db_conn()
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             """SELECT event, old_memory, new_memory, categories, old_categories, timestamp
@@ -366,7 +408,7 @@ def _get_change_logs(memory_id: str) -> list:
 def _log_access(memory_id: str, action: str, memory_preview: str = ""):
     """记录一条访问日志"""
     try:
-        conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
+        conn = _get_db_conn()
         conn.execute(
             "INSERT INTO access_logs (memory_id, action, memory_preview, timestamp) VALUES (?, ?, ?, ?)",
             (memory_id, action, memory_preview[:100] if memory_preview else "", datetime.now().isoformat()),
@@ -380,7 +422,7 @@ def _log_access(memory_id: str, action: str, memory_preview: str = ""):
 def _get_access_logs(memory_id: str = None, limit: int = 50, offset: int = 0) -> list:
     """查询访问日志"""
     try:
-        conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
+        conn = _get_db_conn()
         conn.row_factory = sqlite3.Row
         if memory_id:
             rows = conn.execute(
@@ -474,7 +516,7 @@ def _log_request(timestamp: str, method: str, path: str, request_type: str,
                  payload_summary: str, error: str = ""):
     """记录一条请求日志"""
     try:
-        conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
+        conn = _get_db_conn()
         conn.execute(
             """INSERT INTO request_logs
                (timestamp, method, path, request_type, user_id, status_code, latency_ms, payload_summary, error)
@@ -491,7 +533,7 @@ def _log_request(timestamp: str, method: str, path: str, request_type: str,
 def _get_request_logs(request_type: str = None, since: str = None, until: str = None, limit: int = 50, offset: int = 0) -> tuple:
     """查询请求日志，返回 (logs, total)"""
     try:
-        conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
+        conn = _get_db_conn()
         conn.row_factory = sqlite3.Row
 
         where = "WHERE 1=1"
@@ -643,15 +685,15 @@ def apply_filters(memories: list, categories: list = None, state: str = None,
 # ============ 请求/响应模型 ============
 
 class MemoryMessage(BaseModel):
-    role: str  # "user" | "assistant" | "system"
-    content: str
+    role: str = Field(..., max_length=20)  # "user" | "assistant" | "system"
+    content: str = Field(..., max_length=10000)  # 单条消息最大 10000 字符
 
 
 class AddMemoryRequest(BaseModel):
-    messages: List[MemoryMessage]
-    user_id: Optional[str] = None
-    agent_id: Optional[str] = None
-    run_id: Optional[str] = None
+    messages: List[MemoryMessage] = Field(..., max_length=50)  # 单次最多 50 条消息
+    user_id: Optional[str] = Field(None, max_length=100)
+    agent_id: Optional[str] = Field(None, max_length=100)
+    run_id: Optional[str] = Field(None, max_length=100)
     metadata: Optional[Dict[str, Any]] = None
     categories: Optional[List[str]] = None
     state: Optional[str] = "active"
@@ -660,18 +702,18 @@ class AddMemoryRequest(BaseModel):
 
 
 class SearchMemoryRequest(BaseModel):
-    query: str
-    user_id: Optional[str] = None
-    agent_id: Optional[str] = None
-    run_id: Optional[str] = None
-    limit: Optional[int] = 10
+    query: str = Field(..., max_length=500)  # 搜索查询最大 500 字符
+    user_id: Optional[str] = Field(None, max_length=100)
+    agent_id: Optional[str] = Field(None, max_length=100)
+    run_id: Optional[str] = Field(None, max_length=100)
+    limit: Optional[int] = Field(10, ge=1, le=100)  # 返回数量限制 1-100
 
 
 class UpdateMemoryRequest(BaseModel):
-    text: Optional[str] = None
+    text: Optional[str] = Field(None, max_length=10000)  # 更新内容最大 10000 字符
     metadata: Optional[Dict[str, Any]] = None
-    categories: Optional[List[str]] = None
-    state: Optional[str] = None
+    categories: Optional[List[str]] = Field(None, max_length=20)  # 最多 20 个分类
+    state: Optional[str] = Field(None, max_length=20)
     auto_categorize: Optional[bool] = False  # True: 对当前内容重新 AI 自动分类
 
 
@@ -691,6 +733,8 @@ async def lifespan(app: FastAPI):
     _init_access_log_db()
     logger.info(f"访问日志数据库: {ACCESS_LOG_DB_PATH}")
     yield
+    # 关闭全局 Neo4j 驱动
+    _close_neo4j_driver()
     logger.info("Mem0 Dashboard 后端服务已关闭")
 
 
@@ -703,14 +747,129 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS 配置（允许前端跨域访问）
+# CORS 配置（从 config.yaml 读取允许的来源）
+_cors_origins_str = MEM0_CONFIG.get("security", {}).get("cors_origins", "*")
+_cors_origins = [o.strip() for o in _cors_origins_str.split(",") if o.strip()] if _cors_origins_str != "*" else ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=True if _cors_origins != ["*"] else False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ============ API Key 认证中间件 ============
+_configured_api_key = MEM0_CONFIG.get("security", {}).get("api_key", "")
+
+class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
+    """API Key 认证中间件：如果配置了 api_key，则所有非健康检查请求都需要携带有效的 API Key"""
+
+    # 免认证的路径（健康检查、OPTIONS 预检请求）
+    SKIP_PATHS = {"/", "/docs", "/redoc", "/openapi.json"}
+
+    async def dispatch(self, request: Request, call_next):
+        # 如果未配置 API Key，跳过认证
+        if not _configured_api_key:
+            return await call_next(request)
+
+        # OPTIONS 预检请求和免认证路径跳过
+        if request.method == "OPTIONS" or request.url.path in self.SKIP_PATHS:
+            return await call_next(request)
+
+        # 从请求头中获取 API Key
+        auth_header = request.headers.get("Authorization", "")
+        api_key_header = request.headers.get("X-API-Key", "")
+
+        # 支持两种方式：Bearer token 或 X-API-Key 头
+        provided_key = ""
+        if auth_header.startswith("Bearer "):
+            provided_key = auth_header[7:].strip()
+        elif api_key_header:
+            provided_key = api_key_header.strip()
+
+        if provided_key != _configured_api_key:
+            from starlette.responses import JSONResponse
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "无效的 API Key，请在请求头中提供有效的 Authorization: Bearer <key> 或 X-API-Key: <key>"},
+            )
+
+        return await call_next(request)
+
+if _configured_api_key:
+    app.add_middleware(ApiKeyAuthMiddleware)
+    logger.info("API Key 认证已启用")
+else:
+    logger.warning("⚠️ 未配置 API Key，所有接口无需认证即可访问（建议生产环境设置 security.api_key）")
+
+
+# ============ 速率限制中间件 ============
+# 从配置读取速率限制参数（默认：每分钟 60 次请求，0 表示不启用）
+_rate_limit_rpm = int(MEM0_CONFIG.get("security", {}).get("rate_limit", 60))
+_rate_limit_enabled = _rate_limit_rpm > 0
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """基于 IP 的滑动窗口速率限制中间件"""
+
+    def __init__(self, app, rpm: int = 60):
+        super().__init__(app)
+        self.rpm = rpm  # 每分钟最大请求数
+        self.window = 60  # 窗口大小（秒）
+        self._requests: Dict[str, list] = {}  # IP -> [timestamp, ...]
+        self._cleanup_counter = 0
+
+    def _get_client_ip(self, request: Request) -> str:
+        """获取客户端真实 IP"""
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+        return request.client.host if request.client else "unknown"
+
+    def _cleanup_expired(self):
+        """定期清理过期记录，防止内存泄漏"""
+        self._cleanup_counter += 1
+        if self._cleanup_counter % 100 == 0:  # 每 100 次请求清理一次
+            now = time.time()
+            expired_ips = [ip for ip, ts_list in self._requests.items()
+                          if not ts_list or ts_list[-1] < now - self.window]
+            for ip in expired_ips:
+                del self._requests[ip]
+
+    async def dispatch(self, request: Request, call_next):
+        # OPTIONS 预检请求和健康检查跳过限制
+        if request.method == "OPTIONS" or request.url.path == "/":
+            return await call_next(request)
+
+        client_ip = self._get_client_ip(request)
+        now = time.time()
+        window_start = now - self.window
+
+        # 获取该 IP 的请求记录，清除窗口外的旧记录
+        if client_ip not in self._requests:
+            self._requests[client_ip] = []
+        self._requests[client_ip] = [t for t in self._requests[client_ip] if t > window_start]
+
+        # 检查是否超过限制
+        if len(self._requests[client_ip]) >= self.rpm:
+            from starlette.responses import JSONResponse
+            retry_after = int(self._requests[client_ip][0] - window_start) + 1
+            return JSONResponse(
+                status_code=429,
+                content={"detail": f"请求过于频繁，每分钟最多 {self.rpm} 次请求，请稍后重试"},
+                headers={"Retry-After": str(retry_after)},
+            )
+
+        # 记录本次请求
+        self._requests[client_ip].append(now)
+        self._cleanup_expired()
+
+        return await call_next(request)
+
+if _rate_limit_enabled:
+    app.add_middleware(RateLimitMiddleware, rpm=_rate_limit_rpm)
+    logger.info(f"速率限制已启用：每分钟最多 {_rate_limit_rpm} 次请求")
+else:
+    logger.info("速率限制未启用（rate_limit 为 0）")
 
 
 # ============ 请求日志中间件 ============
@@ -788,6 +947,23 @@ async def health_check():
 
 # ============ 系统配置信息 & 连接测试 ============
 
+def _mask_url(url: str) -> str:
+    """对 URL 中的 IP 地址进行脱敏处理，保留协议和端口，隐藏 IP 中间段
+    例如: http://9.134.231.238:11434 -> http://101.***.***. 32:11434
+          bolt://9.134.231.238:7687 -> bolt://101.***.***. 32:7687
+    """
+    if not url:
+        return url
+    import re
+    # 匹配 IP 地址（IPv4）
+    def _mask_ip(match):
+        ip = match.group(0)
+        parts = ip.split(".")
+        if len(parts) == 4:
+            return f"{parts[0]}.***.***.{parts[3]}"
+        return ip
+    return re.sub(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', _mask_ip, url)
+
 @app.get("/v1/config/info")
 async def get_config_info():
     """获取当前系统配置信息（实时从 config.yaml 读取，修改配置文件后刷新即可同步）"""
@@ -799,17 +975,24 @@ async def get_config_info():
     vector_config = live_config.get("vector_store", {})
     graph_config = live_config.get("graph_store", {})
 
+    # 是否为生产环境（生产环境对 URL 做脱敏处理）
+    is_prod = os.environ.get("ENV", "development") == "production"
+
+    llm_base_url = llm_config.get("config", {}).get("ollama_base_url", llm_config.get("config", {}).get("openai_base_url", ""))
+    embedder_base_url = embedder_config.get("config", {}).get("ollama_base_url", embedder_config.get("config", {}).get("openai_base_url", ""))
+    graph_url = graph_config.get("config", {}).get("url", "")
+
     return {
         "llm": {
             "provider": llm_config.get("provider", "unknown"),
             "model": llm_config.get("config", {}).get("model", "unknown"),
-            "base_url": llm_config.get("config", {}).get("ollama_base_url", llm_config.get("config", {}).get("openai_base_url", "")),
+            "base_url": _mask_url(llm_base_url) if is_prod else llm_base_url,
             "temperature": llm_config.get("config", {}).get("temperature", 0.1),
         },
         "embedder": {
             "provider": embedder_config.get("provider", "unknown"),
             "model": embedder_config.get("config", {}).get("model", "unknown"),
-            "base_url": embedder_config.get("config", {}).get("ollama_base_url", embedder_config.get("config", {}).get("openai_base_url", "")),
+            "base_url": _mask_url(embedder_base_url) if is_prod else embedder_base_url,
         },
         "vector_store": {
             "provider": vector_config.get("provider", "unknown"),
@@ -818,7 +1001,7 @@ async def get_config_info():
         },
         "graph_store": {
             "provider": graph_config.get("provider", "unknown"),
-            "url": graph_config.get("config", {}).get("url", ""),
+            "url": _mask_url(graph_url) if is_prod else graph_url,
         },
     }
 
@@ -1078,22 +1261,22 @@ async def add_memory(request: AddMemoryRequest):
         return result
     except Exception as e:
         logger.error(f"添加记忆失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 class BatchImportItem(BaseModel):
     """批量导入中的单条记忆"""
-    content: str
-    user_id: Optional[str] = None
+    content: str = Field(..., max_length=10000)  # 单条内容最大 10000 字符
+    user_id: Optional[str] = Field(None, max_length=100)
     metadata: Optional[Dict[str, Any]] = None
-    categories: Optional[List[str]] = None
-    state: Optional[str] = "active"
+    categories: Optional[List[str]] = Field(None, max_length=20)
+    state: Optional[str] = Field("active", max_length=20)
 
 
 class BatchImportRequest(BaseModel):
     """批量导入请求"""
-    items: List[BatchImportItem]
-    default_user_id: Optional[str] = None  # 覆盖所有记忆的 user_id
+    items: List[BatchImportItem] = Field(..., max_length=100)  # 单次最多导入 100 条
+    default_user_id: Optional[str] = Field(None, max_length=100)
     infer: Optional[bool] = False  # 默认原文存储
     auto_categorize: Optional[bool] = True  # 默认 AI 自动分类
 
@@ -1254,7 +1437,7 @@ async def get_memories(
         return memories
     except Exception as e:
         logger.error(f"获取记忆失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 @app.get("/v1/memories/{memory_id}/")
@@ -1292,7 +1475,7 @@ async def get_memory_by_id(memory_id: str):
         raise
     except Exception as e:
         logger.error(f"获取记忆失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 @app.put("/v1/memories/{memory_id}/")
@@ -1389,7 +1572,7 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
         return result
     except Exception as e:
         logger.error(f"更新记忆失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 @app.delete("/v1/memories/{memory_id}/")
@@ -1442,19 +1625,28 @@ async def delete_memory_by_id(memory_id: str):
         raise
     except Exception as e:
         logger.error(f"删除记忆失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 @app.delete("/v1/memories/")
-async def delete_all_memories(user_id: Optional[str] = Query(None)):
-    """删除用户的所有记忆"""
+async def delete_all_memories(
+    user_id: Optional[str] = Query(None),
+    confirm: bool = Query(False, description="清空全部记忆时必须传 confirm=true 以防误操作"),
+):
+    """删除用户的所有记忆（清空全部需要 confirm=true 确认）"""
     try:
         m = get_memory()
         if user_id:
             m.delete_all(user_id=user_id)
             return {"message": f"用户 {user_id} 的所有记忆已删除"}
         else:
-            # 无 user_id 时，复用 Mem0 内部的 Qdrant 客户端清空集合
+            # 无 user_id 时必须显式确认，防止误删全部数据
+            if not confirm:
+                raise HTTPException(
+                    status_code=400,
+                    detail="清空全部记忆是危险操作，请传入 confirm=true 参数以确认执行"
+                )
+            # 复用 Mem0 内部的 Qdrant 客户端清空集合
             try:
                 from qdrant_client.models import PointIdsList
                 collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
@@ -1474,12 +1666,12 @@ async def delete_all_memories(user_id: Optional[str] = Query(None)):
                 return {"message": "所有记忆已删除"}
             except Exception as qdrant_err:
                 logger.error(f"Qdrant 直接删除失败: {qdrant_err}")
-                raise HTTPException(status_code=500, detail=str(qdrant_err))
+                raise HTTPException(status_code=500, detail=_safe_error_detail(qdrant_err))
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"删除记忆失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 # ============ 搜索接口 ============
@@ -1556,7 +1748,7 @@ async def search_memories(request: SearchMemoryRequest):
         return {"results": formatted}
     except Exception as e:
         logger.error(f"搜索记忆失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 # ============ 历史记录接口 ============
@@ -1598,7 +1790,7 @@ async def get_memory_history(memory_id: str):
         return history_list
     except Exception as e:
         logger.error(f"获取记忆历史失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 # ============ 统计接口 ============
@@ -1668,7 +1860,7 @@ async def get_stats():
         }
     except Exception as e:
         logger.error(f"获取统计数据失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 # ============ 关联记忆接口 ============
@@ -1724,7 +1916,7 @@ async def get_related_memories(memory_id: str, limit: int = Query(5, ge=1, le=20
         raise
     except Exception as e:
         logger.error(f"获取关联记忆失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 # ============ 访问日志接口 ============
@@ -1741,7 +1933,7 @@ async def get_access_logs_api(
         return {"logs": logs, "total": len(logs)}
     except Exception as e:
         logger.error(f"获取访问日志失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 @app.get("/v1/memories/{memory_id}/access-logs/")
@@ -1755,7 +1947,7 @@ async def get_memory_access_logs(
         return {"logs": logs}
     except Exception as e:
         logger.error(f"获取记忆访问日志失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 # ============ 请求日志接口 ============
@@ -1774,7 +1966,7 @@ async def get_request_logs_api(
         return {"logs": logs, "total": total}
     except Exception as e:
         logger.error(f"获取请求日志失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 @app.get("/v1/request-logs/stats/")
@@ -1784,7 +1976,7 @@ async def get_request_logs_stats(
 ):
     """获取请求日志统计（按类型分组计数 + 按类型趋势数据，自动根据时间范围切换粒度）"""
     try:
-        conn = sqlite3.connect(ACCESS_LOG_DB_PATH)
+        conn = _get_db_conn()
         conn.row_factory = sqlite3.Row
 
         where = "WHERE 1=1"
@@ -1896,30 +2088,49 @@ async def get_request_logs_stats(
         }
     except Exception as e:
         logger.error(f"获取请求日志统计失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 # ============ Neo4j 图数据库工具函数 ============
 
+# 全局单例 Neo4j 驱动（延迟初始化，应用关闭时统一清理）
+_neo4j_driver_instance = None
+
 def _get_neo4j_driver():
-    """获取 Neo4j 驱动实例（延迟初始化）"""
+    """获取 Neo4j 驱动全局单例（延迟初始化，复用连接池）"""
+    global _neo4j_driver_instance
+    if _neo4j_driver_instance is not None:
+        return _neo4j_driver_instance
     graph_config = MEM0_CONFIG.get("graph_store", {}).get("config", {})
     if not graph_config:
         return None
     try:
         from neo4j import GraphDatabase
-        driver = GraphDatabase.driver(
+        _neo4j_driver_instance = GraphDatabase.driver(
             graph_config["url"],
             auth=(graph_config["username"], graph_config["password"]),
         )
-        return driver
+        logger.info("Neo4j 驱动全局单例已初始化")
+        return _neo4j_driver_instance
     except Exception as e:
         logger.warning(f"Neo4j 连接失败: {e}")
         return None
 
+def _close_neo4j_driver():
+    """关闭全局 Neo4j 驱动（应用关闭时调用）"""
+    global _neo4j_driver_instance
+    if _neo4j_driver_instance is not None:
+        try:
+            _neo4j_driver_instance.close()
+            logger.info("Neo4j 驱动已关闭")
+        except Exception as e:
+            logger.warning(f"关闭 Neo4j 驱动失败: {e}")
+        finally:
+            _neo4j_driver_instance = None
+
 
 def _neo4j_query(cypher: str, params: dict = None) -> list:
-    """执行 Neo4j Cypher 查询并返回结果列表"""
+    """执行 Neo4j Cypher 查询并返回结果列表（复用全局驱动）"""
     driver = _get_neo4j_driver()
     if not driver:
         return []
@@ -1930,8 +2141,6 @@ def _neo4j_query(cypher: str, params: dict = None) -> list:
     except Exception as e:
         logger.warning(f"Neo4j 查询失败: {e}")
         return []
-    finally:
-        driver.close()
 
 
 # ============ Graph Memory API 端点 ============
@@ -1972,7 +2181,7 @@ async def get_graph_stats():
         }
     except Exception as e:
         logger.error(f"获取图谱统计失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 @app.get("/v1/graph/entities")
@@ -2021,7 +2230,7 @@ async def get_graph_entities(
         }
     except Exception as e:
         logger.error(f"获取实体列表失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 @app.get("/v1/graph/relations")
@@ -2071,13 +2280,13 @@ async def get_graph_relations(
         }
     except Exception as e:
         logger.error(f"获取关系列表失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 class GraphSearchRequest(BaseModel):
-    query: str
-    user_id: Optional[str] = None
-    limit: Optional[int] = 20
+    query: str = Field(..., max_length=500)  # 图谱搜索查询最大 500 字符
+    user_id: Optional[str] = Field(None, max_length=100)
+    limit: Optional[int] = Field(20, ge=1, le=200)  # 返回数量限制 1-200
 
 
 @app.post("/v1/graph/search")
@@ -2119,7 +2328,7 @@ async def search_graph(request: GraphSearchRequest):
         }
     except Exception as e:
         logger.error(f"图谱搜索失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 @app.get("/v1/graph/user/{user_id}")
@@ -2203,7 +2412,7 @@ async def get_user_graph(
         }
     except Exception as e:
         logger.error(f"获取用户图谱失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 @app.get("/v1/graph/all")
@@ -2264,7 +2473,7 @@ async def get_all_graph(
         }
     except Exception as e:
         logger.error(f"获取全部图谱失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 @app.delete("/v1/graph/entities/{entity_name}")
@@ -2289,7 +2498,7 @@ async def delete_graph_entity(entity_name: str, user_id: Optional[str] = Query(N
         raise
     except Exception as e:
         logger.error(f"删除实体失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 @app.delete("/v1/graph/relations")
@@ -2317,7 +2526,7 @@ async def delete_graph_relation(
         raise
     except Exception as e:
         logger.error(f"删除关系失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 @app.get("/v1/graph/health")
@@ -2334,8 +2543,6 @@ async def graph_health_check():
             return {"status": "connected", "message": "Neo4j 连接正常"}
         except Exception as e:
             return {"status": "error", "message": str(e)}
-        finally:
-            driver.close()
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -2345,13 +2552,20 @@ async def graph_health_check():
 if __name__ == "__main__":
     # 默认监听 8080 端口，与前端 .env.local 中配置一致
     port = int(os.environ.get("MEM0_PORT", 8080))
-    logger.info(f"启动 Mem0 API 服务，端口: {port}")
-    uvicorn.run(
-        "server:app",
-        host="0.0.0.0",
-        port=port,
-        reload=True,
-        reload_includes=["*.py"],  # 只监控 .py 文件变化
-        reload_excludes=["qdrant_data/**", "*.log"],  # 排除 Qdrant 数据目录和日志文件
-        log_level="info",
-    )
+    logger.info(f"启动 Mem0 API 服务，端口: {port}，环境: {'production' if IS_PRODUCTION else 'development'}")
+
+    run_kwargs = {
+        "host": "0.0.0.0",
+        "port": port,
+        "log_level": "info",
+    }
+
+    # 开发环境启用热重载，生产环境禁用
+    if not IS_PRODUCTION:
+        run_kwargs.update({
+            "reload": True,
+            "reload_includes": ["*.py"],
+            "reload_excludes": ["qdrant_data/**", "*.log"],
+        })
+
+    uvicorn.run("server:app", **run_kwargs)

@@ -37,6 +37,9 @@ import type {
 const API_BASE =
   process.env.NEXT_PUBLIC_MEM0_API_URL || "http://localhost:8080";
 
+// API Key 认证（与后端 security.api_key 配置对应）
+const API_KEY = process.env.NEXT_PUBLIC_MEM0_API_KEY || "";
+
 /**
  * 通用请求方法
  */
@@ -46,9 +49,17 @@ async function request<T>(
 ): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
 
+  // 构建请求头，如果配置了 API Key 则自动携带认证头
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (API_KEY) {
+    headers["X-API-Key"] = API_KEY;
+  }
+
   const response = await fetch(url, {
     headers: {
-      "Content-Type": "application/json",
+      ...headers,
       ...options?.headers,
     },
     ...options,
@@ -252,8 +263,13 @@ export const mem0Api = {
    */
   async healthCheck(): Promise<boolean> {
     try {
+      const headers: Record<string, string> = {};
+      if (API_KEY) {
+        headers["X-API-Key"] = API_KEY;
+      }
       const response = await fetch(`${API_BASE}/`, {
         method: "GET",
+        headers,
         signal: AbortSignal.timeout(5000),
       });
       return response.ok;
