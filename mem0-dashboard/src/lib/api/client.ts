@@ -29,6 +29,8 @@ import type {
   GraphSearchResponse,
   GraphStatsResponse,
   GraphHealthResponse,
+  ConfigInfoResponse,
+  ServiceTestResponse,
 } from "./types";
 
 // API 基础地址
@@ -356,5 +358,28 @@ export const mem0Api = {
    */
   async graphHealthCheck(): Promise<GraphHealthResponse> {
     return request<GraphHealthResponse>("/v1/graph/health");
+  },
+
+  // ============ 系统配置信息 (Config) ============
+
+  /**
+   * 获取系统配置信息（LLM、Embedder、向量数据库、图数据库）
+   */
+  async getConfigInfo(): Promise<ConfigInfoResponse> {
+    return request<ConfigInfoResponse>("/v1/config/info");
+  },
+
+  /**
+   * 测试 LLM 大模型连接
+   */
+  async testLLMConnection(): Promise<ServiceTestResponse> {
+    return request<ServiceTestResponse>("/v1/config/test-llm");
+  },
+
+  /**
+   * 测试 Embedder 嵌入模型连接
+   */
+  async testEmbedderConnection(): Promise<ServiceTestResponse> {
+    return request<ServiceTestResponse>("/v1/config/test-embedder");
   },
 };

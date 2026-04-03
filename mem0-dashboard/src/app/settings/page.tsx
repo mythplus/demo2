@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   Settings,
   CheckCircle,
@@ -10,6 +10,12 @@ import {
   Sun,
   Moon,
   SlidersHorizontal,
+  Brain,
+  Cpu,
+  Database,
+  Network,
+  Zap,
+  RefreshCw,
 } from "lucide-react";
 import {
   Card,
@@ -30,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { mem0Api } from "@/lib/api";
+import type { ConfigInfoResponse, ServiceTestResponse } from "@/lib/api";
 import { usePreferences } from "@/hooks/use-preferences";
 
 export default function SettingsPage() {
@@ -42,9 +49,67 @@ export default function SettingsPage() {
   >("idle");
   const [apiInfo, setApiInfo] = useState<string>("");
 
+  // 模型与服务配置
+  const [configInfo, setConfigInfo] = useState<ConfigInfoResponse | null>(null);
+  const [configLoading, setConfigLoading] = useState(false);
+  const [llmTestStatus, setLlmTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
+  const [llmTestResult, setLlmTestResult] = useState<ServiceTestResponse | null>(null);
+  const [embedderTestStatus, setEmbedderTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
+  const [embedderTestResult, setEmbedderTestResult] = useState<ServiceTestResponse | null>(null);
+
   useEffect(() => {
     setApiUrl(preferences.apiUrl);
   }, [preferences.apiUrl]);
+
+  // 获取配置信息
+  const fetchConfigInfo = useCallback(async () => {
+    setConfigLoading(true);
+    // 刷新时重置测试状态
+    setLlmTestStatus("idle");
+    setLlmTestResult(null);
+    setEmbedderTestStatus("idle");
+    setEmbedderTestResult(null);
+    try {
+      const info = await mem0Api.getConfigInfo();
+      setConfigInfo(info);
+    } catch {
+      setConfigInfo(null);
+    } finally {
+      setConfigLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchConfigInfo();
+  }, [fetchConfigInfo]);
+
+  // 测试 LLM 连接
+  const handleTestLLM = async () => {
+    setLlmTestStatus("testing");
+    setLlmTestResult(null);
+    try {
+      const result = await mem0Api.testLLMConnection();
+      setLlmTestResult(result);
+      setLlmTestStatus(result.status === "connected" ? "success" : "error");
+    } catch {
+      setLlmTestStatus("error");
+      setLlmTestResult(null);
+    }
+  };
+
+  // 测试 Embedder 连接
+  const handleTestEmbedder = async () => {
+    setEmbedderTestStatus("testing");
+    setEmbedderTestResult(null);
+    try {
+      const result = await mem0Api.testEmbedderConnection();
+      setEmbedderTestResult(result);
+      setEmbedderTestStatus(result.status === "connected" ? "success" : "error");
+    } catch {
+      setEmbedderTestStatus("error");
+      setEmbedderTestResult(null);
+    }
+  };
 
   // 测试连接
   const handleTestConnection = async () => {
@@ -150,6 +215,186 @@ export default function SettingsPage() {
               </code>
             </p>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* 模型与服务配置 */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Cpu className="h-5 w-5" />
+                模型与服务配置
+              </CardTitle>
+              <CardDescription>
+                当前后端使用的大模型、嵌入模型及存储服务配置
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={fetchConfigInfo} disabled={configLoading}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${configLoading ? "animate-spin" : ""}`} />
+              刷新
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {configLoading && !configInfo ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : !configInfo ? (
+            <div className="text-center py-8 text-sm text-muted-foreground">
+              无法获取配置信息，请确认后端服务已启动
+            </div>
+          ) : (
+            <>
+              {/* LLM 大模型 */}
+              <div className="rounded-lg border p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Brain className="h-4 w-4 text-purple-500" />
+                    <span className="text-sm font-medium">LLM 大语言模型</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleTestLLM}
+                    disabled={llmTestStatus === "testing"}
+                  >
+                    {llmTestStatus === "testing" ? (
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Zap className="mr-2 h-3.5 w-3.5" />
+                    )}
+                    测试连接
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">提供商</p>
+                    <p className="font-mono mt-0.5">
+                      <Badge variant="secondary" className="font-mono">{configInfo.llm.provider}</Badge>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">模型名称</p>
+                    <p className="font-mono mt-0.5">
+                      <Badge variant="outline" className="font-mono">{configInfo.llm.model}</Badge>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">服务地址</p>
+                    <p className="font-mono mt-0.5 text-xs truncate" title={configInfo.llm.base_url}>
+                      {configInfo.llm.base_url || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Temperature</p>
+                    <p className="font-mono mt-0.5 text-xs">{configInfo.llm.temperature}</p>
+                  </div>
+                </div>
+                {llmTestStatus === "success" && llmTestResult && (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      {llmTestResult.message}
+                    </div>
+                    {llmTestResult.test_response && (
+                      <p className="text-xs text-muted-foreground ml-5.5 bg-muted rounded px-2 py-1">
+                        测试响应: {llmTestResult.test_response}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {llmTestStatus === "error" && (
+                  <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+                    <XCircle className="h-3.5 w-3.5" />
+                    {llmTestResult?.message || "LLM 连接测试失败"}
+                  </div>
+                )}
+              </div>
+
+              {/* Embedder 嵌入模型 */}
+              <div className="rounded-lg border p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Database className="h-4 w-4 text-blue-500" />
+                    <span className="text-sm font-medium">Embedder 嵌入模型</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleTestEmbedder}
+                    disabled={embedderTestStatus === "testing"}
+                  >
+                    {embedderTestStatus === "testing" ? (
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Zap className="mr-2 h-3.5 w-3.5" />
+                    )}
+                    测试连接
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">提供商</p>
+                    <p className="font-mono mt-0.5">
+                      <Badge variant="secondary" className="font-mono">{configInfo.embedder.provider}</Badge>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">模型名称</p>
+                    <p className="font-mono mt-0.5">
+                      <Badge variant="outline" className="font-mono">{configInfo.embedder.model}</Badge>
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs text-muted-foreground">服务地址</p>
+                    <p className="font-mono mt-0.5 text-xs truncate" title={configInfo.embedder.base_url}>
+                      {configInfo.embedder.base_url || "-"}
+                    </p>
+                  </div>
+                </div>
+                {embedderTestStatus === "success" && embedderTestResult && (
+                  <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    {embedderTestResult.message}
+                  </div>
+                )}
+                {embedderTestStatus === "error" && (
+                  <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+                    <XCircle className="h-3.5 w-3.5" />
+                    {embedderTestResult?.message || "Embedder 连接测试失败"}
+                  </div>
+                )}
+              </div>
+
+              {/* 存储服务概览 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg border p-3 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Database className="h-3.5 w-3.5 text-orange-500" />
+                    <span className="text-xs font-medium">向量数据库</span>
+                  </div>
+                  <div className="text-xs space-y-0.5">
+                    <p><span className="text-muted-foreground">类型：</span><Badge variant="secondary" className="font-mono text-[10px] px-1.5 py-0">{configInfo.vector_store.provider}</Badge></p>
+                    <p><span className="text-muted-foreground">集合：</span><span className="font-mono">{configInfo.vector_store.collection_name}</span></p>
+                    <p><span className="text-muted-foreground">维度：</span><span className="font-mono">{configInfo.vector_store.embedding_model_dims}</span></p>
+                  </div>
+                </div>
+                <div className="rounded-lg border p-3 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Network className="h-3.5 w-3.5 text-green-500" />
+                    <span className="text-xs font-medium">图数据库</span>
+                  </div>
+                  <div className="text-xs space-y-0.5">
+                    <p><span className="text-muted-foreground">类型：</span><Badge variant="secondary" className="font-mono text-[10px] px-1.5 py-0">{configInfo.graph_store.provider}</Badge></p>
+                    <p className="truncate" title={configInfo.graph_store.url}><span className="text-muted-foreground">地址：</span><span className="font-mono">{configInfo.graph_store.url || "-"}</span></p>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

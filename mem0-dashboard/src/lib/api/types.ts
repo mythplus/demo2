@@ -332,6 +332,44 @@ export interface GraphRelationsResponse {
   offset: number;
 }
 
+// ============ 系统配置信息 (Config) ============
+
+/** 系统配置信息响应 */
+export interface ConfigInfoResponse {
+  llm: {
+    provider: string;
+    model: string;
+    base_url: string;
+    temperature: number;
+  };
+  embedder: {
+    provider: string;
+    model: string;
+    base_url: string;
+  };
+  vector_store: {
+    provider: string;
+    collection_name: string;
+    embedding_model_dims: number;
+  };
+  graph_store: {
+    provider: string;
+    url: string;
+  };
+}
+
+/** 服务连接测试响应 */
+export interface ServiceTestResponse {
+  status: "connected" | "error";
+  provider: string;
+  model: string;
+  base_url: string;
+  model_available?: boolean;
+  test_response?: string;
+  embedding_dims?: number;
+  message: string;
+}
+
 /** 图谱搜索请求 */
 export interface GraphSearchRequest {
   query: string;

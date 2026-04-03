@@ -8,6 +8,7 @@ import json
 import time
 import logging
 import sqlite3
+import yaml
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
@@ -26,18 +27,79 @@ logger = logging.getLogger(__name__)
 # 使用项目目录下的 qdrant_data 文件夹，基于当前文件位置动态计算
 QDRANT_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "qdrant_data")
 
-# ============ Mem0 配置（方案二：本地文件模式） ============
-MEM0_CONFIG = {
+# ============ 配置文件路径 ============
+CONFIG_FILE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.yaml")
+
+
+def load_config_from_yaml() -> dict:
+    """从 config.yaml 文件实时读取配置，返回与 MEM0_CONFIG 兼容的字典格式"""
+    try:
+        with open(CONFIG_FILE_PATH, "r", encoding="utf-8") as f:
+            yaml_config = yaml.safe_load(f)
+        if not yaml_config:
+            logger.warning("config.yaml 为空，使用默认配置")
+            return {}
+
+        # 构建与 MEM0_CONFIG 兼容的格式
+        config = {}
+
+        # LLM 配置
+        if "llm" in yaml_config:
+            config["llm"] = {
+                "provider": yaml_config["llm"].get("provider", "ollama"),
+                "config": yaml_config["llm"].get("config", {}),
+            }
+
+        # Embedder 配置
+        if "embedder" in yaml_config:
+            config["embedder"] = {
+                "provider": yaml_config["embedder"].get("provider", "ollama"),
+                "config": yaml_config["embedder"].get("config", {}),
+            }
+
+        # 向量数据库配置（补充 path 和 on_disk，这些不放在 yaml 中）
+        if "vector_store" in yaml_config:
+            vs_config = yaml_config["vector_store"].get("config", {})
+            vs_config["path"] = QDRANT_DATA_PATH
+            if "on_disk" not in vs_config:
+                vs_config["on_disk"] = True
+            config["vector_store"] = {
+                "provider": yaml_config["vector_store"].get("provider", "qdrant"),
+                "config": vs_config,
+            }
+
+        # 图数据库配置
+        if "graph_store" in yaml_config:
+            config["graph_store"] = {
+                "provider": yaml_config["graph_store"].get("provider", "neo4j"),
+                "config": yaml_config["graph_store"].get("config", {}),
+            }
+
+        # 版本号
+        if "version" in yaml_config:
+            config["version"] = yaml_config["version"]
+
+        return config
+    except FileNotFoundError:
+        logger.warning(f"配置文件 {CONFIG_FILE_PATH} 不存在，使用内置默认配置")
+        return {}
+    except Exception as e:
+        logger.error(f"读取配置文件失败: {e}，使用内置默认配置")
+        return {}
+
+
+# ============ Mem0 配置（从 config.yaml 加载，启动时初始化一次） ============
+_yaml_config = load_config_from_yaml()
+MEM0_CONFIG = _yaml_config if _yaml_config else {
     "vector_store": {
         "provider": "qdrant",
         "config": {
             "collection_name": "mem0",
             "embedding_model_dims": 768,
             "path": QDRANT_DATA_PATH,
-            "on_disk": True,  # 持久化存储，重启不丢数据
+            "on_disk": True,
         },
     },
-    # LLM 配置（默认使用 OpenAI，需设置 OPENAI_API_KEY 环境变量）
     "llm": {
         "provider": "ollama",
         "config": {
@@ -63,6 +125,7 @@ MEM0_CONFIG = {
     },
     "version": "v1.1",
 }
+logger.info(f"配置加载完成，LLM: {MEM0_CONFIG.get('llm', {}).get('config', {}).get('model', 'unknown')}")
 
 # ============ 分类和状态常量 ============
 VALID_CATEGORIES = {
@@ -721,6 +784,178 @@ app.add_middleware(RequestLogMiddleware)
 async def health_check():
     """健康检查端点"""
     return {"status": "ok", "message": "Mem0 Dashboard API 运行中"}
+
+
+# ============ 系统配置信息 & 连接测试 ============
+
+@app.get("/v1/config/info")
+async def get_config_info():
+    """获取当前系统配置信息（实时从 config.yaml 读取，修改配置文件后刷新即可同步）"""
+    # 实时读取 config.yaml，而非使用启动时的静态变量
+    live_config = load_config_from_yaml() or MEM0_CONFIG
+
+    llm_config = live_config.get("llm", {})
+    embedder_config = live_config.get("embedder", {})
+    vector_config = live_config.get("vector_store", {})
+    graph_config = live_config.get("graph_store", {})
+
+    return {
+        "llm": {
+            "provider": llm_config.get("provider", "unknown"),
+            "model": llm_config.get("config", {}).get("model", "unknown"),
+            "base_url": llm_config.get("config", {}).get("ollama_base_url", llm_config.get("config", {}).get("openai_base_url", "")),
+            "temperature": llm_config.get("config", {}).get("temperature", 0.1),
+        },
+        "embedder": {
+            "provider": embedder_config.get("provider", "unknown"),
+            "model": embedder_config.get("config", {}).get("model", "unknown"),
+            "base_url": embedder_config.get("config", {}).get("ollama_base_url", embedder_config.get("config", {}).get("openai_base_url", "")),
+        },
+        "vector_store": {
+            "provider": vector_config.get("provider", "unknown"),
+            "collection_name": vector_config.get("config", {}).get("collection_name", ""),
+            "embedding_model_dims": vector_config.get("config", {}).get("embedding_model_dims", 0),
+        },
+        "graph_store": {
+            "provider": graph_config.get("provider", "unknown"),
+            "url": graph_config.get("config", {}).get("url", ""),
+        },
+    }
+
+
+@app.get("/v1/config/test-llm")
+async def test_llm_connection():
+    """测试 LLM 大模型连接（实时从 config.yaml 读取配置）"""
+    import requests as sync_requests
+
+    live_config = load_config_from_yaml() or MEM0_CONFIG
+    llm_config = live_config.get("llm", {})
+    provider = llm_config.get("provider", "unknown")
+    config = llm_config.get("config", {})
+    model = config.get("model", "unknown")
+    base_url = config.get("ollama_base_url", config.get("openai_base_url", ""))
+
+    try:
+        if provider == "ollama":
+            # 测试 Ollama：调用 /api/tags 获取模型列表，验证目标模型是否存在
+            resp = sync_requests.get(f"{base_url}/api/tags", timeout=10)
+            resp.raise_for_status()
+            models_data = resp.json()
+            model_names = [m.get("name", "").split(":")[0] for m in models_data.get("models", [])]
+            model_base = model.split(":")[0]
+            model_found = model_base in model_names or model in [m.get("name", "") for m in models_data.get("models", [])]
+
+            # 进一步做一次简单的生成测试
+            gen_resp = sync_requests.post(
+                f"{base_url}/api/generate",
+                json={"model": model, "prompt": "hi", "stream": False, "options": {"num_predict": 5}},
+                timeout=30,
+            )
+            gen_resp.raise_for_status()
+            gen_text = gen_resp.json().get("response", "")
+
+            return {
+                "status": "connected",
+                "provider": provider,
+                "model": model,
+                "base_url": base_url,
+                "model_available": model_found,
+                "test_response": gen_text[:100] if gen_text else "(空响应)",
+                "message": f"LLM 连接成功，模型 {model} {'可用' if model_found else '未在模型列表中找到，但生成测试通过'}",
+            }
+        else:
+            # OpenAI 兼容接口测试
+            headers = {}
+            api_key = config.get("api_key", "")
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+            resp = sync_requests.get(f"{base_url}/models", headers=headers, timeout=10)
+            resp.raise_for_status()
+            return {
+                "status": "connected",
+                "provider": provider,
+                "model": model,
+                "base_url": base_url,
+                "model_available": True,
+                "message": f"LLM 连接成功（{provider}）",
+            }
+    except Exception as e:
+        logger.warning(f"LLM 连接测试失败: {e}")
+        return {
+            "status": "error",
+            "provider": provider,
+            "model": model,
+            "base_url": base_url,
+            "model_available": False,
+            "message": f"连接失败: {str(e)}",
+        }
+
+
+@app.get("/v1/config/test-embedder")
+async def test_embedder_connection():
+    """测试 Embedder 嵌入模型连接（实时从 config.yaml 读取配置）"""
+    import requests as sync_requests
+
+    live_config = load_config_from_yaml() or MEM0_CONFIG
+    embedder_config = live_config.get("embedder", {})
+    provider = embedder_config.get("provider", "unknown")
+    config = embedder_config.get("config", {})
+    model = config.get("model", "unknown")
+    base_url = config.get("ollama_base_url", config.get("openai_base_url", ""))
+
+    try:
+        if provider == "ollama":
+            # 测试 Ollama Embedder：发送一个简单的嵌入请求
+            resp = sync_requests.post(
+                f"{base_url}/api/embeddings",
+                json={"model": model, "prompt": "test"},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            embedding = resp.json().get("embedding", [])
+            dims = len(embedding)
+
+            return {
+                "status": "connected",
+                "provider": provider,
+                "model": model,
+                "base_url": base_url,
+                "embedding_dims": dims,
+                "message": f"Embedder 连接成功，模型 {model}，向量维度 {dims}",
+            }
+        else:
+            # OpenAI 兼容接口测试
+            headers = {"Content-Type": "application/json"}
+            api_key = config.get("api_key", "")
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+            resp = sync_requests.post(
+                f"{base_url}/embeddings",
+                json={"model": model, "input": "test"},
+                headers=headers,
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json().get("data", [{}])
+            dims = len(data[0].get("embedding", [])) if data else 0
+            return {
+                "status": "connected",
+                "provider": provider,
+                "model": model,
+                "base_url": base_url,
+                "embedding_dims": dims,
+                "message": f"Embedder 连接成功（{provider}），向量维度 {dims}",
+            }
+    except Exception as e:
+        logger.warning(f"Embedder 连接测试失败: {e}")
+        return {
+            "status": "error",
+            "provider": provider,
+            "model": model,
+            "base_url": base_url,
+            "embedding_dims": 0,
+            "message": f"连接失败: {str(e)}",
+        }
 
 
 # ============ 辅助函数：获取所有记忆 ============

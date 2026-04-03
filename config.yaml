@@ -1,0 +1,39 @@
+# ============================================
+# Mem0 Dashboard 配置文件
+# 修改此文件后，前端"系统设置"页面刷新即可同步显示最新配置
+# 注意：修改 LLM/Embedder/向量数据库/图数据库 配置后需要重启后端服务才能生效于实际业务
+# ============================================
+
+# LLM 大语言模型配置
+llm:
+  provider: "ollama"
+  config:
+    model: "qwen2.5:7b"
+    ollama_base_url: "http://9.134.231.238:11434"
+    temperature: 0.1
+
+# Embedder 嵌入模型配置
+embedder:
+  provider: "ollama"
+  config:
+    model: "nomic-embed-text"
+    ollama_base_url: "http://9.134.231.238:11434"
+
+# 向量数据库配置
+vector_store:
+  provider: "qdrant"
+  config:
+    collection_name: "mem0"
+    embedding_model_dims: 768
+    on_disk: true
+
+# 图数据库配置
+graph_store:
+  provider: "neo4j"
+  config:
+    url: "bolt://9.134.231.238:7687"
+    username: "neo4j"
+    password: "mem0_neo4j_2024"
+
+# 版本号
+version: "v1.1"
