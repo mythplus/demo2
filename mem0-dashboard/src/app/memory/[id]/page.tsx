@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { toast } from "@/hooks/use-toast";
 import {
   ArrowLeft,
   Brain,
@@ -104,6 +105,7 @@ export default function MemoryDetailPage() {
       fetchHistory();
     } catch (err) {
       console.error("删除失败:", err);
+      toast({ title: "删除失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
     } finally {
       setDeleteLoading(false);
     }

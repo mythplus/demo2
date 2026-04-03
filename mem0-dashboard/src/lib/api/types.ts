@@ -397,3 +397,22 @@ export interface GraphHealthResponse {
   status: "connected" | "disconnected" | "error";
   message: string;
 }
+
+// ============ 批量删除 ============
+
+/** 批量删除请求 */
+export interface BatchDeleteRequest {
+  memory_ids: string[];
+}
+
+/** 批量删除响应 */
+export interface BatchDeleteResponse {
+  total: number;
+  success: number;
+  failed: number;
+  results: Array<{
+    id: string;
+    success: boolean;
+    error?: string;
+  }>;
+}

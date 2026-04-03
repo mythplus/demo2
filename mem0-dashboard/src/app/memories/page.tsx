@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { toast } from "@/hooks/use-toast";
 import {
   Brain,
   Plus,
@@ -160,6 +161,7 @@ export default function MemoriesPage() {
       fetchMemories();
     } catch (err) {
       console.error("删除失败:", err);
+      toast({ title: "删除失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
     } finally {
       setDeleteLoading(false);
     }
@@ -227,6 +229,7 @@ export default function MemoriesPage() {
       fetchMemories();
     } catch (err) {
       console.error("批量删除失败:", err);
+      toast({ title: "批量删除失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
     } finally {
       setBatchDeleteLoading(false);
     }

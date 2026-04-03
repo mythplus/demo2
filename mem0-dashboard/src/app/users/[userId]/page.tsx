@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "@/hooks/use-toast";
 import {
   ArrowLeft,
   Brain,
@@ -98,6 +99,7 @@ export default function UserDetailPage() {
       fetchMemories();
     } catch (err) {
       console.error("删除失败:", err);
+      toast({ title: "删除失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
     } finally {
       setDeleteLoading(false);
     }
@@ -112,6 +114,7 @@ export default function UserDetailPage() {
       router.push("/users");
     } catch (err) {
       console.error("删除失败:", err);
+      toast({ title: "删除全部记忆失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
     } finally {
       setDeleteLoading(false);
     }

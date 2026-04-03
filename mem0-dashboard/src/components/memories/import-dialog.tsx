@@ -73,6 +73,10 @@ interface ImportDialogProps {
 
 type ImportStep = "upload" | "preview" | "importing" | "done" | "interrupted";
 
+// 导入限制常量
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_IMPORT_ITEMS = 1000;
+
 // 用于生成全局唯一的导入任务 ID
 let importTaskCounter = 0;
 
@@ -134,19 +138,32 @@ export function ImportDialog({
   /** 解析文件内容 */
   const processFile = useCallback(async (file: File) => {
     setError("");
-    setImportFileName(file.name);
-    // 保存文件 Blob 用于操作记录下载
-    setImportFileBlob(new Blob([await file.arrayBuffer()], { type: file.type || "application/json" }));
+
+    // 文件大小限制
+    if (file.size > MAX_FILE_SIZE) {
+      setError(`文件过大（${(file.size / 1024 / 1024).toFixed(1)}MB），最大支持 10MB`);
+      return;
+    }
 
     if (!file.name.endsWith(".json")) {
       setError("仅支持 .json 格式的文件");
       return;
     }
 
+    setImportFileName(file.name);
+    // 保存文件 Blob 用于操作记录下载
+    setImportFileBlob(new Blob([await file.arrayBuffer()], { type: file.type || "application/json" }));
+
     try {
       const text = await file.text();
       const parsed = parseImportJSON(text);
       const { valid, errors } = validateImportItems(parsed);
+
+      // 导入条目数量限制
+      if (valid.length > MAX_IMPORT_ITEMS) {
+        setError(`导入条目过多（${valid.length} 条），最大支持 ${MAX_IMPORT_ITEMS} 条。请拆分文件后重试。`);
+        return;
+      }
 
       setItems(valid);
       setParseErrors(errors);

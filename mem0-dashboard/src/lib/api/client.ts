@@ -22,6 +22,8 @@ import type {
   RequestLogsStats,
   BatchImportRequest,
   BatchImportResponse,
+  BatchDeleteRequest,
+  BatchDeleteResponse,
   GraphData,
   GraphEntitiesResponse,
   GraphRelationsResponse,
@@ -40,14 +42,18 @@ const API_BASE =
 // API Key 认证（与后端 security.api_key 配置对应）
 const API_KEY = process.env.NEXT_PUBLIC_MEM0_API_KEY || "";
 
+// 全局请求超时（毫秒）
+const DEFAULT_TIMEOUT = 30000;
+
 /**
- * 通用请求方法
+ * 通用请求方法（带全局超时控制）
  */
 async function request<T>(
   endpoint: string,
-  options?: RequestInit
+  options?: RequestInit & { timeout?: number }
 ): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
+  const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
 
   // 构建请求头，如果配置了 API Key 则自动携带认证头
   const headers: Record<string, string> = {
@@ -57,26 +63,40 @@ async function request<T>(
     headers["X-API-Key"] = API_KEY;
   }
 
-  const response = await fetch(url, {
-    headers: {
-      ...headers,
-      ...options?.headers,
-    },
-    ...options,
-  });
+  // 超时控制
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({
-      detail: `HTTP ${response.status}: ${response.statusText}`,
-    }));
-    throw new Error(error.detail || "请求失败");
+  try {
+    const response = await fetch(url, {
+      headers: {
+        ...headers,
+        ...options?.headers,
+      },
+      ...options,
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        detail: `HTTP ${response.status}: ${response.statusText}`,
+      }));
+      throw new Error(error.detail || "请求失败");
+    }
+
+    // DELETE 请求可能返回空内容
+    const text = await response.text();
+    if (!text) return {} as T;
+
+    return JSON.parse(text) as T;
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error(`请求超时（${timeout / 1000}秒），请检查网络连接或服务状态`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  // DELETE 请求可能返回空内容
-  const text = await response.text();
-  if (!text) return {} as T;
-
-  return JSON.parse(text) as T;
 }
 
 /**
@@ -137,7 +157,7 @@ export const mem0Api = {
    * @param memoryId 记忆 ID
    */
   async getMemory(memoryId: string): Promise<Memory> {
-    return request<Memory>(`/v1/memories/${memoryId}/`);
+    return request<Memory>(`/v1/memories/${encodeURIComponent(memoryId)}/`);
   },
 
   /**
@@ -149,7 +169,7 @@ export const mem0Api = {
     memoryId: string,
     data: UpdateMemoryRequest
   ): Promise<Memory> {
-    return request<Memory>(`/v1/memories/${memoryId}/`, {
+    return request<Memory>(`/v1/memories/${encodeURIComponent(memoryId)}/`, {
       method: "PUT",
       body: JSON.stringify(data),
     });
@@ -160,8 +180,19 @@ export const mem0Api = {
    * @param memoryId 记忆 ID
    */
   async deleteMemory(memoryId: string): Promise<DeleteResponse> {
-    return request<DeleteResponse>(`/v1/memories/${memoryId}/`, {
+    return request<DeleteResponse>(`/v1/memories/${encodeURIComponent(memoryId)}/`, {
       method: "DELETE",
+    });
+  },
+
+  /**
+   * 批量删除记忆（一次请求删除多条，替代逐条 Promise.all）
+   * @param memoryIds 记忆 ID 列表
+   */
+  async batchDeleteMemories(memoryIds: string[]): Promise<BatchDeleteResponse> {
+    return request<BatchDeleteResponse>("/v1/memories/batch-delete", {
+      method: "POST",
+      body: JSON.stringify({ memory_ids: memoryIds }),
     });
   },
 
@@ -170,7 +201,7 @@ export const mem0Api = {
    * @param userId 用户 ID
    */
   async deleteAllMemories(userId: string): Promise<DeleteResponse> {
-    return request<DeleteResponse>(`/v1/memories/?user_id=${userId}`, {
+    return request<DeleteResponse>(`/v1/memories/?user_id=${encodeURIComponent(userId)}`, {
       method: "DELETE",
     });
   },
@@ -197,7 +228,7 @@ export const mem0Api = {
    * @param memoryId 记忆 ID
    */
   async getMemoryHistory(memoryId: string): Promise<MemoryHistory[]> {
-    return request<MemoryHistory[]>(`/v1/memories/history/${memoryId}/`);
+    return request<MemoryHistory[]>(`/v1/memories/history/${encodeURIComponent(memoryId)}/`);
   },
 
   // ============ 统计 ============
@@ -217,7 +248,7 @@ export const mem0Api = {
    * @param limit 返回数量，默认 5
    */
   async getRelatedMemories(memoryId: string, limit: number = 5): Promise<RelatedMemoriesResponse> {
-    return request<RelatedMemoriesResponse>(`/v1/memories/${memoryId}/related/?limit=${limit}`);
+    return request<RelatedMemoriesResponse>(`/v1/memories/${encodeURIComponent(memoryId)}/related/?limit=${limit}`);
   },
 
   // ============ 访问日志 ============
@@ -226,7 +257,7 @@ export const mem0Api = {
    * 获取记忆的访问日志
    */
   async getAccessLogs(memoryId: string, limit: number = 20): Promise<AccessLogsResponse> {
-    return request<AccessLogsResponse>(`/v1/memories/${memoryId}/access-logs/?limit=${limit}`);
+    return request<AccessLogsResponse>(`/v1/memories/${encodeURIComponent(memoryId)}/access-logs/?limit=${limit}`);
   },
 
   // ============ 请求日志 ============
