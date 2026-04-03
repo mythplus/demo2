@@ -277,7 +277,7 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-muted-foreground">
           <p>
-            <strong>图谱记忆</strong> — 基于 Mem0 开源版 API
+            <strong>mem0-dashboard</strong> — 基于 Mem0 开源版 API
             的前端管理界面
           </p>
           <p>技术栈：Next.js 14 + shadcn/ui + Tailwind CSS</p>

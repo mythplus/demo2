@@ -22,7 +22,7 @@ function getPageTitle(pathname: string): string {
   if (pageTitles[pathname]) return pageTitles[pathname];
   if (pathname.startsWith("/memory/")) return "记忆详情";
   if (pathname.startsWith("/users/")) return "用户详情";
-  return "图谱记忆";
+  return "mem0-dashboard";
 }
 
 interface HeaderProps {

@@ -95,7 +95,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               <Brain className="h-5 w-5" />
             </div>
             {!collapsed && (
-<span className="text-lg font-bold">图谱记忆</span>
+<span className="text-lg font-bold">mem0-dashboard</span>
             )}
           </Link>
         </div>
