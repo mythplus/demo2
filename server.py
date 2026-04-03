@@ -1144,18 +1144,29 @@ async def test_embedder_connection():
 # ============ 辅助函数：获取所有记忆 ============
 
 def _get_all_memories_raw() -> list:
-    """获取所有记忆（原始 Qdrant 查询），返回格式化后的列表"""
+    """获取所有记忆（完整分页滚动，不再限制 200 条）"""
     m = get_memory()
     try:
         collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
         qdrant_client = m.vector_store.client
-        records, _ = qdrant_client.scroll(
-            collection_name=collection_name,
-            limit=200,
-            with_payload=True,
-            with_vectors=False,
-        )
-        return [format_record(record) for record in records]
+        all_records = []
+        offset = None
+        batch_size = 100
+
+        while True:
+            records, next_offset = qdrant_client.scroll(
+                collection_name=collection_name,
+                limit=batch_size,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            all_records.extend(records)
+            if next_offset is None or not records:
+                break
+            offset = next_offset
+
+        return [format_record(record) for record in all_records]
     except Exception as e:
         logger.warning(f"Qdrant 直接查询失败: {e}")
         return []
