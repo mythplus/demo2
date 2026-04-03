@@ -252,7 +252,7 @@ export default function SearchPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="shrink-0 border-red-300 text-red-500 hover:bg-red-50 hover:text-red-600"
+                  className="shrink-0 border-red-300 text-red-500 hover:bg-red-50 hover:text-red-600 dark:border-red-500/40 dark:text-red-400 dark:hover:bg-red-500/10 dark:hover:text-red-300"
                   title="清除搜索"
                   onClick={() => {
                     setQuery("");

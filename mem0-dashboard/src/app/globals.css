@@ -58,6 +58,32 @@
   }
 }
 
+/* 深色模式滚动条样式 */
+.dark ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: hsl(217.2 32.6% 12%);
+  border-radius: 3px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: hsl(215 20.2% 30%);
+  border-radius: 3px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: hsl(215 20.2% 40%);
+}
+
+/* Firefox 深色模式滚动条 */
+.dark * {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(215 20.2% 30%) hsl(217.2 32.6% 12%);
+}
+
 /* 分类标签深色模式颜色覆盖 */
 .dark .category-badge {
   background-color: var(--cat-dark-bg) !important;
