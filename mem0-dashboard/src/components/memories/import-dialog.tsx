@@ -76,6 +76,7 @@ type ImportStep = "upload" | "preview" | "importing" | "done" | "interrupted";
 // 导入限制常量
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_IMPORT_ITEMS = 1000;
+const BATCH_SIZE = 100; // 后端单次最多接受 100 条，前端自动分批
 
 // 用于生成全局唯一的导入任务 ID
 let importTaskCounter = 0;
@@ -237,35 +238,57 @@ export function ImportDialog({
     const result: ImportResult = { success: 0, failed: 0, errors: [] };
 
     try {
-      setProgress(10); // 开始请求
+      setProgress(5); // 开始请求
 
-      const response = await mem0Api.batchImport({
-        items: items.map((item) => ({
-          content: item.content,
-          user_id: item.user_id,
-          metadata: item.metadata,
-          categories: item.categories as Category[] | undefined,
-          state: item.state as MemoryState | undefined,
-        })),
-        default_user_id: defaultUserId.trim() || undefined,
-        infer: false,           // 导入时原文整条存储，不让 AI 拆分
-        auto_categorize: true,  // AI 自动识别标签
-      });
-
-      result.success = response.success;
-      result.failed = response.failed;
-
-      // 收集失败项的错误信息
-      for (const item of response.results) {
-        if (!item.success && item.error) {
-          result.errors.push(`第 ${item.index + 1} 条: ${item.error}`);
-        }
+      // 将 items 按 BATCH_SIZE 分批
+      const batches: ImportItem[][] = [];
+      for (let i = 0; i < items.length; i += BATCH_SIZE) {
+        batches.push(items.slice(i, i + BATCH_SIZE));
       }
 
-      setProgress(100);
+      // 逐批提交
+      for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+        const batch = batches[batchIdx];
+        const batchOffset = batchIdx * BATCH_SIZE; // 当前批次在总列表中的起始索引
+
+        try {
+          const response = await mem0Api.batchImport({
+            items: batch.map((item) => ({
+              content: item.content,
+              user_id: item.user_id,
+              metadata: item.metadata,
+              categories: item.categories as Category[] | undefined,
+              state: item.state as MemoryState | undefined,
+            })),
+            default_user_id: defaultUserId.trim() || undefined,
+            infer: false,           // 导入时原文整条存储，不让 AI 拆分
+            auto_categorize: true,  // AI 自动识别标签
+          });
+
+          result.success += response.success;
+          result.failed += response.failed;
+
+          // 收集失败项的错误信息（修正索引为全局索引）
+          for (const item of response.results) {
+            if (!item.success && item.error) {
+              result.errors.push(`第 ${batchOffset + item.index + 1} 条: ${item.error}`);
+            }
+          }
+        } catch (err) {
+          // 当前批次整体请求失败
+          result.failed += batch.length;
+          result.errors.push(
+            `第 ${batchOffset + 1}-${batchOffset + batch.length} 条批量导入失败: ${err instanceof Error ? err.message : "未知错误"}`
+          );
+        }
+
+        // 更新进度（5% ~ 100%）
+        const progressValue = Math.round(5 + ((batchIdx + 1) / batches.length) * 95);
+        setProgress(progressValue);
+      }
     } catch (err) {
-      // 整个请求失败，所有记忆视为导入失败
-      result.failed = items.length;
+      // 整个导入流程异常（不太可能走到这里，但作为兜底）
+      result.failed = items.length - result.success;
       result.errors.push(
         `批量导入请求失败: ${err instanceof Error ? err.message : "未知错误"}`
       );

@@ -81,7 +81,17 @@ async function request<T>(
       const error = await response.json().catch(() => ({
         detail: `HTTP ${response.status}: ${response.statusText}`,
       }));
-      throw new Error(error.detail || "请求失败");
+      // detail 可能是字符串或数组（如 Pydantic 422 验证错误），需统一处理
+      const detail = error.detail;
+      const message =
+        typeof detail === "string"
+          ? detail
+          : Array.isArray(detail)
+            ? detail.map((d: Record<string, unknown>) => d.msg || JSON.stringify(d)).join("; ")
+            : detail
+              ? JSON.stringify(detail)
+              : "请求失败";
+      throw new Error(message);
     }
 
     // DELETE 请求可能返回空内容

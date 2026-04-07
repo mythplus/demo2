@@ -29,13 +29,13 @@ interface HeaderProps {
   onCycleTheme: () => void;
 }
 
-// 主题模式图标和提示
+// 主题模式图标和提示（label 提示用户点击后将切换到的模式）
 const themeMeta: Record<
   "light" | "dark",
   { icon: React.ElementType; label: string }
 > = {
-  light: { icon: Sun, label: "浅色模式" },
-  dark: { icon: Moon, label: "深色模式" },
+  light: { icon: Sun, label: "切换到深色模式" },
+  dark: { icon: Moon, label: "切换到浅色模式" },
 };
 
 export function Header({ themeMode, onCycleTheme }: HeaderProps) {
