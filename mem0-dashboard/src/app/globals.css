@@ -89,3 +89,17 @@
   background-color: var(--cat-dark-bg) !important;
   color: var(--cat-dark-text) !important;
 }
+
+/* 不确定进度条动画 */
+@keyframes progress-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+.animate-progress-indeterminate {
+  animation: progress-indeterminate 1.5s ease-in-out infinite;
+}

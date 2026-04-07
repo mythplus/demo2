@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useState, useCallback } from "react";
+import React, { useRef, useEffect, useState, useCallback, useImperativeHandle, forwardRef } from "react";
 import ForceGraph2D from "react-force-graph-2d";
 import { Loader2 } from "lucide-react";
 
@@ -27,12 +27,48 @@ interface ForceGraphViewerProps {
   onNodeClick?: (node: GraphNode) => void;
 }
 
-export default function ForceGraphViewer({ nodes, links, onNodeClick }: ForceGraphViewerProps) {
+/** 暴露给父组件的控制方法 */
+export interface ForceGraphViewerHandle {
+  zoomIn: () => void;
+  zoomOut: () => void;
+  zoomToFit: () => void;
+  centerGraph: () => void;
+}
+
+const ForceGraphViewer = forwardRef<ForceGraphViewerHandle, ForceGraphViewerProps>(
+  ({ nodes, links, onNodeClick }, ref) => {
   const graphRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 500 });
   const [mounted, setMounted] = useState(false);
   const [isDark, setIsDark] = useState(false);
+
+  // 暴露缩放控制方法给父组件
+  useImperativeHandle(ref, () => ({
+    zoomIn: () => {
+      if (graphRef.current) {
+        const currentZoom = graphRef.current.zoom();
+        graphRef.current.zoom(currentZoom * 1.5, 300);
+      }
+    },
+    zoomOut: () => {
+      if (graphRef.current) {
+        const currentZoom = graphRef.current.zoom();
+        graphRef.current.zoom(currentZoom / 1.5, 300);
+      }
+    },
+    zoomToFit: () => {
+      if (graphRef.current) {
+        graphRef.current.zoomToFit(400, 40);
+      }
+    },
+    centerGraph: () => {
+      if (graphRef.current) {
+        graphRef.current.centerAt(0, 0, 300);
+        graphRef.current.zoomToFit(400, 40);
+      }
+    },
+  }));
 
   // 检测深色模式
   useEffect(() => {
@@ -186,4 +222,9 @@ export default function ForceGraphViewer({ nodes, links, onNodeClick }: ForceGra
       />
     </div>
   );
-}
+  }
+);
+
+ForceGraphViewer.displayName = "ForceGraphViewer";
+
+export default ForceGraphViewer;

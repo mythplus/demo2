@@ -13,6 +13,7 @@ describe("useUIStore", () => {
     expect(state.viewMode).toBe("list");
     expect(state.sidebarCollapsed).toBe(false);
     expect(state.detailPanelOpen).toBe(false);
+    expect(state.connectionStatus).toBe("checking");
   });
 
   it("应该切换视图模式", async () => {
@@ -41,33 +42,12 @@ describe("useUIStore", () => {
     useUIStore.getState().setDetailPanelOpen(true);
     expect(useUIStore.getState().detailPanelOpen).toBe(true);
   });
-});
 
-describe("useMemoriesStore", () => {
-  beforeEach(() => {
-    jest.resetModules();
-  });
-
-  it("应该有正确的初始状态", async () => {
-    const { useMemoriesStore } = await import("@/store/memories-store");
-    const state = useMemoriesStore.getState();
-    expect(state.memories).toEqual([]);
-    expect(state.stats).toBeNull();
-    expect(state.loading).toBe(false);
-    expect(state.error).toBe("");
-    expect(state.filters).toEqual({});
-  });
-
-  it("应该设置筛选条件", async () => {
-    const { useMemoriesStore } = await import("@/store/memories-store");
-    useMemoriesStore.getState().setFilters({ user_id: "user1", state: "active" });
-    expect(useMemoriesStore.getState().filters).toEqual({ user_id: "user1", state: "active" });
-  });
-
-  it("应该重置筛选条件", async () => {
-    const { useMemoriesStore } = await import("@/store/memories-store");
-    useMemoriesStore.getState().setFilters({ user_id: "user1" });
-    useMemoriesStore.getState().resetFilters();
-    expect(useMemoriesStore.getState().filters).toEqual({});
+  it("应该设置连接状态", async () => {
+    const { useUIStore } = await import("@/store/ui-store");
+    useUIStore.getState().setConnectionStatus("connected");
+    expect(useUIStore.getState().connectionStatus).toBe("connected");
+    useUIStore.getState().setConnectionStatus("disconnected");
+    expect(useUIStore.getState().connectionStatus).toBe("disconnected");
   });
 });

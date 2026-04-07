@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import {
   Brain,
@@ -22,8 +22,8 @@ import { Badge } from "@/components/ui/badge";
 import { AddMemoryDialog } from "@/components/memories/add-memory-dialog";
 import { CategoryBadges } from "@/components/memories/category-badge";
 import { StateBadge } from "@/components/memories/state-badge";
-import { mem0Api } from "@/lib/api";
-import type { Memory, ConnectionStatus, StatsResponse } from "@/lib/api";
+import { useUIStore } from "@/store";
+import { useDashboardData } from "@/hooks/use-dashboard-data";
 import { StatsCharts } from "@/components/dashboard/stats-charts";
 import { StatsCardSkeleton } from "@/components/ui/skeleton";
 
@@ -62,54 +62,15 @@ function StatsCard({
 }
 
 export default function DashboardPage() {
-  const [memories, setMemories] = useState<Memory[]>([]);
-  const [stats, setStats] = useState<StatsResponse | null>(null);
-  const [connectionStatus, setConnectionStatus] =
-    useState<ConnectionStatus>("checking");
-  const [loading, setLoading] = useState(true);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const isConnected = await mem0Api.healthCheck();
-      setConnectionStatus(isConnected ? "connected" : "disconnected");
+  // 使用全局 Store 的连接状态（由 ClientLayout 统一轮询）
+  const connectionStatus = useUIStore((s) => s.connectionStatus);
 
-      if (isConnected) {
-        const [data, statsData] = await Promise.all([
-          mem0Api.getMemories(),
-          mem0Api.getStats().catch(() => null),
-        ]);
-        setMemories(Array.isArray(data) ? data : []);
-        setStats(statsData);
-      }
-    } catch (error) {
-      console.error("获取数据失败:", error);
-      setConnectionStatus("disconnected");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  // 定时刷新（每 30 秒自动同步数据）
-  useEffect(() => {
-    if (connectionStatus !== "connected") return;
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
-  }, [connectionStatus]);
-
-  // 连接断开时自动重试
-  useEffect(() => {
-    if (connectionStatus !== "disconnected") return;
-    const retryInterval = setInterval(() => {
-      fetchData();
-    }, 10000);
-    return () => clearInterval(retryInterval);
-  }, [connectionStatus]);
+  // 使用 React Query 管理仪表盘数据（自动缓存 + 60 秒轮询 + 窗口聚焦刷新）
+  const { memories, stats, loading, refetch } = useDashboardData(
+    connectionStatus === "connected"
+  );
 
   // 排除已删除记忆，仪表盘只展示活跃记忆数据
   const activeMemories = memories.filter((m) => m.state !== "deleted");
@@ -348,7 +309,7 @@ export default function DashboardPage() {
       <AddMemoryDialog
         open={addDialogOpen}
         onOpenChange={setAddDialogOpen}
-        onSuccess={fetchData}
+        onSuccess={refetch}
       />
     </div>
   );

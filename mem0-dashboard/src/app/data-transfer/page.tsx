@@ -37,12 +37,15 @@ import { ImportDialog, type ImportSuccessInfo } from "@/components/memories/impo
 import { useToast } from "@/hooks/use-toast";
 import { useOperationRecords, type OperationRecord } from "@/hooks/use-operation-records";
 import { hasRunningImportTask } from "@/lib/import-task-registry";
+import { Progress } from "@/components/ui/progress";
 
 export default function DataTransferPage() {
   const { toast } = useToast();
 
   // 导出状态
   const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [exportStage, setExportStage] = useState("");
   const [memoryCount, setMemoryCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -218,28 +221,56 @@ export default function DataTransferPage() {
     setFilteredCount(null);
   };
 
-  // 导出 JSON
-  const handleExportJSON = async () => {
+  // 通用导出逻辑（带进度反馈）
+  const handleExport = async (format: "json" | "csv") => {
     setExporting(true);
+    setExportProgress(0);
+    setExportStage("正在获取数据...");
     try {
+      // 阶段 1：获取数据（0% → 60%）
+      setExportProgress(10);
       const data = hasFilter
         ? await getFilteredMemories()
         : await mem0Api.getMemories().then((m) => (Array.isArray(m) ? m : []).filter((item) => item.state !== "deleted"));
-      const result: ExportOutput = exportToJSON(data as Memory[]);
+      setExportProgress(60);
+
+      // 阶段 2：转换格式（60% → 85%）
+      setExportStage(`正在转换为 ${format.toUpperCase()} 格式...`);
+      // 使用 setTimeout 让 UI 有机会更新进度
+      await new Promise((r) => setTimeout(r, 100));
+      const result: ExportOutput = format === "json"
+        ? exportToJSON(data as Memory[])
+        : exportToCSV(data as Memory[]);
+      setExportProgress(85);
+
+      // 阶段 3：下载完成（85% → 100%）
+      setExportStage("下载完成！");
+      setExportProgress(100);
+
       addRecord({
         type: "导出",
         status: "成功",
         filename: result.filename,
         blob: result.blob,
-        detail: `导出 ${data.length} 条记忆为 JSON`,
+        detail: `导出 ${data.length} 条记忆为 ${format.toUpperCase()}`,
       });
       toast({
         title: "导出成功",
-        description: `已导出 ${data.length} 条记忆为 JSON 文件`,
+        description: `已导出 ${data.length} 条记忆为 ${format.toUpperCase()} 文件`,
         variant: "success",
       });
+
+      // 延迟清除进度条，让用户看到 100% 完成状态
+      setTimeout(() => {
+        setExporting(false);
+        setExportProgress(0);
+        setExportStage("");
+      }, 1500);
+      return;
     } catch (err) {
       console.error("导出失败:", err);
+      setExportStage("导出失败");
+      setExportProgress(0);
       addRecord({
         type: "导出",
         status: "失败",
@@ -252,49 +283,17 @@ export default function DataTransferPage() {
         description: err instanceof Error ? err.message : "请检查 API 连接状态",
         variant: "destructive",
       });
-    } finally {
-      setExporting(false);
     }
+    setExporting(false);
+    setExportProgress(0);
+    setExportStage("");
   };
 
+  // 导出 JSON
+  const handleExportJSON = () => handleExport("json");
+
   // 导出 CSV
-  const handleExportCSV = async () => {
-    setExporting(true);
-    try {
-      const data = hasFilter
-        ? await getFilteredMemories()
-        : await mem0Api.getMemories().then((m) => (Array.isArray(m) ? m : []).filter((item) => item.state !== "deleted"));
-      const result: ExportOutput = exportToCSV(data as Memory[]);
-      addRecord({
-        type: "导出",
-        status: "成功",
-        filename: result.filename,
-        blob: result.blob,
-        detail: `导出 ${data.length} 条记忆为 CSV`,
-      });
-      toast({
-        title: "导出成功",
-        description: `已导出 ${data.length} 条记忆为 CSV 文件`,
-        variant: "success",
-      });
-    } catch (err) {
-      console.error("导出失败:", err);
-      addRecord({
-        type: "导出",
-        status: "失败",
-        filename: "-",
-        blob: null,
-        detail: err instanceof Error ? err.message : "导出失败",
-      });
-      toast({
-        title: "导出失败",
-        description: err instanceof Error ? err.message : "请检查 API 连接状态",
-        variant: "destructive",
-      });
-    } finally {
-      setExporting(false);
-    }
-  };
+  const handleExportCSV = () => handleExport("csv");
 
   return (
     <div className="space-y-4">
@@ -512,13 +511,28 @@ export default function DataTransferPage() {
             )}
           </div>
 
+          {/* 导出进度条 */}
+          {exporting && (
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {exportStage}
+                </span>
+                <span className="font-medium text-primary">{exportProgress}%</span>
+              </div>
+              <Progress value={exportProgress} className="h-2" />
+            </div>
+          )}
+
           {/* 导出按钮 */}
           <div className="flex gap-2">
             <Button
               variant="outline"
               onClick={handleExportJSON}
               disabled={exporting}
-            >              {exporting ? (
+            >
+              {exporting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <Upload className="mr-2 h-4 w-4" />
@@ -535,7 +549,7 @@ export default function DataTransferPage() {
               ) : (
                 <Upload className="mr-2 h-4 w-4" />
               )}
-            导出 CSV
+              导出 CSV
             </Button>
           </div>
           <p className="text-xs text-muted-foreground -mt-1">

@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React from "react";
 import Link from "next/link";
-import { toast } from "@/hooks/use-toast";
 import {
   Brain,
   Plus,
@@ -17,7 +16,6 @@ import {
   ExternalLink,
   CheckSquare,
   X,
-  Loader2,
 } from "lucide-react";
 import {
   Card,
@@ -42,215 +40,72 @@ import { DeleteConfirmDialog } from "@/components/memories/delete-confirm-dialog
 import { MemoryDetailPanel } from "@/components/memories/memory-detail-panel";
 import { MemoryFilters } from "@/components/memories/memory-filters";
 import { MemoryTable } from "@/components/memories/memory-table";
-import { ViewToggle, type ViewMode } from "@/components/memories/view-toggle";
+import { ViewToggle } from "@/components/memories/view-toggle";
 import { PageSizeSelector } from "@/components/memories/page-size-selector";
 import { CategoryBadges } from "@/components/memories/category-badge";
 import { StateBadge } from "@/components/memories/state-badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { mem0Api } from "@/lib/api";
-import type { Memory, FilterParams } from "@/lib/api";
-import { usePreferences } from "@/hooks/use-preferences";
 import { MemoryListSkeleton } from "@/components/ui/skeleton";
+import { useMemoriesPage } from "@/hooks/use-memories-page";
 
 export default function MemoriesPage() {
-  // 用户偏好设置
-  const { preferences, savePreferences } = usePreferences();
-  const sortOrder = preferences.sortOrder;
-
-  // 数据状态
-  const [memories, setMemories] = useState<Memory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  // 筛选状态
-  const [searchText, setSearchText] = useState("");
-  const [filters, setFilters] = useState<FilterParams>({});
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(preferences.pageSize);
-  const [jumpPage, setJumpPage] = useState("");
-
-  // 视图模式
-  const [viewMode, setViewMode] = useState<ViewMode>("table");
-
-  // IME 中文输入法组合状态
-  const [isComposing, setIsComposing] = useState(false);
-
-  // 弹窗状态
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [detailPanelOpen, setDetailPanelOpen] = useState(false);
-
-  // 当前操作的记忆
-  const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
-
-  // 多选操作状态
-  const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [batchDeleteDialogOpen, setBatchDeleteDialogOpen] = useState(false);
-  const [batchDeleteLoading, setBatchDeleteLoading] = useState(false);
-
-  // 获取记忆列表（通过后端筛选）
-  const fetchMemories = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const apiFilters: FilterParams = { ...filters };
-      const data = await mem0Api.getMemories(apiFilters);
-      setMemories(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "获取记忆列表失败");
-      setMemories([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [filters]);
-
-  useEffect(() => {
-    fetchMemories();
-  }, [fetchMemories]);
-
-  // 获取所有唯一用户（按名称排序）
-  const uniqueUsers = (Array.from(
-    new Set(memories.map((m) => m.user_id).filter(Boolean))
-  ) as string[]).sort((a, b) => a.localeCompare(b, "zh-CN", { numeric: true }));
-
-  // 本地搜索过滤（在后端筛选结果上再做前端文本搜索）
-  const filteredMemories = memories
-    .filter((m) => {
-      if (!searchText.trim()) return true;
-      const keyword = searchText.trim().toLowerCase();
-      const memoryText = (m.memory || "").toLowerCase();
-      const userId = (m.user_id || "").toLowerCase();
-      const id = (m.id || "").toLowerCase();
-      return (
-        memoryText.includes(keyword) ||
-        userId.includes(keyword) ||
-        id.includes(keyword)
-      );
-    })
-    // 按偏好排序
-    .sort((a, b) => {
-      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
-      return sortOrder === "newest" ? timeB - timeA : timeA - timeB;
-    });
-
-  // 分页
-  const totalPages = Math.ceil(filteredMemories.length / pageSize);
-  const paginatedMemories = filteredMemories.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  );
-
-  // 筛选变化时重置页码
-  const handleFiltersChange = (newFilters: FilterParams) => {
-    setFilters(newFilters);
-    setCurrentPage(1);
-  };
-
-  // 删除记忆
-  const handleDelete = async () => {
-    if (!selectedMemory) return;
-    setDeleteLoading(true);
-    try {
-      await mem0Api.deleteMemory(selectedMemory.id);
-      setDeleteDialogOpen(false);
-      setSelectedMemory(null);
-      fetchMemories();
-    } catch (err) {
-      console.error("删除失败:", err);
-      toast({ title: "删除失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
-
-  // 多选操作
-  const handleToggleSelectionMode = () => {
-    setSelectionMode((prev) => {
-      if (prev) setSelectedIds(new Set());
-      return !prev;
-    });
-  };
-
-  const handleToggleSelect = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
-  const handleToggleAll = (checked: boolean) => {
-    if (checked) {
-      // 全选当前筛选出的所有记忆（不仅仅是当前页）
-      const allIds = new Set(filteredMemories.filter((m) => m.state !== "deleted").map((m) => m.id));
-      setSelectedIds(allIds);
-    } else {
-      setSelectedIds(new Set());
-    }
-  };
-
-  const handleTogglePageAll = (checked: boolean) => {
-    if (checked) {
-      const newIds = new Set(selectedIds);
-      paginatedMemories.forEach((m) => {
-        if (m.state !== "deleted") newIds.add(m.id);
-      });
-      setSelectedIds(newIds);
-    } else {
-      const newIds = new Set(selectedIds);
-      paginatedMemories.forEach((m) => newIds.delete(m.id));
-      setSelectedIds(newIds);
-    }
-  };
-
-  // 批量删除（使用批量 API，一次请求删除所有选中记忆）
-  const handleBatchDelete = async () => {
-    if (selectedIds.size === 0) return;
-    setBatchDeleteLoading(true);
-    try {
-      const result = await mem0Api.batchDeleteMemories(Array.from(selectedIds));
-      if (result.failed > 0) {
-        toast({
-          title: "部分删除失败",
-          description: `成功 ${result.success} 条，失败 ${result.failed} 条`,
-          variant: "destructive",
-        });
-      }
-      setBatchDeleteDialogOpen(false);
-      setSelectedIds(new Set());
-      setSelectionMode(false);
-      fetchMemories();
-    } catch (err) {
-      console.error("批量删除失败:", err);
-      toast({ title: "批量删除失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
-    } finally {
-      setBatchDeleteLoading(false);
-    }
-  };
-
-  // 操作按钮
-  const handleEdit = (memory: Memory) => {
-    setSelectedMemory(memory);
-    setEditDialogOpen(true);
-  };
-
-  const handleDeleteClick = (memory: Memory) => {
-    setSelectedMemory(memory);
-    setDeleteDialogOpen(true);
-  };
-
-  const handleViewDetail = (memory: Memory) => {
-    setSelectedMemory(memory);
-    setDetailPanelOpen(true);
-  };
+  const {
+    // 数据
+    loading,
+    error,
+    filteredMemories,
+    paginatedMemories,
+    uniqueUsers,
+    // 筛选 & 分页
+    searchText,
+    filters,
+    currentPage,
+    pageSize,
+    jumpPage,
+    totalPages,
+    setJumpPage,
+    setCurrentPage,
+    handleSearchChange,
+    handleCompositionStart,
+    handleCompositionEnd,
+    handleFiltersChange,
+    handlePageSizeChange,
+    handleJumpPage,
+    // 视图
+    viewMode,
+    setViewMode,
+    // 弹窗
+    addDialogOpen,
+    setAddDialogOpen,
+    editDialogOpen,
+    setEditDialogOpen,
+    deleteDialogOpen,
+    setDeleteDialogOpen,
+    detailPanelOpen,
+    setDetailPanelOpen,
+    batchDeleteDialogOpen,
+    setBatchDeleteDialogOpen,
+    // 当前操作
+    selectedMemory,
+    deleteLoading,
+    batchDeleteLoading,
+    // 操作方法
+    fetchMemories,
+    handleDelete,
+    handleEdit,
+    handleDeleteClick,
+    handleViewDetail,
+    // 多选
+    selectionMode,
+    selectedIds,
+    handleToggleSelectionMode,
+    handleToggleSelect,
+    handleToggleAll,
+    handleTogglePageAll,
+    handleInvertSelection,
+    handleClearSelection,
+    handleBatchDelete,
+  } = useMemoriesPage();
 
   return (
     <div className="space-y-6">
@@ -272,18 +127,11 @@ export default function MemoriesPage() {
               <Input
                 placeholder="搜索记忆内容、用户 ID..."
                 value={searchText}
-                onChange={(e) => {
-                  setSearchText(e.target.value);
-                  if (!isComposing) {
-                    setCurrentPage(1);
-                  }
-                }}
-                onCompositionStart={() => setIsComposing(true)}
-                onCompositionEnd={(e) => {
-                  setIsComposing(false);
-                  setSearchText((e.target as HTMLInputElement).value);
-                  setCurrentPage(1);
-                }}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                onCompositionStart={handleCompositionStart}
+                onCompositionEnd={(e) =>
+                  handleCompositionEnd((e.target as HTMLInputElement).value)
+                }
                 className="pl-9"
               />
             </div>
@@ -343,37 +191,14 @@ export default function MemoriesPage() {
               <span className="text-base font-medium">
                 已选择 <span className="text-primary font-bold text-lg">{selectedIds.size}</span> 条记忆
               </span>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-sm"
-                onClick={() => handleToggleAll(true)}
-              >
+              <Button variant="outline" size="sm" className="text-sm" onClick={() => handleToggleAll(true)}>
                 全选
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-sm"
-                onClick={() => {
-                  const newIds = new Set<string>();
-                  filteredMemories.forEach((m) => {
-                    if (m.state !== "deleted" && !selectedIds.has(m.id)) {
-                      newIds.add(m.id);
-                    }
-                  });
-                  setSelectedIds(newIds);
-                }}
-              >
+              <Button variant="outline" size="sm" className="text-sm" onClick={handleInvertSelection}>
                 反选
               </Button>
               {selectedIds.size > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-sm"
-                  onClick={() => setSelectedIds(new Set())}
-                >
+                <Button variant="outline" size="sm" className="text-sm" onClick={handleClearSelection}>
                   取消选择
                 </Button>
               )}
@@ -388,11 +213,7 @@ export default function MemoriesPage() {
                 <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                 删除选中（{selectedIds.size}）
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleToggleSelectionMode}
-              >
+              <Button variant="outline" size="sm" onClick={handleToggleSelectionMode}>
                 <X className="mr-1 h-3.5 w-3.5" />
                 退出
               </Button>
@@ -415,13 +236,7 @@ export default function MemoriesPage() {
                 )}
               </CardDescription>
             </div>
-            <PageSizeSelector
-              value={pageSize}
-              onChange={(size) => {
-                setPageSize(size);
-                setCurrentPage(1);
-              }}
-            />
+            <PageSizeSelector value={pageSize} onChange={handlePageSizeChange} />
           </div>
         </CardHeader>
         <CardContent>
@@ -516,16 +331,11 @@ export default function MemoriesPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => handleViewDetail(memory)}
-                        >
+                        <DropdownMenuItem onClick={() => handleViewDetail(memory)}>
                           <Eye className="mr-2 h-4 w-4" />
                           查看详情
                         </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleEdit(memory)}
-                          disabled={memory.state === "deleted"}
-                        >
+                        <DropdownMenuItem onClick={() => handleEdit(memory)} disabled={memory.state === "deleted"}>
                           <Pencil className="mr-2 h-4 w-4" />
                           编辑
                         </DropdownMenuItem>
@@ -589,26 +399,11 @@ export default function MemoriesPage() {
                           }
                         }}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter" && jumpPage) {
-                            const page = Math.max(1, Math.min(totalPages, parseInt(jumpPage)));
-                            setCurrentPage(page);
-                            setJumpPage("");
-                          }
+                          if (e.key === "Enter") handleJumpPage();
                         }}
                       />
                       <span className="text-sm text-muted-foreground">页</span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8"
-                        onClick={() => {
-                          if (jumpPage) {
-                            const page = Math.max(1, Math.min(totalPages, parseInt(jumpPage)));
-                            setCurrentPage(page);
-                            setJumpPage("");
-                          }
-                        }}
-                      >
+                      <Button variant="outline" size="sm" className="h-8" onClick={handleJumpPage}>
                         确定
                       </Button>
                     </div>
@@ -629,10 +424,7 @@ export default function MemoriesPage() {
                   : "点击「添加记忆」按钮创建第一条记忆"}
               </p>
               {!searchText && (
-                <Button
-                  className="mt-4"
-                  onClick={() => setAddDialogOpen(true)}
-                >
+                <Button className="mt-4" onClick={() => setAddDialogOpen(true)}>
                   <Plus className="mr-2 h-4 w-4" />
                   添加记忆
                 </Button>

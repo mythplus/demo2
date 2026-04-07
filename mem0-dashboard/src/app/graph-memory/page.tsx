@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import {
   Search,
@@ -14,6 +14,11 @@ import {
   AlertCircle,
   CheckCircle2,
   Loader2,
+  ZoomIn,
+  ZoomOut,
+  Maximize,
+  Minimize,
+  Focus,
 } from "lucide-react";
 import {
   Card,
@@ -63,6 +68,7 @@ import type {
   GraphStatsResponse,
   GraphHealthResponse,
 } from "@/lib/api";
+import type { ForceGraphViewerHandle } from "@/components/graph/force-graph-viewer";
 
 // 动态导入图谱可视化组件（完全禁用 SSR，避免 window is not defined）
 const ForceGraphViewer = dynamic(
@@ -149,6 +155,34 @@ export default function GraphMemoryPage() {
   const [deleteRelationLoading, setDeleteRelationLoading] = useState(false);
 
   const { toast } = useToast();
+
+  // 图谱可视化 ref（用于缩放控制）
+  const graphViewerRef = useRef<ForceGraphViewerHandle>(null);
+  const graphContainerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // 监听全屏状态变化
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  // 全屏切换
+  const toggleFullscreen = useCallback(async () => {
+    if (!graphContainerRef.current) return;
+    try {
+      if (!document.fullscreenElement) {
+        await graphContainerRef.current.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch (e) {
+      console.error("全屏切换失败:", e);
+    }
+  }, []);
 
   // 用户列表（从统计数据中提取）
   const userList = useMemo(() => {
@@ -488,7 +522,12 @@ export default function GraphMemoryPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="relative h-[500px] w-full border-t">
+          <div
+            ref={graphContainerRef}
+            className={`relative w-full border-t bg-background ${
+              isFullscreen ? "h-screen" : "h-[500px]"
+            }`}
+          >
             {!selectedUserId ? (
               <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
                 <Users className="mb-3 h-12 w-12 opacity-50" />
@@ -500,10 +539,56 @@ export default function GraphMemoryPage() {
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : graphDataForViz.nodes.length > 0 ? (
-              <ForceGraphViewer
-                nodes={graphDataForViz.nodes}
-                links={graphDataForViz.links}
-              />
+              <>
+                <ForceGraphViewer
+                  ref={graphViewerRef}
+                  nodes={graphDataForViz.nodes}
+                  links={graphDataForViz.links}
+                />
+                {/* 缩放控制按钮组 */}
+                <div className="absolute bottom-4 right-4 flex flex-col gap-1.5 z-10">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 bg-background/80 backdrop-blur-sm shadow-sm border"
+                    onClick={() => graphViewerRef.current?.zoomIn()}
+                    title="放大"
+                  >
+                    <ZoomIn className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 bg-background/80 backdrop-blur-sm shadow-sm border"
+                    onClick={() => graphViewerRef.current?.zoomOut()}
+                    title="缩小"
+                  >
+                    <ZoomOut className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 bg-background/80 backdrop-blur-sm shadow-sm border"
+                    onClick={() => graphViewerRef.current?.zoomToFit()}
+                    title="适应画布"
+                  >
+                    <Focus className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 bg-background/80 backdrop-blur-sm shadow-sm border"
+                    onClick={toggleFullscreen}
+                    title={isFullscreen ? "退出全屏" : "全屏"}
+                  >
+                    {isFullscreen ? (
+                      <Minimize className="h-4 w-4" />
+                    ) : (
+                      <Maximize className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </>
             ) : (
               <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
                 <Network className="mb-3 h-12 w-12 opacity-50" />
@@ -512,7 +597,6 @@ export default function GraphMemoryPage() {
               </div>
             )}
           </div>
-
         </CardContent>
       </Card>
 

@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { usePathname } from "next/navigation";
 import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { mem0Api } from "@/lib/api";
-import type { ConnectionStatus } from "@/lib/api";
+import { useUIStore } from "@/store";
 
 // 路径到标题的映射
 const pageTitles: Record<string, string> = {
@@ -43,20 +42,8 @@ export function Header({ themeMode, onCycleTheme }: HeaderProps) {
   const pathname = usePathname();
   const title = getPageTitle(pathname);
 
-  const [connectionStatus, setConnectionStatus] =
-    useState<ConnectionStatus>("checking");
-
-  // 定期检查连接状态
-  useEffect(() => {
-    const checkConnection = async () => {
-      const isConnected = await mem0Api.healthCheck();
-      setConnectionStatus(isConnected ? "connected" : "disconnected");
-    };
-
-    checkConnection();
-    const interval = setInterval(checkConnection, 30000); // 每 30 秒检查一次
-    return () => clearInterval(interval);
-  }, []);
+  // 使用全局 Store 的连接状态（由 ClientLayout 统一轮询）
+  const connectionStatus = useUIStore((s) => s.connectionStatus);
 
   const ThemeIcon = themeMeta[themeMode].icon;
   const themeLabel = themeMeta[themeMode].label;
