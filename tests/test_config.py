@@ -42,15 +42,17 @@ class TestLLMConnectionTest:
 
     def test_test_llm_connection(self, client):
         """测试 LLM 连接测试端点"""
-        with patch("server._http_client") as mock_client:
+        with patch("server.services.memory_service.http_client") as mock_client:
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_response.json.return_value = {"models": [{"name": "qwen2.5:7b"}]}
+            mock_response.raise_for_status = MagicMock()
             mock_client.get = AsyncMock(return_value=mock_response)
 
             mock_chat_response = MagicMock()
             mock_chat_response.status_code = 200
-            mock_chat_response.json.return_value = {"message": {"content": "Hello!"}}
+            mock_chat_response.json.return_value = {"response": "Hello!"}
+            mock_chat_response.raise_for_status = MagicMock()
             mock_client.post = AsyncMock(return_value=mock_chat_response)
 
             response = client.get("/v1/config/test-llm")
@@ -66,10 +68,11 @@ class TestEmbedderConnectionTest:
 
     def test_test_embedder_connection(self, client):
         """测试 Embedder 连接测试端点"""
-        with patch("server._http_client") as mock_client:
+        with patch("server.services.memory_service.http_client") as mock_client:
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_response.json.return_value = {"embedding": [0.1] * 768}
+            mock_response.raise_for_status = MagicMock()
             mock_client.post = AsyncMock(return_value=mock_response)
 
             response = client.get("/v1/config/test-embedder")

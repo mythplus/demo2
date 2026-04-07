@@ -12,7 +12,7 @@ class TestGraphStats:
 
     def test_get_graph_stats(self, client):
         """测试获取图谱统计"""
-        with patch("server._neo4j_query") as mock_query:
+        with patch("server.routes.graph.neo4j_query") as mock_query:
             mock_query.side_effect = [
                 [{"count": 100}],
                 [{"count": 200}],
@@ -33,7 +33,7 @@ class TestGraphEntities:
 
     def test_get_entities(self, client):
         """测试获取实体列表"""
-        with patch("server._neo4j_query") as mock_query:
+        with patch("server.routes.graph.neo4j_query") as mock_query:
             mock_query.side_effect = [
                 [{"name": "Python", "user_id": "user1", "labels": ["Entity"], "element_id": "1", "relation_count": 5}],
                 [{"total": 1}],
@@ -46,7 +46,7 @@ class TestGraphEntities:
 
     def test_get_entities_with_search(self, client):
         """测试搜索实体"""
-        with patch("server._neo4j_query") as mock_query:
+        with patch("server.routes.graph.neo4j_query") as mock_query:
             mock_query.side_effect = [
                 [{"name": "Python", "user_id": "user1", "labels": ["Entity"], "element_id": "1", "relation_count": 3}],
                 [{"total": 1}],
@@ -56,7 +56,7 @@ class TestGraphEntities:
 
     def test_get_entities_with_user_filter(self, client):
         """测试按用户筛选实体"""
-        with patch("server._neo4j_query") as mock_query:
+        with patch("server.routes.graph.neo4j_query") as mock_query:
             mock_query.side_effect = [[], [{"total": 0}]]
             response = client.get("/v1/graph/entities?user_id=user1")
             assert response.status_code == 200
@@ -67,7 +67,7 @@ class TestGraphRelations:
 
     def test_get_relations(self, client):
         """测试获取关系列表"""
-        with patch("server._neo4j_query") as mock_query:
+        with patch("server.routes.graph.neo4j_query") as mock_query:
             mock_query.side_effect = [
                 [{"source": "Python", "relation": "USED_BY", "target": "user1", "source_user_id": None, "target_user_id": "user1", "element_id": "r1"}],
                 [{"total": 1}],
@@ -80,7 +80,7 @@ class TestGraphRelations:
 
     def test_get_relations_with_pagination(self, client):
         """测试关系列表分页"""
-        with patch("server._neo4j_query") as mock_query:
+        with patch("server.routes.graph.neo4j_query") as mock_query:
             mock_query.side_effect = [[], [{"total": 0}]]
             response = client.get("/v1/graph/relations?limit=10&offset=5")
             assert response.status_code == 200
@@ -91,7 +91,7 @@ class TestGraphSearch:
 
     def test_search_graph(self, client):
         """测试图谱搜索"""
-        with patch("server._neo4j_query") as mock_query:
+        with patch("server.routes.graph.neo4j_query") as mock_query:
             mock_query.side_effect = [
                 [{"source": "Python", "relation": "KNOWS", "target": "Java", "source_user_id": "user1", "target_user_id": "user1"}],
                 [],
@@ -108,7 +108,7 @@ class TestGraphSearch:
 
     def test_search_graph_with_user_id(self, client):
         """测试带用户 ID 的图谱搜索"""
-        with patch("server._neo4j_query") as mock_query:
+        with patch("server.routes.graph.neo4j_query") as mock_query:
             mock_query.side_effect = [[], []]
             response = client.post(
                 "/v1/graph/search",
@@ -122,7 +122,7 @@ class TestGraphUserSubgraph:
 
     def test_get_user_graph(self, client):
         """测试获取用户子图"""
-        with patch("server._neo4j_query") as mock_query:
+        with patch("server.routes.graph.neo4j_query") as mock_query:
             mock_query.side_effect = [
                 [{"source": "A", "source_user_id": "user1", "source_labels": ["Entity"],
                   "relation": "KNOWS", "target": "B", "target_user_id": "user1", "target_labels": ["Entity"]}],
@@ -142,7 +142,7 @@ class TestGraphAll:
 
     def test_get_all_graph(self, client):
         """测试获取全量图谱"""
-        with patch("server._neo4j_query") as mock_query:
+        with patch("server.routes.graph.neo4j_query") as mock_query:
             mock_query.side_effect = [
                 [{"source": "A", "source_user_id": "user1", "source_labels": ["Entity"],
                   "relation": "KNOWS", "target": "B", "target_user_id": "user1", "target_labels": ["Entity"]}],
@@ -160,9 +160,9 @@ class TestGraphDelete:
 
     def test_delete_entity(self, client):
         """测试删除实体"""
-        with patch("server._neo4j_query") as mock_query:
+        with patch("server.routes.graph.neo4j_query") as mock_query:
             mock_query.return_value = [{"deleted_relations": 3}]
-            with patch("server._get_neo4j_driver") as mock_driver:
+            with patch("server.routes.graph.get_neo4j_driver") as mock_driver:
                 mock_session = MagicMock()
                 mock_session.run.return_value = MagicMock()
                 mock_driver_instance = MagicMock()
@@ -174,7 +174,7 @@ class TestGraphDelete:
 
     def test_delete_relation(self, client):
         """测试删除关系"""
-        with patch("server._neo4j_query") as mock_query:
+        with patch("server.routes.graph.neo4j_query") as mock_query:
             mock_query.return_value = [{"deleted": 1}]
             response = client.delete(
                 "/v1/graph/relations?source=Python&relation=KNOWS&target=Java"
@@ -187,7 +187,7 @@ class TestGraphHealth:
 
     def test_graph_health_connected(self, client):
         """测试 Neo4j 连接正常"""
-        with patch("server._get_neo4j_driver") as mock_driver:
+        with patch("server.routes.graph.get_neo4j_driver") as mock_driver:
             mock_session = MagicMock()
             mock_session.run.return_value = True
             mock_driver_instance = MagicMock()
@@ -202,7 +202,7 @@ class TestGraphHealth:
 
     def test_graph_health_disconnected(self, client):
         """测试 Neo4j 连接断开"""
-        with patch("server._get_neo4j_driver", return_value=None):
+        with patch("server.routes.graph.get_neo4j_driver", return_value=None):
             response = client.get("/v1/graph/health")
             assert response.status_code == 200
             data = response.json()

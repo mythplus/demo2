@@ -156,25 +156,55 @@ def in_memory_db():
 @pytest.fixture
 def client(mock_memory, in_memory_db):
     """创建 FastAPI TestClient（同步），注入 Mock 依赖"""
+    from contextlib import ExitStack
     from fastapi.testclient import TestClient
 
-    # 在导入 server 之前先 mock 掉 Memory 初始化
-    with patch("server.get_memory", return_value=mock_memory), \
-         patch("server._get_db_conn", return_value=in_memory_db), \
-         patch("server._init_access_log_db"), \
-         patch("server._start_log_writer"), \
-         patch("server._stop_log_writer"), \
-         patch("server._close_neo4j_driver"), \
-         patch("server._enqueue_log"), \
-         patch("server._auto_categorize_memory", new_callable=AsyncMock, return_value=["work"]), \
-         patch("server._configured_api_key", ""), \
-         patch("server._rate_limit_rpm", 0):
+    _mock_memories_list = [{
+        "id": "test-id-1", "memory": "测试记忆内容", "user_id": "user1",
+        "categories": ["work"], "state": "active",
+        "created_at": "2024-01-01T00:00:00", "updated_at": "2024-01-01T00:00:00",
+    }]
+
+    # 使用 ExitStack 避免 Python 嵌套 with 语句数量限制
+    with ExitStack() as stack:
+        # 核心服务 Mock
+        stack.enter_context(patch("server.services.memory_service.get_memory", return_value=mock_memory))
+        stack.enter_context(patch("server.routes.memories.get_memory", return_value=mock_memory))
+        stack.enter_context(patch("server.routes.search.get_memory", return_value=mock_memory))
+        stack.enter_context(patch("server.routes.memories.get_all_memories_raw", return_value=_mock_memories_list))
+        stack.enter_context(patch("server.routes.stats.get_all_memories_raw", return_value=_mock_memories_list))
+        # 日志服务 Mock
+        stack.enter_context(patch("server.services.log_service._get_db_conn", return_value=in_memory_db))
+        stack.enter_context(patch("server.routes.logs._get_db_conn", return_value=in_memory_db))
+        stack.enter_context(patch("server.services.log_service.init_access_log_db"))
+        stack.enter_context(patch("server.services.log_service.start_log_writer"))
+        stack.enter_context(patch("server.services.log_service.stop_log_writer"))
+        stack.enter_context(patch("server.services.log_service._enqueue_log"))
+        stack.enter_context(patch("server.routes.memories.save_change_log"))
+        stack.enter_context(patch("server.routes.memories.save_category_snapshot"))
+        stack.enter_context(patch("server.routes.memories.log_access"))
+        stack.enter_context(patch("server.routes.memories.get_change_logs", return_value=[]))
+        # AI 分类 Mock
+        stack.enter_context(patch("server.services.memory_service.auto_categorize_memory", new_callable=AsyncMock, return_value=["work"]))
+        stack.enter_context(patch("server.routes.memories.auto_categorize_memory", new_callable=AsyncMock, return_value=["work"]))
+        # 搜索 Mock
+        stack.enter_context(patch("server.routes.search.get_real_states", return_value={"test-id-1": "active"}))
+        stack.enter_context(patch("server.routes.search.format_mem0_result", side_effect=lambda item: {
+            "id": item.get("id", ""), "memory": item.get("memory", ""),
+            "user_id": item.get("user_id", ""), "categories": item.get("metadata", {}).get("categories", []),
+            "state": item.get("metadata", {}).get("state", "active"),
+            "created_at": item.get("created_at", ""), "updated_at": item.get("updated_at", ""),
+            "agent_id": "", "run_id": "", "hash": "", "metadata": item.get("metadata", {}),
+        }))
+        # 图谱服务 Mock
+        stack.enter_context(patch("server.services.graph_service.close_neo4j_driver"))
+        stack.enter_context(patch("server.routes.graph.neo4j_query", return_value=[]))
+        stack.enter_context(patch("server.routes.graph.get_neo4j_driver", return_value=None))
 
         import server as srv
         from server import app
 
         # 清除速率限制中间件的请求记录（避免跨测试限流）
-        # 遍历 ASGI 中间件栈，找到 RateLimitMiddleware 并清除其状态
         _current = getattr(app, "middleware_stack", None)
         while _current is not None:
             if hasattr(_current, "_requests"):
