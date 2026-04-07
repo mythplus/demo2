@@ -4,14 +4,69 @@
 
 import os
 import re
+import json
 import logging
 import yaml
+from datetime import datetime, timezone
 
 # 配置日志
 logger = logging.getLogger(__name__)
 
 # ============ 环境模式 ============
 IS_PRODUCTION = os.environ.get("MEM0_ENV", "development").lower() == "production"
+
+
+# ============ 结构化日志 ============
+
+class JsonLogFormatter(logging.Formatter):
+    """JSON 格式日志 Formatter，适用于生产环境被 ELK / Loki 等日志系统采集"""
+
+    def format(self, record: logging.LogRecord) -> str:
+        log_entry = {
+            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "module": record.module,
+            "function": record.funcName,
+            "line": record.lineno,
+        }
+        # 附加异常信息
+        if record.exc_info and record.exc_info[0] is not None:
+            log_entry["exception"] = self.formatException(record.exc_info)
+        # 附加 extra 字段（如果有）
+        for key in ("request_id", "user_id", "method", "path", "status_code", "latency_ms"):
+            if hasattr(record, key):
+                log_entry[key] = getattr(record, key)
+        return json.dumps(log_entry, ensure_ascii=False)
+
+
+def setup_logging():
+    """统一配置日志格式：
+    - 生产环境：JSON 结构化日志，方便 ELK / Loki / CloudWatch 采集
+    - 开发环境：人类可读的彩色文本格式
+    """
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+
+    # 清除已有 handler，避免重复
+    root_logger.handlers.clear()
+
+    handler = logging.StreamHandler()
+
+    if IS_PRODUCTION:
+        handler.setFormatter(JsonLogFormatter())
+    else:
+        handler.setFormatter(logging.Formatter(
+            fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        ))
+
+    root_logger.addHandler(handler)
+
+    # 降低第三方库的日志级别，减少噪音
+    for noisy_logger in ("httpx", "httpcore", "uvicorn.access", "neo4j", "qdrant_client"):
+        logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 
 # ============ Qdrant 本地文件存储路径 ============
 # 使用项目根目录下的 qdrant_data 文件夹，基于 server 包的父目录动态计算

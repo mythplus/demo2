@@ -15,7 +15,7 @@ from server.config import (  # noqa: F401
     MEM0_CONFIG, IS_PRODUCTION, QDRANT_DATA_PATH, ACCESS_LOG_DB_PATH,
     CONFIG_FILE_PATH, VALID_CATEGORIES, VALID_STATES,
     CATEGORY_DESCRIPTIONS, MEMORY_CATEGORIZATION_PROMPT,
-    _safe_error_detail, load_config_from_yaml,
+    _safe_error_detail, load_config_from_yaml, setup_logging,
 )
 from server.services.memory_service import (  # noqa: F401
     get_memory, extract_memory_fields, format_record, format_mem0_result,

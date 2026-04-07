@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 
 from server.config import (
     MEM0_CONFIG, QDRANT_DATA_PATH, ACCESS_LOG_DB_PATH,
-    IS_PRODUCTION, _safe_error_detail,
+    IS_PRODUCTION, _safe_error_detail, setup_logging,
 )
 from server.services import memory_service
 from server.services.log_service import init_access_log_db, start_log_writer, stop_log_writer
@@ -25,8 +25,8 @@ from server.routes import health, memories, search, stats, logs, graph
 
 logger = logging.getLogger(__name__)
 
-# 配置日志
-logging.basicConfig(level=logging.INFO)
+# 配置结构化日志（生产环境 JSON 格式，开发环境可读文本格式）
+setup_logging()
 
 
 # ============ 应用生命周期 ============

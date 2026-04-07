@@ -4,12 +4,15 @@
 
 import os
 import re
+import time
 import logging
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 from server.config import MEM0_CONFIG, load_config_from_yaml, _safe_error_detail
 from server.services import memory_service
+from server.services.graph_service import get_neo4j_driver
 
 logger = logging.getLogger(__name__)
 
@@ -209,3 +212,135 @@ async def test_embedder_connection():
             "embedding_dims": 0,
             "message": f"连接失败: {_safe_error_detail(e)}",
         }
+
+
+# ============ 深度健康检查 ============
+
+async def _check_qdrant() -> dict:
+    """检测 Qdrant 向量数据库连通性"""
+    start = time.time()
+    try:
+        m = memory_service.get_memory()
+        collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+        info = m.vector_store.client.get_collection(collection_name)
+        latency = round((time.time() - start) * 1000, 1)
+        return {
+            "status": "ok",
+            "latency_ms": latency,
+            "points_count": info.points_count,
+            "message": f"Qdrant 正常，集合 {collection_name} 共 {info.points_count} 条向量",
+        }
+    except Exception as e:
+        latency = round((time.time() - start) * 1000, 1)
+        logger.warning(f"深度健康检查 - Qdrant 异常: {e}")
+        return {
+            "status": "error",
+            "latency_ms": latency,
+            "message": f"Qdrant 不可用: {_safe_error_detail(e)}",
+        }
+
+
+async def _check_ollama() -> dict:
+    """检测 Ollama LLM 服务连通性（轻量级，仅请求 /api/tags）"""
+    start = time.time()
+    try:
+        client = memory_service.http_client
+        llm_config = MEM0_CONFIG.get("llm", {}).get("config", {})
+        base_url = llm_config.get("ollama_base_url", llm_config.get("openai_base_url", ""))
+        if not base_url:
+            return {"status": "skip", "latency_ms": 0, "message": "未配置 Ollama 地址"}
+
+        resp = await client.get(f"{base_url}/api/tags", timeout=5)
+        resp.raise_for_status()
+        models = resp.json().get("models", [])
+        latency = round((time.time() - start) * 1000, 1)
+        return {
+            "status": "ok",
+            "latency_ms": latency,
+            "models_count": len(models),
+            "message": f"Ollama 正常，共 {len(models)} 个模型可用",
+        }
+    except Exception as e:
+        latency = round((time.time() - start) * 1000, 1)
+        logger.warning(f"深度健康检查 - Ollama 异常: {e}")
+        return {
+            "status": "error",
+            "latency_ms": latency,
+            "message": f"Ollama 不可用: {_safe_error_detail(e)}",
+        }
+
+
+async def _check_neo4j() -> dict:
+    """检测 Neo4j 图数据库连通性"""
+    start = time.time()
+    try:
+        driver = get_neo4j_driver()
+        if not driver:
+            return {"status": "skip", "latency_ms": 0, "message": "未配置 Neo4j 或连接失败"}
+
+        with driver.session() as session:
+            result = session.run("RETURN 1 AS ping")
+            result.single()
+        latency = round((time.time() - start) * 1000, 1)
+        return {
+            "status": "ok",
+            "latency_ms": latency,
+            "message": "Neo4j 正常",
+        }
+    except Exception as e:
+        latency = round((time.time() - start) * 1000, 1)
+        logger.warning(f"深度健康检查 - Neo4j 异常: {e}")
+        return {
+            "status": "error",
+            "latency_ms": latency,
+            "message": f"Neo4j 不可用: {_safe_error_detail(e)}",
+        }
+
+
+@router.get("/v1/health/deep")
+async def deep_health_check():
+    """深度健康检查 — 一次性检测所有依赖服务的连通性（Qdrant / Ollama / Neo4j）
+    返回各服务状态和整体健康状态，适用于 K8s readinessProbe 或监控系统。
+    """
+    import asyncio
+
+    # 并发检测所有依赖服务
+    qdrant_task = asyncio.create_task(_check_qdrant())
+    ollama_task = asyncio.create_task(_check_ollama())
+    neo4j_task = asyncio.create_task(_check_neo4j())
+
+    qdrant_result, ollama_result, neo4j_result = await asyncio.gather(
+        qdrant_task, ollama_task, neo4j_task
+    )
+
+    # 判断整体健康状态：任一核心服务异常则整体不健康
+    # Qdrant 和 Ollama 是核心依赖，Neo4j 为可选（skip 不算异常）
+    all_checks = {
+        "qdrant": qdrant_result,
+        "ollama": ollama_result,
+        "neo4j": neo4j_result,
+    }
+
+    core_services = ["qdrant", "ollama"]
+    has_core_error = any(
+        all_checks[svc]["status"] == "error" for svc in core_services
+    )
+    has_any_error = any(
+        v["status"] == "error" for v in all_checks.values()
+    )
+
+    if has_core_error:
+        overall = "unhealthy"
+    elif has_any_error:
+        overall = "degraded"
+    else:
+        overall = "healthy"
+
+    response_data = {
+        "status": overall,
+        "services": all_checks,
+    }
+
+    # 如果不健康，返回 503 状态码（便于负载均衡器/K8s 判断）
+    status_code = 503 if overall == "unhealthy" else 200
+    return JSONResponse(content=response_data, status_code=status_code)

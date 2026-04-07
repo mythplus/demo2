@@ -211,18 +211,19 @@ export default function MemoriesPage() {
     }
   };
 
-  // 批量删除
+  // 批量删除（使用批量 API，一次请求删除所有选中记忆）
   const handleBatchDelete = async () => {
     if (selectedIds.size === 0) return;
     setBatchDeleteLoading(true);
     try {
-      const deletePromises = Array.from(selectedIds).map((id) =>
-        mem0Api.deleteMemory(id).catch((err) => {
-          console.error(`删除记忆 ${id} 失败:`, err);
-          return null;
-        })
-      );
-      await Promise.all(deletePromises);
+      const result = await mem0Api.batchDeleteMemories(Array.from(selectedIds));
+      if (result.failed > 0) {
+        toast({
+          title: "部分删除失败",
+          description: `成功 ${result.success} 条，失败 ${result.failed} 条`,
+          variant: "destructive",
+        });
+      }
       setBatchDeleteDialogOpen(false);
       setSelectedIds(new Set());
       setSelectionMode(false);

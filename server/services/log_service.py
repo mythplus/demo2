@@ -5,6 +5,7 @@
 import json
 import logging
 import sqlite3
+import time
 import threading
 import queue as _queue
 from typing import Optional
@@ -34,8 +35,11 @@ def _get_db_conn():
             _thread_local.db_conn = None
 
     conn = sqlite3.connect(ACCESS_LOG_DB_PATH, check_same_thread=False)
-    conn.execute("PRAGMA busy_timeout=5000")
-    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=10000")   # 10 秒等待锁释放（多 Worker 场景需要更长）
+    conn.execute("PRAGMA journal_mode=WAL")      # WAL 模式：允许并发读写
+    conn.execute("PRAGMA synchronous=NORMAL")    # 降低同步级别，提升写入性能（WAL 下安全）
+    conn.execute("PRAGMA wal_autocheckpoint=500") # 每 500 页自动 checkpoint，减少 WAL 文件膨胀
+    conn.execute("PRAGMA cache_size=-4000")       # 4MB 页缓存，减少磁盘 IO
     _thread_local.db_conn = conn
     return conn
 
@@ -74,18 +78,37 @@ def _log_writer_loop():
             logger.warning(f"日志写入线程异常: {e}")
 
 
+_FLUSH_MAX_RETRIES = 3       # 写入失败最大重试次数
+_FLUSH_RETRY_BASE_DELAY = 0.5  # 重试基础延迟（秒），指数退避
+
+
 def _flush_log_batch(batch: list):
-    """将一批日志写入 SQLite（单次事务）"""
-    try:
-        conn = _get_db_conn()
-        for item in batch:
-            table = item["table"]
-            sql = item["sql"]
-            params = item["params"]
-            conn.execute(sql, params)
-        conn.commit()
-    except Exception as e:
-        logger.warning(f"批量写入日志失败 ({len(batch)} 条): {e}")
+    """将一批日志写入 SQLite（单次事务，带指数退避重试）"""
+    for attempt in range(1, _FLUSH_MAX_RETRIES + 1):
+        try:
+            conn = _get_db_conn()
+            for item in batch:
+                conn.execute(item["sql"], item["params"])
+            conn.commit()
+            return  # 写入成功，直接返回
+        except sqlite3.OperationalError as e:
+            # 数据库锁定（database is locked）时重试
+            if "locked" in str(e).lower() and attempt < _FLUSH_MAX_RETRIES:
+                delay = _FLUSH_RETRY_BASE_DELAY * (2 ** (attempt - 1))
+                logger.warning(f"SQLite 写入锁冲突，第 {attempt} 次重试（{delay:.1f}s 后）: {e}")
+                time.sleep(delay)
+                # 重置连接，避免复用损坏的连接
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+                _thread_local.db_conn = None
+            else:
+                logger.warning(f"批量写入日志失败 ({len(batch)} 条，第 {attempt} 次尝试): {e}")
+                return
+        except Exception as e:
+            logger.warning(f"批量写入日志失败 ({len(batch)} 条): {e}")
+            return
 
 
 def _enqueue_log(table: str, sql: str, params: tuple):

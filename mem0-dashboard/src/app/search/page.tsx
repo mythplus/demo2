@@ -217,7 +217,7 @@ export default function SearchPage() {
                   disabled={loading}
                 />
               </div>
-              <Button type="submit" disabled={loading || !query.trim() || !userId}>
+              <Button type="submit" disabled={loading || !query.trim()}>
                 {loading ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
