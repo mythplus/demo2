@@ -2,6 +2,9 @@
 # Mem0 Dashboard 配置文件模板
 # 复制此文件为 config.yaml 并填入实际值
 # 支持环境变量替换：使用 ${ENV_VAR_NAME} 格式引用环境变量
+#
+# Docker 部署时，环境变量由 docker-compose.yml 中的 .env 文件注入
+# 本地开发时，环境变量由项目根目录的 .env 文件注入
 # ============================================
 
 # LLM 大语言模型配置
@@ -9,7 +12,7 @@ llm:
   provider: "ollama"
   config:
     model: "qwen2.5:7b"
-    ollama_base_url: "http://localhost:11434"
+    ollama_base_url: "${OLLAMA_BASE_URL}"
     temperature: 0.1
 
 # Embedder 嵌入模型配置
@@ -17,7 +20,7 @@ embedder:
   provider: "ollama"
   config:
     model: "nomic-embed-text"
-    ollama_base_url: "http://localhost:11434"
+    ollama_base_url: "${OLLAMA_BASE_URL}"
 
 # 向量数据库配置
 vector_store:
@@ -31,8 +34,8 @@ vector_store:
 graph_store:
   provider: "neo4j"
   config:
-    url: "bolt://localhost:7687"
-    username: "neo4j"
+    url: "${NEO4J_URL}"
+    username: "${NEO4J_USER}"
     password: "${NEO4J_PASSWORD}"
 
 # 安全配置
@@ -40,7 +43,8 @@ security:
   # API Key 认证（为空则不启用认证，建议生产环境必须设置）
   api_key: "${MEM0_API_KEY}"
   # CORS 允许的来源（逗号分隔，* 表示允许所有）
-  cors_origins: "http://localhost:3000,http://127.0.0.1:3000"
+  # Docker 部署时建议设置为实际域名，如 "https://your-domain.com"
+  cors_origins: "${CORS_ORIGINS}"
   # 速率限制（每分钟最大请求数，0 表示不限制）
   rate_limit: 60
 

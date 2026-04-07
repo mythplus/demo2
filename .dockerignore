@@ -1,0 +1,59 @@
+# ============================================
+# Mem0 Dashboard Docker 构建排除文件
+# ============================================
+
+# Git
+.git
+.gitignore
+
+# Python 缓存与虚拟环境
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.venv
+venv
+env
+*.egg-info
+dist
+build
+
+# 测试
+tests/
+.pytest_cache/
+pytest.ini
+
+# 本地数据（生产环境使用 Docker Volume 挂载）
+qdrant_data/
+access_logs.db
+access_logs.db-shm
+access_logs.db-wal
+
+# 前端 node_modules（前端有独立 Dockerfile）
+mem0-dashboard/node_modules/
+mem0-dashboard/.next/
+
+# 编辑器与系统文件
+.vscode/
+.idea/
+.workbuddy/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.log
+
+# 敏感配置（通过环境变量注入）
+.env
+.env.local
+.env.*.local
+config.yaml
+
+# Docker 自身
+docker-compose.yml
+Dockerfile
+Dockerfile.*
+nginx/
+
+# 文档
+README.md

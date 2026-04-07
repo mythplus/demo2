@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // 生产环境使用 standalone 输出模式，优化 Docker 镜像体积
+  output: 'standalone',
+
   // 允许跨域请求 Mem0 API
   async rewrites() {
     return [
