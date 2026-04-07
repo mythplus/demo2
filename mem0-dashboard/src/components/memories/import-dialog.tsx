@@ -112,6 +112,8 @@ export function ImportDialog({
   const isBackgroundRef = useRef(false);
   // 是否正在执行导入（用于判断关闭弹窗时是否需要转后台）
   const isImportingRef = useRef(false);
+  // 当前弹窗实例是否拥有实际的导入进度数据（区分"本次发起的导入"和"从后台恢复查看"）
+  const [hasLocalProgress, setHasLocalProgress] = useState(false);
   // 当前导入任务的全局唯一 ID（用于全局注册表）
   const importTaskIdRef = useRef<string | null>(null);
 
@@ -191,6 +193,7 @@ export function ImportDialog({
     isBackgroundRef.current = false;
     isImportingRef.current = false;
     importTaskIdRef.current = null;
+    setHasLocalProgress(false);
     onPendingResultChange?.(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -229,6 +232,7 @@ export function ImportDialog({
     isBackgroundRef.current = false;
     backgroundRecordIdRef.current = null;
     isImportingRef.current = true;
+    setHasLocalProgress(true);
     // 注册全局导入任务（用于区分 SPA 切换 vs 页面刷新）
     const taskId = `import-${Date.now()}-${++importTaskCounter}`;
     importTaskIdRef.current = taskId;
@@ -543,12 +547,12 @@ export function ImportDialog({
               <Loader2 className="h-10 w-10 animate-spin text-primary" />
               <p className="text-sm font-medium">正在导入记忆数据...</p>
               <p className="text-xs text-muted-foreground">
-                {isBackgroundRunning ? "导入正在后台执行中，请耐心等待" : "可点击\"后台进行\"在后台继续导入"}
+                {isBackgroundRunning && !hasLocalProgress ? "导入正在后台执行中，请耐心等待" : "可点击\"后台进行\"在后台继续导入"}
               </p>
             </div>
 
-            {/* 进度条（仅在非后台恢复模式下显示，因为后台恢复时没有进度数据） */}
-            {!isBackgroundRunning && (
+            {/* 进度条：当前弹窗有实际进度数据时显示，或者纯后台恢复模式下不显示 */}
+            {(hasLocalProgress || !isBackgroundRunning) && (
               <div className="space-y-1">
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>进度</span>
@@ -563,8 +567,8 @@ export function ImportDialog({
               </div>
             )}
 
-            {/* 后台进行按钮（仅在非后台恢复模式下显示） */}
-            {!isBackgroundRunning && (
+            {/* 后台进行按钮：当前弹窗有实际进度数据时显示 */}
+            {(hasLocalProgress || !isBackgroundRunning) && (
               <DialogFooter>
                 <Button onClick={handleBackgroundImport}>
                   后台进行
