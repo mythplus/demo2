@@ -47,8 +47,33 @@
 
 ```
 demo2/
-├── server.py                  # FastAPI 后端服务（2100+ 行，包含全部 API）
+├── server.py                  # 启动入口（向后兼容，实际代码在 server/ 包中）
+├── server/                    # 后端 Python 包（模块化架构）
+│   ├── __init__.py                # 包入口 & 向后兼容导出层
+│   ├── app.py                     # FastAPI 应用组装（生命周期、中间件、路由注册）
+│   ├── config.py                  # 配置中心（加载 config.yaml、常量、AI Prompt）
+│   ├── main.py                    # uvicorn 启动入口（开发/生产模式）
+│   ├── middleware/                # 中间件
+│   │   ├── auth.py                    # API Key 认证
+│   │   ├── rate_limit.py              # 速率限制
+│   │   └── request_log.py             # 请求日志记录
+│   ├── models/                    # 数据模型
+│   │   └── schemas.py                 # Pydantic 请求/响应模型
+│   ├── routes/                    # API 路由
+│   │   ├── graph.py                   # 图谱记忆接口
+│   │   ├── health.py                  # 健康检查接口
+│   │   ├── logs.py                    # 日志查询接口
+│   │   ├── memories.py                # 记忆 CRUD 接口
+│   │   ├── search.py                  # 语义搜索接口
+│   │   └── stats.py                   # 统计接口
+│   └── services/                  # 业务逻辑层
+│       ├── graph_service.py           # Neo4j 图谱服务
+│       ├── log_service.py             # 日志服务（SQLite）
+│       └── memory_service.py          # 记忆服务（Mem0 + Qdrant）
+├── config.yaml                # 后端配置文件（LLM、Embedder、Neo4j 等）
+├── config.yaml.example        # 配置文件模板
 ├── start_server.bat           # 后端一键启动脚本 (Windows)
+├── tests/                     # 后端测试
 ├── access_logs.db             # SQLite 数据库（访问日志、请求日志、修改历史）
 ├── qdrant_data/               # Qdrant 向量数据库本地存储（自动生成）
 ├── .venv/                     # Python 虚拟环境
@@ -139,35 +164,44 @@ pip install fastapi uvicorn mem0ai qdrant-client ollama neo4j requests
 
 ### 3. 配置后端
 
-编辑 `server.py` 中的 `MEM0_CONFIG`，修改以下地址为你的云服务器 IP：
+复制配置模板并编辑 `config.yaml`，修改以下地址为你的云服务器 IP：
 
-```python
-MEM0_CONFIG = {
-    "llm": {
-        "provider": "ollama",
-        "config": {
-            "model": "qwen2.5:7b",
-            "ollama_base_url": "http://<你的云服务器IP>:11434",  # ← 修改
-        },
-    },
-    "embedder": {
-        "provider": "ollama",
-        "config": {
-            "model": "nomic-embed-text",
-            "ollama_base_url": "http://<你的云服务器IP>:11434",  # ← 修改
-        },
-    },
-    "graph_store": {
-        "provider": "neo4j",
-        "config": {
-            "url": "bolt://<你的云服务器IP>:7687",              # ← 修改
-            "username": "neo4j",
-            "password": "<你的Neo4j密码>",                       # ← 修改
-        },
-    },
-    # ... 其他配置保持默认
-}
+```powershell
+# 复制配置模板
+copy config.yaml.example config.yaml
 ```
+
+编辑 `config.yaml`：
+
+```yaml
+llm:
+  provider: ollama
+  config:
+    model: qwen2.5:7b
+    ollama_base_url: http://<你的云服务器IP>:11434    # ← 修改
+    temperature: 0.1
+
+embedder:
+  provider: ollama
+  config:
+    model: nomic-embed-text
+    ollama_base_url: http://<你的云服务器IP>:11434    # ← 修改
+
+graph_store:
+  provider: neo4j
+  config:
+    url: bolt://<你的云服务器IP>:7687                 # ← 修改
+    username: neo4j
+    password: <你的Neo4j密码>                          # ← 修改
+
+# 安全配置（可选）
+security:
+  api_key: ""              # 设置后所有接口需携带 API Key
+  rate_limit: 60           # 每分钟最大请求数，0 为不限制
+  cors_origins: "*"        # 允许的跨域来源
+```
+
+> 💡 配置文件支持 `${ENV_VAR}` 语法引用环境变量，适合生产环境部署。
 
 ### 4. 启动后端服务
 
@@ -313,20 +347,24 @@ npm run dev
 
 ## ⚙️ 配置说明
 
-### 后端配置（`server.py`）
+### 后端配置（`config.yaml`）
 
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
 | `MEM0_PORT`（环境变量） | `8080` | 后端监听端口 |
-| `QDRANT_DATA_PATH` | `./qdrant_data` | Qdrant 数据存储目录 |
-| `ACCESS_LOG_DB_PATH` | `./access_logs.db` | SQLite 日志数据库路径 |
-| `llm.model` | `qwen2.5:7b` | LLM 模型名称 |
-| `embedder.model` | `nomic-embed-text` | 嵌入模型名称 |
-| `embedding_model_dims` | `768` | 嵌入向量维度（需与模型匹配） |
-| `ollama_base_url` | `http://<IP>:11434` | Ollama 服务地址 |
-| `graph_store.url` | `bolt://<IP>:7687` | Neo4j 连接地址 |
-| `graph_store.username` | `neo4j` | Neo4j 用户名 |
-| `graph_store.password` | — | Neo4j 密码 |
+| `MEM0_ENV`（环境变量） | `development` | 运行环境（`production` 启用多 Worker） |
+| `llm.provider` | `ollama` | LLM 提供商 |
+| `llm.config.model` | `qwen2.5:7b` | LLM 模型名称 |
+| `llm.config.ollama_base_url` | `http://localhost:11434` | Ollama 服务地址 |
+| `embedder.provider` | `ollama` | 嵌入模型提供商 |
+| `embedder.config.model` | `nomic-embed-text` | 嵌入模型名称 |
+| `vector_store.config.embedding_model_dims` | `768` | 嵌入向量维度（需与模型匹配） |
+| `graph_store.config.url` | `bolt://localhost:7687` | Neo4j 连接地址 |
+| `graph_store.config.username` | `neo4j` | Neo4j 用户名 |
+| `graph_store.config.password` | — | Neo4j 密码 |
+| `security.api_key` | `""` | API Key（为空则不启用认证） |
+| `security.rate_limit` | `60` | 每分钟最大请求数（0 为不限制） |
+| `security.cors_origins` | `*` | 允许的 CORS 来源 |
 
 ### 前端配置（`mem0-dashboard/.env.local`）
 
@@ -363,7 +401,7 @@ taskkill /PID <PID> /F
 
 ### 2. 后端启动报 `OpenAIError: The api_key client option must be set`
 
-`server.py` 中的 LLM/Embedder 配置仍在使用 OpenAI 提供商，请确认已正确配置为 `ollama`。
+`config.yaml` 中的 LLM/Embedder 配置仍在使用 OpenAI 提供商，请确认已正确配置为 `ollama`。
 
 ### 3. 添加记忆时响应很慢
 
@@ -373,7 +411,7 @@ taskkill /PID <PID> /F
 
 ### 4. 图谱记忆页面显示"Neo4j 未连接"
 
-- 确认 `server.py` 中 `graph_store` 配置正确
+- 确认 `config.yaml` 中 `graph_store` 配置正确
 - 检查 Neo4j 服务是否运行：`curl http://<IP>:7474`
 - 确认防火墙已放行 7687 端口（Bolt 协议）
 
@@ -385,13 +423,13 @@ taskkill /PID <PID> /F
 # 删除旧的向量数据
 Remove-Item -Recurse -Force .\qdrant_data
 
-# 修改 server.py 中的 embedding_model_dims 为新模型的维度
+# 修改 config.yaml 中的 embedding_model_dims 为新模型的维度
 # 然后重启后端服务
 ```
 
 ### 6. `watchfiles` 不断输出 `change detected`
 
-这是 uvicorn 热重载监控日志，不影响使用。可在 `server.py` 的 `uvicorn.run()` 中设置 `reload=False` 关闭。
+这是 uvicorn 热重载监控日志，不影响使用。开发环境下默认启用热重载，可通过设置环境变量 `MEM0_ENV=production` 切换到生产模式来关闭。
 
 ---
 
@@ -462,3 +500,38 @@ sudo ufw reload
 | LLM 服务 | Ollama (qwen2.5:7b) | 记忆提取与智能分类 |
 | 嵌入模型 | Ollama (nomic-embed-text) | 768 维向量嵌入 |
 | 运行环境 | Python 3.10+ / Node.js 18+ | 后端 / 前端 |
+
+---
+
+## 📝 更新日志
+
+### v1.1.0（2026-04-07）— 后端模块化重构
+
+**🏗️ 架构重构**
+
+将原来的单文件 `server.py`（2800+ 行）拆分为模块化的 `server/` Python 包：
+
+| 变更 | 说明 |
+|------|------|
+| `server/config.py` | 配置中心：从 `config.yaml` 加载配置，支持 `${ENV_VAR}` 环境变量替换 |
+| `server/app.py` | 应用组装：FastAPI 实例创建、生命周期管理、中间件 & 路由注册 |
+| `server/main.py` | 启动入口：区分开发/生产模式（热重载 vs 多 Worker） |
+| `server/middleware/` | 中间件层：API Key 认证、速率限制、请求日志 |
+| `server/models/schemas.py` | 数据模型：所有 Pydantic 请求/响应 Schema |
+| `server/routes/` | 路由层：按功能拆分为 6 个路由模块 |
+| `server/services/` | 业务逻辑层：记忆服务、日志服务、图谱服务 |
+| `server/__init__.py` | 向后兼容层：确保 `from server import app` 等旧导入仍然有效 |
+
+**✅ 向后兼容**
+
+- `python server.py` 启动方式不变
+- `uvicorn server:app` 仍然有效
+- 所有 API 端点路径和行为完全不变
+- 测试文件中的 `from server import ...` 导入仍然有效
+
+**🔧 其他改进**
+
+- 配置从硬编码迁移到 `config.yaml` 文件，支持环境变量替换
+- 生产模式支持多 Worker 进程（`MEM0_ENV=production`）
+- 所有文件路径使用动态计算（基于 `__file__`），不再硬编码绝对路径
+- 全局异常处理：生产环境隐藏内部错误详情
