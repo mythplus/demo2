@@ -36,6 +36,7 @@ import type { SearchResult, Memory } from "@/lib/api";
 import { CategoryBadges } from "@/components/memories/category-badge";
 import { StateBadge } from "@/components/memories/state-badge";
 import { MemoryDetailPanel } from "@/components/memories/memory-detail-panel";
+import { UserCombobox } from "@/components/shared/user-combobox";
 
 // 搜索历史记录类型
 interface SearchHistoryItem {
@@ -229,7 +230,7 @@ export default function SearchPage() {
 
             {/* 高级选项 */}
             <div className="flex gap-3">
-              <UserSearchDropdown
+              <UserCombobox
                 value={userId}
                 users={users}
                 onChange={setUserId}
@@ -252,7 +253,8 @@ export default function SearchPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="shrink-0 border-red-300 text-red-500 hover:bg-red-50 hover:text-red-600 dark:border-red-500/40 dark:text-red-400 dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                  size="sm"
+                  className="shrink-0"
                   title="清除搜索"
                   onClick={() => {
                     setQuery("");
@@ -464,79 +466,5 @@ export default function SearchPage() {
   );
 }
 
-/** 带搜索功能的用户选择下拉框 */
-function UserSearchDropdown({
-  value,
-  users,
-  onChange,
-}: {
-  value: string;
-  users: string[];
-  onChange: (v: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
-
-  // 点击外部关闭下拉
-  useEffect(() => {
-    const handle = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
-  }, []);
-
-  const filtered = search
-    ? users.filter((u) => u.toLowerCase().includes(search.toLowerCase()))
-    : users;
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex h-10 w-[200px] items-center justify-between rounded-md border border-input bg-background px-3 text-sm hover:bg-accent/50 transition-colors"
-      >
-        <span className={value ? "text-foreground" : "text-muted-foreground"}>
-          {value || "选择用户"}
-        </span>
-        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div className="absolute z-50 mt-1 w-[220px] rounded-md border bg-popover text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
-          {/* 搜索框 */}
-          <div className="flex items-center border-b px-2 py-1.5">
-            <Search className="mr-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="搜索用户..."
-              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              autoFocus
-            />
-          </div>
-          {/* 用户列表 */}
-          <div className="max-h-48 overflow-y-auto p-1">
-            {filtered.map((u) => (
-              <div
-                key={u}
-                onClick={() => { onChange(u); setOpen(false); setSearch(""); }}
-                className={`flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm hover:bg-accent ${value === u ? "bg-accent" : ""}`}
-              >
-                {value === u && <Check className="mr-2 h-3.5 w-3.5" />}
-                <span className={value === u ? "" : "pl-5"}>{u}</span>
-              </div>
-            ))}
-            {filtered.length === 0 && (
-              <p className="px-2 py-3 text-center text-xs text-muted-foreground">未找到用户</p>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 

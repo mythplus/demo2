@@ -137,7 +137,7 @@ export default function MemoriesPage() {
             </div>
 
             {/* 视图切换 + 多维筛选器 + 操作按钮 */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-start gap-2">
               <div className="flex-1 min-w-0">
                 <MemoryFilters
                   filters={filters}

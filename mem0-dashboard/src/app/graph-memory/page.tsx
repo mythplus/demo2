@@ -19,6 +19,7 @@ import {
   Maximize,
   Minimize,
   Focus,
+  X,
 } from "lucide-react";
 import {
   Card,
@@ -71,7 +72,7 @@ import type {
 import type { ForceGraphViewerHandle } from "@/components/graph/force-graph-viewer";
 
 // 动态导入图谱可视化组件（完全禁用 SSR，避免 window is not defined）
-const ForceGraphViewer = dynamic(
+const ForceGraphViewerDynamic = dynamic(
   () => import("@/components/graph/force-graph-viewer"),
   {
     ssr: false,
@@ -82,6 +83,12 @@ const ForceGraphViewer = dynamic(
     ),
   }
 );
+
+// 包装动态组件以支持 ref 转发
+const ForceGraphViewer = React.forwardRef<ForceGraphViewerHandle, any>(
+  (props, ref) => <ForceGraphViewerDynamic {...props} forwardedRef={ref} />
+);
+ForceGraphViewer.displayName = "ForceGraphViewer";
 
 // ============ 颜色工具 ============
 
@@ -406,7 +413,7 @@ export default function GraphMemoryPage() {
       {/* 页面标题 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">图谱记忆</h1>
+          <h2 className="text-2xl font-bold tracking-tight">图谱记忆</h2>
           <p className="text-muted-foreground">知识图谱可视化与管理</p>
         </div>
         <div className="flex items-center gap-2">
@@ -519,6 +526,17 @@ export default function GraphMemoryPage() {
                 </Command>
               </PopoverContent>
             </Popover>
+            {selectedUserId && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                onClick={() => setSelectedUserId("")}
+                title="取消选择"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent className="p-0">

@@ -126,10 +126,10 @@ export default function MemoryDetailPage() {
       <div className="space-y-6">
         <div className="flex items-center gap-2">
           <Link href="/memories">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              返回记忆列表
-            </Button>
+          <Button variant="outline" size="sm">
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            返回记忆列表
+          </Button>
           </Link>
         </div>
         <DetailPageSkeleton />
@@ -142,10 +142,10 @@ export default function MemoryDetailPage() {
       <div className="space-y-6">
         <div className="flex items-center gap-2">
           <Link href="/memories">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              返回记忆列表
-            </Button>
+          <Button variant="outline" size="sm">
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            返回记忆列表
+          </Button>
           </Link>
         </div>
         <Card className="border-destructive">
@@ -166,11 +166,11 @@ export default function MemoryDetailPage() {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-6">
       {/* 面包屑导航 */}
       <div className="flex items-center gap-2">
         <Link href="/memories">
-          <Button variant="ghost" size="sm">
+          <Button variant="outline" size="sm">
             <ArrowLeft className="mr-1 h-4 w-4" />
             返回记忆列表
           </Button>

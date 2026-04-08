@@ -286,9 +286,30 @@ def get_change_logs(memory_id: str) -> list:
         return []
 
 
+# 访问日志去重缓存：防止前端 React StrictMode 等场景下短时间内重复记录
+_access_dedup_cache: dict = {}  # key: "memory_id:action" -> last_timestamp (float)
+_ACCESS_DEDUP_SECONDS = 5  # 同一 memory_id + action 在此秒数内的重复调用将被忽略
+
+
 def log_access(memory_id: str, action: str, memory_preview: str = ""):
-    """记录一条访问日志（异步队列投递，非阻塞）"""
+    """记录一条访问日志（异步队列投递，非阻塞，短时间内去重）"""
     try:
+        now = time.time()
+        dedup_key = f"{memory_id}:{action}"
+
+        # 去重：同一 memory_id + action 在 _ACCESS_DEDUP_SECONDS 秒内只记录一次
+        last_time = _access_dedup_cache.get(dedup_key)
+        if last_time and (now - last_time) < _ACCESS_DEDUP_SECONDS:
+            return  # 跳过重复记录
+
+        _access_dedup_cache[dedup_key] = now
+
+        # 定期清理过期的去重缓存条目（防止内存泄漏）
+        if len(_access_dedup_cache) > 500:
+            expired_keys = [k for k, v in _access_dedup_cache.items() if (now - v) > _ACCESS_DEDUP_SECONDS]
+            for k in expired_keys:
+                _access_dedup_cache.pop(k, None)
+
         _enqueue_log(
             "access_logs",
             "INSERT INTO access_logs (memory_id, action, memory_preview, timestamp) VALUES (?, ?, ?, ?)",

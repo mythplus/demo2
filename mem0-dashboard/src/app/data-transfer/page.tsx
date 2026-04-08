@@ -25,12 +25,21 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 
 import { Input } from "@/components/ui/input";
 import { Search, ChevronDown, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { UserCombobox } from "@/components/shared/user-combobox";
 import { mem0Api } from "@/lib/api";
 import type { Memory } from "@/lib/api";
 import { exportToJSON, exportToCSV, type ExportOutput } from "@/lib/data-transfer";
@@ -300,7 +309,7 @@ export default function DataTransferPage() {
   const handleExportCSV = () => handleExport("csv");
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* 页面头部 */}
       <div>
 <h2 className="text-2xl font-bold tracking-tight">数据导出</h2>
@@ -352,80 +361,17 @@ export default function DataTransferPage() {
                 <User className="h-3.5 w-3.5" />
                 按用户
               </label>
-              <div className="relative" ref={userDropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                  className={cn(
-                    "flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background",
-                    "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-                    "hover:bg-accent/50 transition-colors"
-                  )}
-                >
-                  <span className={userSelected ? "text-foreground" : "text-muted-foreground"}>
-                    {userSelected ? (filterUserId || "全部用户") : "请选择用户"}
-                  </span>
-                  <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", userDropdownOpen && "rotate-180")} />
-                </button>
-                {userDropdownOpen && (
-                  <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95">
-                    {/* 搜索框 */}
-                    <div className="flex items-center border-b px-3 py-2">
-                      <Search className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
-                      <input
-                        type="text"
-                        value={userSearchQuery}
-                        onChange={(e) => setUserSearchQuery(e.target.value)}
-                        placeholder="搜索用户..."
-                        className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                        autoFocus
-                      />
-                    </div>
-                    {/* 选项列表 */}
-                    <div className="max-h-60 overflow-y-auto p-1">
-                      <div
-                        onClick={() => {
-                          setFilterUserId("");
-                          setUserSelected(true);
-                          setUserDropdownOpen(false);
-                          setUserSearchQuery("");
-                        }}
-                        className={cn(
-                          "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
-                          userSelected && !filterUserId && "bg-accent"
-                        )}
-                      >
-                        {userSelected && !filterUserId && <Check className="mr-2 h-4 w-4" />}
-                        <span className={userSelected && !filterUserId ? "" : "pl-6"}>全部用户</span>
-                      </div>
-                      {filteredUserList.length > 0 ? (
-                        filteredUserList.map((uid) => (
-                          <div
-                            key={uid}
-                            onClick={() => {
-                              setFilterUserId(uid);
-                              setUserSelected(true);
-                              setUserDropdownOpen(false);
-                              setUserSearchQuery("");
-                            }}
-                            className={cn(
-                              "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
-                              filterUserId === uid && "bg-accent"
-                            )}
-                          >
-                            {filterUserId === uid && <Check className="mr-2 h-4 w-4" />}
-                            <span className={filterUserId === uid ? "" : "pl-6"}>{uid}</span>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                          未找到匹配的用户
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <UserCombobox
+                value={filterUserId}
+                users={userList}
+                onChange={(uid) => {
+                  setFilterUserId(uid);
+                  setUserSelected(true);
+                }}
+                placeholder="请选择用户"
+                className="w-full"
+                showAll
+              />
             </div>
 
             {/* 按时间范围筛选 */}
@@ -741,20 +687,20 @@ const bgCompleteUserLabel = existingRecord?.detail?.match(/「[^」]+」/)?.[0] 
             </div>
           ) : (
             <div className="rounded-md border overflow-auto max-h-[400px]">
-              <table className="w-full text-sm min-w-[600px]">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground w-[80px]">类型</th>
-                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground w-[180px]">时间</th>
-                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">文件</th>
-                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">详情</th>
-                    <th className="px-4 py-2.5 text-left font-medium text-muted-foreground w-[80px]">状态</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="min-w-[600px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[80px]">类型</TableHead>
+                    <TableHead className="w-[180px]">时间</TableHead>
+                    <TableHead>文件</TableHead>
+                    <TableHead>详情</TableHead>
+                    <TableHead className="w-[80px]">状态</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {operationRecords.map((record) => (
-                    <tr key={record.id} className="border-b last:border-b-0 hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-2.5">
+                    <TableRow key={record.id}>
+                      <TableCell>
                         <Badge
                           variant="outline"
                           className={cn(
@@ -771,11 +717,11 @@ const bgCompleteUserLabel = existingRecord?.detail?.match(/「[^」]+」/)?.[0] 
                           )}
                           {record.type}
                         </Badge>
-                      </td>
-                      <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">
+                      </TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">
                         {record.time}
-                      </td>
-                      <td className="px-4 py-2.5">
+                      </TableCell>
+                      <TableCell>
                         {record.blob ? (
                           <button
                             onClick={() => handleDownloadRecord(record)}
@@ -791,11 +737,11 @@ const bgCompleteUserLabel = existingRecord?.detail?.match(/「[^」]+」/)?.[0] 
                             <span className="truncate">{record.filename}</span>
                           </span>
                         )}
-                      </td>
-                      <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">
+                      </TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">
                         {record.detail || "-"}
-                      </td>
-                      <td className="px-4 py-2.5 whitespace-nowrap">
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {record.status === "成功" ? (
                           <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
                             <CheckCircle2 className="h-3.5 w-3.5" />
@@ -817,11 +763,11 @@ const bgCompleteUserLabel = existingRecord?.detail?.match(/「[^」]+」/)?.[0] 
                             失败
                           </span>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>

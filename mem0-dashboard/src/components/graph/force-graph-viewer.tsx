@@ -25,6 +25,7 @@ interface ForceGraphViewerProps {
   nodes: GraphNode[];
   links: GraphLink[];
   onNodeClick?: (node: GraphNode) => void;
+  forwardedRef?: React.Ref<ForceGraphViewerHandle>;
 }
 
 /** 暴露给父组件的控制方法 */
@@ -36,15 +37,18 @@ export interface ForceGraphViewerHandle {
 }
 
 const ForceGraphViewer = forwardRef<ForceGraphViewerHandle, ForceGraphViewerProps>(
-  ({ nodes, links, onNodeClick }, ref) => {
+  ({ nodes, links, onNodeClick, forwardedRef }, ref) => {
   const graphRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 500 });
   const [mounted, setMounted] = useState(false);
   const [isDark, setIsDark] = useState(false);
 
+  // 优先使用 forwardedRef（通过 dynamic 包装传入），否则使用 forwardRef 的 ref
+  const effectiveRef = forwardedRef || ref;
+
   // 暴露缩放控制方法给父组件
-  useImperativeHandle(ref, () => ({
+  useImperativeHandle(effectiveRef, () => ({
     zoomIn: () => {
       if (graphRef.current) {
         const currentZoom = graphRef.current.zoom();

@@ -15,7 +15,6 @@ import {
   Edit3,
   User,
   ListOrdered,
-  SlidersHorizontal,
   Timer,
   CalendarDays,
   X,
@@ -230,13 +229,13 @@ export default function RequestsPage() {
         {/* ===== 页面头部：标题 + 时间范围 ===== */}
         <div>
           <h2 className="text-2xl font-bold tracking-tight">请求日志</h2>
-          <p className="text-sm text-muted-foreground mt-1">查看所有 API 请求记录，包括类型、耗时和状态等详细信息</p>
+          <p className="text-muted-foreground">查看所有 API 请求记录，包括类型、耗时和状态等详细信息</p>
         </div>
 
         {/* ===== Tab 筛选栏 ===== */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           {/* 左侧 Tab 按钮组 */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {TAB_ITEMS.map((tab) => {
               const Icon = tab.icon;
               const isActive = filterType === tab.value;
@@ -248,7 +247,7 @@ export default function RequestsPage() {
                     inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium
                     transition-all duration-150 border
                     ${isActive
-                      ? "bg-blue-600 text-white border-blue-600 shadow-sm dark:bg-blue-800 dark:border-blue-800"
+                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
                       : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
                     }
                   `}
@@ -270,15 +269,15 @@ export default function RequestsPage() {
               size="sm"
               className={`h-9 gap-1.5 ${
                 showFilter || hasDateFilter
-                  ? "border-blue-500 text-blue-600 bg-blue-50 dark:border-blue-400 dark:text-blue-400 dark:bg-blue-950/30"
+                  ? "border-primary text-primary bg-primary/10"
                   : ""
               }`}
               onClick={() => setShowFilter((v) => !v)}
             >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-              筛选
+              <CalendarDays className="h-3.5 w-3.5" />
+              时间筛选
               {hasDateFilter && (
-                <span className="ml-1 h-1.5 w-1.5 rounded-full bg-blue-500 dark:bg-blue-400" />
+                <span className="ml-1 h-1.5 w-1.5 rounded-full bg-primary" />
               )}
             </Button>
             <Button
@@ -341,7 +340,7 @@ export default function RequestsPage() {
                       inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium
                       transition-all duration-150 border
                       ${activeQuick === item.key
-                        ? "bg-blue-600 text-white border-blue-600 dark:bg-blue-800 dark:border-blue-800"
+                        ? "bg-primary text-primary-foreground border-primary"
                         : "bg-background text-foreground border-border hover:bg-muted"
                       }
                     `}
@@ -461,14 +460,15 @@ export default function RequestsPage() {
         <Card className="border shadow-sm">
           <CardContent className="p-0">
             {loading ? (
-              <div className="space-y-2 p-4">
+              <div className="space-y-2 p-4 overflow-hidden">
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="h-12 animate-pulse rounded bg-muted" />
+                  <div key={i} className="h-12 animate-pulse rounded-lg bg-muted" />
                 ))}
               </div>
             ) : logs.length > 0 ? (
               <>
-                <Table>
+                <div className="overflow-x-auto">
+                <Table className="table-fixed w-full min-w-[700px]">
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
                       <TableHead className="w-[140px]">
@@ -479,11 +479,11 @@ export default function RequestsPage() {
                       </TableHead>
                       <TableHead className="w-[120px]">
                         <div className="flex items-center gap-1.5">
-                          <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
+                          <LayoutGrid className="h-3.5 w-3.5 text-muted-foreground" />
                           <span>类型</span>
                         </div>
                       </TableHead>
-                      <TableHead className="w-[200px]">
+                      <TableHead className="w-auto">
                         <div className="flex items-center gap-1.5">
                           <User className="h-3.5 w-3.5 text-muted-foreground" />
                           <span>实体</span>
@@ -544,12 +544,19 @@ export default function RequestsPage() {
                             </span>
                           </TableCell>
                           {/* Entities */}
-                          <TableCell>
+                          <TableCell className="max-w-0">
                             {log.user_id ? (
-                              <div className="flex items-center gap-1.5">
-                                <User className="h-3.5 w-3.5 text-muted-foreground" />
-                                <span className="text-sm">{log.user_id}</span>
-                              </div>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <User className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                    <span className="text-sm truncate">{log.user_id}</span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-[400px] break-all">
+                                  {log.user_id}
+                                </TooltipContent>
+                              </Tooltip>
                             ) : (
                               <span className="text-sm text-muted-foreground">—</span>
                             )}
@@ -588,10 +595,11 @@ export default function RequestsPage() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
 
                 {/* 分页 */}
                 {totalPages > 1 && (
-                  <div className="flex items-center justify-between border-t px-4 py-3 flex-wrap gap-3">
+                  <div className="flex items-center justify-between border-t px-4 py-3 flex-wrap gap-3 overflow-x-auto">
                     <p className="text-sm text-muted-foreground">
                       第 {page + 1} / {totalPages} 页，共 {total} 条
                     </p>
@@ -621,7 +629,7 @@ export default function RequestsPage() {
                       </Button>
 
                       {/* 跳转到指定页 */}
-                      <div className="flex items-center gap-1.5 ml-3">
+                      <div className="flex items-center gap-1.5 ml-3 flex-shrink-0">
                         <span className="text-sm text-muted-foreground whitespace-nowrap">跳转到</span>
                         <Input
                           className="w-16 h-8 text-center text-sm"
@@ -662,7 +670,7 @@ export default function RequestsPage() {
                 )}
               </>
             ) : (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="flex flex-col items-center justify-center py-12 text-center">
                 <LayoutGrid className="mb-4 h-16 w-16 text-muted-foreground/30" />
                 <p className="text-lg font-medium text-muted-foreground">暂无请求记录</p>
                 <p className="mt-1 text-sm text-muted-foreground">
