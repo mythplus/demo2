@@ -236,7 +236,7 @@ export const mem0Api = {
   // ============ 搜索 ============
 
   /**
-   * 语义搜索记忆
+   * 语义检索记忆
    * @param data 搜索参数
    */
   async searchMemories(

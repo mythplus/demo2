@@ -38,7 +38,7 @@ title: "仪表盘",
     icon: Brain,
   },
   {
-    title: "语义搜索",
+title: "语义检索",
     href: "/search",
     icon: Search,
   },

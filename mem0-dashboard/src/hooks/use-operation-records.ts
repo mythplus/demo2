@@ -7,6 +7,7 @@ import {
   addRecord as dbAddRecord,
   updateRecord as dbUpdateRecord,
   clearAllRecords,
+  MAX_RECORDS,
 } from "@/lib/operation-records-db";
 
 // 重新导出类型，方便外部使用
@@ -36,7 +37,8 @@ export function useOperationRecords() {
 
     getAllRecords()
       .then((data) => {
-        setRecords(data);
+        // 初始化时也只保留最近 MAX_RECORDS 条
+        setRecords(data.slice(0, MAX_RECORDS));
       })
       .catch((err) => {
         console.error("读取操作记录失败:", err);
@@ -66,8 +68,8 @@ export function useOperationRecords() {
         ...record,
       };
 
-      // 先更新内存状态（保证 UI 即时响应）
-      setRecords((prev) => [newRecord, ...prev]);
+      // 先更新内存状态（保证 UI 即时响应，只保留最近 MAX_RECORDS 条）
+      setRecords((prev) => [newRecord, ...prev].slice(0, MAX_RECORDS));
 
       // 异步写入 IndexedDB
       dbAddRecord(newRecord).catch((err) => {

@@ -38,9 +38,13 @@ export interface ImportSuccessInfo {
   filename: string;
   successCount: number;
   failedCount: number;
+  /** 导入文件中的总记忆条数 */
+  totalCount: number;
   blob: Blob | null;
   /** 是否为用户主动取消导入 */
   wasCancelled?: boolean;
+  /** 导入时填写的默认用户ID（为空表示使用原有ID） */
+  defaultUserId?: string;
 }
 
 /** 后台导入信息 */
@@ -48,6 +52,8 @@ export interface BackgroundImportInfo {
   filename: string;
   totalCount: number;
   blob: Blob | null;
+  /** 导入时填写的默认用户ID（为空表示使用原有ID） */
+  defaultUserId?: string;
 }
 
 /** 后台导入完成信息 */
@@ -389,8 +395,10 @@ export function ImportDialog({
         filename: importFileName,
         successCount: result.success,
         failedCount: result.failed,
+        totalCount: items.length,
         blob: importFileBlob,
         wasCancelled,
+        defaultUserId: defaultUserId.trim() || undefined,
       });
     }
   };
@@ -410,6 +418,7 @@ export function ImportDialog({
         filename: importFileName,
         totalCount: items.length,
         blob: importFileBlob,
+        defaultUserId: defaultUserId.trim() || undefined,
       });
       backgroundRecordIdRef.current = recordId;
     }

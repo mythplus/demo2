@@ -15,7 +15,7 @@ from server.models.schemas import (
     BatchDeleteRequest, BatchDeleteResponse,
 )
 from server.services.memory_service import (
-    get_memory, get_all_memories_raw, format_record, format_mem0_result,
+    get_memory, disable_graph, get_all_memories_raw, format_record, format_mem0_result,
     apply_filters, auto_categorize_memory, invalidate_stats_cache,
 )
 from server.services.log_service import (
@@ -172,9 +172,11 @@ async def batch_import_memories(request: BatchImportRequest):
 
                 messages = [{"role": "user", "content": item.content}]
                 # m.add 是同步的 Mem0 SDK 调用，放到线程池执行避免阻塞事件循环
-                result = await asyncio.to_thread(
-                    m.add, messages=messages, infer=request.infer, **kwargs
-                )
+                # 使用 disable_graph 临时禁用图谱，避免 Neo4j 关系名不合法导致导入失败
+                def _add_without_graph():
+                    with disable_graph(m):
+                        return m.add(messages=messages, infer=request.infer, **kwargs)
+                result = await asyncio.to_thread(_add_without_graph)
 
                 # 补写 metadata 到 Qdrant
                 try:

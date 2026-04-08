@@ -35,6 +35,27 @@ def get_memory():
     return memory_instance
 
 
+import threading
+from contextlib import contextmanager
+
+# 保护 graph 属性临时摘除/恢复的锁（防止并发导入时互相干扰）
+_graph_lock = threading.Lock()
+
+
+@contextmanager
+def disable_graph(m):
+    """上下文管理器：临时禁用 Memory 实例的图谱功能。
+    批量导入时使用，避免 Neo4j 关系名不合法导致整条记忆导入失败。
+    退出上下文后自动恢复。"""
+    with _graph_lock:
+        original_enable_graph = getattr(m, 'enable_graph', False)
+        try:
+            m.enable_graph = False
+            yield m
+        finally:
+            m.enable_graph = original_enable_graph
+
+
 # ============ 数据格式化 ============
 
 def extract_memory_fields(payload: dict) -> dict:

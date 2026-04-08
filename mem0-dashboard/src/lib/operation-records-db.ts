@@ -64,8 +64,11 @@ export async function getAllRecords(): Promise<OperationRecord[]> {
   });
 }
 
+/** 最多保留的记录数 */
+export const MAX_RECORDS = 20;
+
 /**
- * 添加一条操作记录
+ * 添加一条操作记录，并自动清理超出 MAX_RECORDS 的旧记录
  */
 export async function addRecord(record: OperationRecord): Promise<void> {
   const db = await openDB();
@@ -73,6 +76,25 @@ export async function addRecord(record: OperationRecord): Promise<void> {
     const tx = db.transaction(STORE_NAME, "readwrite");
     const store = tx.objectStore(STORE_NAME);
     store.add(record);
+
+    // 添加后检查总数，超出限制则删除最旧的记录
+    const countReq = store.count();
+    countReq.onsuccess = () => {
+      const total = countReq.result;
+      if (total > MAX_RECORDS) {
+        // 获取所有记录，按时间排序后删除最旧的
+        const allReq = store.getAll();
+        allReq.onsuccess = () => {
+          const all = (allReq.result as OperationRecord[])
+            .sort((a, b) => (b.time > a.time ? 1 : b.time < a.time ? -1 : 0));
+          // 删除超出部分（保留前 MAX_RECORDS 条）
+          const toDelete = all.slice(MAX_RECORDS);
+          for (const r of toDelete) {
+            store.delete(r.id);
+          }
+        };
+      }
+    };
 
     tx.oncomplete = () => {
       db.close();
