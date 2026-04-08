@@ -50,7 +50,7 @@ const DEFAULT_TIMEOUT = 30000;
  */
 async function request<T>(
   endpoint: string,
-  options?: RequestInit & { timeout?: number }
+  options?: RequestInit & { timeout?: number; externalSignal?: AbortSignal }
 ): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
   const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
@@ -63,9 +63,21 @@ async function request<T>(
     headers["X-API-Key"] = API_KEY;
   }
 
-  // 超时控制
+  // 超时控制 + 外部取消信号合并
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  // 如果有外部 signal，监听其 abort 事件来联动取消
+  const externalSignal = options?.externalSignal;
+  let onExternalAbort: (() => void) | undefined;
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort();
+    } else {
+      onExternalAbort = () => controller.abort();
+      externalSignal.addEventListener("abort", onExternalAbort);
+    }
+  }
 
   try {
     const response = await fetch(url, {
@@ -106,6 +118,9 @@ async function request<T>(
     throw err;
   } finally {
     clearTimeout(timeoutId);
+    if (onExternalAbort && externalSignal) {
+      externalSignal.removeEventListener("abort", onExternalAbort);
+    }
   }
 }
 
@@ -130,10 +145,12 @@ export const mem0Api = {
    * 批量导入记忆
    * @param data 包含多条记忆和默认配置
    */
-  async batchImport(data: BatchImportRequest): Promise<BatchImportResponse> {
+  async batchImport(data: BatchImportRequest, signal?: AbortSignal): Promise<BatchImportResponse> {
     return request<BatchImportResponse>("/v1/memories/batch", {
       method: "POST",
       body: JSON.stringify(data),
+      timeout: 30 * 60 * 1000, // 30 分钟：每条记忆需要 AI 分类 + 向量化，默认 30s 不够
+      externalSignal: signal,
     });
   },
 

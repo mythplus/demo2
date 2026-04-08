@@ -15,6 +15,7 @@ import {
   ClipboardList,
   Trash2,
   Eye,
+  AlertTriangle,
 } from "lucide-react";
 import {
   Card,
@@ -51,6 +52,7 @@ export default function DataTransferPage() {
 
   // 筛选条件
   const [filterUserId, setFilterUserId] = useState<string>("");
+  const [userSelected, setUserSelected] = useState(false);
   const [filterDateFrom, setFilterDateFrom] = useState<string>("");
   const [filterDateTo, setFilterDateTo] = useState<string>("");
 
@@ -124,7 +126,7 @@ export default function DataTransferPage() {
   }, []);
 
   // 是否有筛选条件
-  const hasFilter = filterUserId || filterDateFrom || filterDateTo;
+  const hasFilter = userSelected || filterDateFrom || filterDateTo;
 
   // 页面加载时获取记忆数量和用户列表
   useEffect(() => {
@@ -216,6 +218,7 @@ export default function DataTransferPage() {
   // 重置筛选条件
   const handleResetFilter = () => {
     setFilterUserId("");
+    setUserSelected(false);
     setFilterDateFrom("");
     setFilterDateTo("");
     setFilteredCount(null);
@@ -358,8 +361,8 @@ export default function DataTransferPage() {
                     "hover:bg-accent/50 transition-colors"
                   )}
                 >
-                  <span className={filterUserId ? "text-foreground" : "text-muted-foreground"}>
-                    {filterUserId || "全部用户"}
+                  <span className={userSelected ? "text-foreground" : "text-muted-foreground"}>
+                    {userSelected ? (filterUserId || "全部用户") : "请选择用户"}
                   </span>
                   <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", userDropdownOpen && "rotate-180")} />
                 </button>
@@ -382,16 +385,17 @@ export default function DataTransferPage() {
                       <div
                         onClick={() => {
                           setFilterUserId("");
+                          setUserSelected(true);
                           setUserDropdownOpen(false);
                           setUserSearchQuery("");
                         }}
                         className={cn(
                           "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
-                          !filterUserId && "bg-accent"
+                          userSelected && !filterUserId && "bg-accent"
                         )}
                       >
-                        {!filterUserId && <Check className="mr-2 h-4 w-4" />}
-                        <span className={!filterUserId ? "" : "pl-6"}>全部用户</span>
+                        {userSelected && !filterUserId && <Check className="mr-2 h-4 w-4" />}
+                        <span className={userSelected && !filterUserId ? "" : "pl-6"}>全部用户</span>
                       </div>
                       {filteredUserList.length > 0 ? (
                         filteredUserList.map((uid) => (
@@ -399,6 +403,7 @@ export default function DataTransferPage() {
                             key={uid}
                             onClick={() => {
                               setFilterUserId(uid);
+                              setUserSelected(true);
                               setUserDropdownOpen(false);
                               setUserSearchQuery("");
                             }}
@@ -500,10 +505,7 @@ export default function DataTransferPage() {
                   <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-primary/10 border border-primary/20">
                     <Filter className="h-4 w-4 text-primary" />
                     <span className="text-sm font-medium text-primary">
-                      {filteredCount}
-                    </span>
-                    <span className="text-sm text-primary/80">
-                      条记忆匹配当前筛选条件
+                      共 {filteredCount} 条数据
                     </span>
                   </div>
                 ) : null}
@@ -530,7 +532,7 @@ export default function DataTransferPage() {
             <Button
               variant="outline"
               onClick={handleExportJSON}
-              disabled={exporting}
+              disabled={exporting || !userSelected}
             >
               {exporting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -542,7 +544,7 @@ export default function DataTransferPage() {
             <Button
               variant="outline"
               onClick={handleExportCSV}
-              disabled={exporting}
+              disabled={exporting || !userSelected}
             >
               {exporting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -553,7 +555,7 @@ export default function DataTransferPage() {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground -mt-1">
-            💡 {hasFilter ? "将按筛选条件导出匹配的记忆数据。" : "未设置筛选条件，将导出全部记忆数据。"}JSON 格式包含完整的记忆数据（含分类、状态等），适合备份和迁移；CSV 格式适合在 Excel 中查看和分析。
+            💡 {!userSelected ? "请先选择用户再导出。" : hasFilter ? "将按筛选条件导出匹配的记忆数据。" : "未设置筛选条件，将导出全部记忆数据。"}JSON 格式包含完整的记忆数据（含分类、状态等），适合备份和迁移；CSV 格式适合在 Excel 中查看和分析。
           </p>
         </CardContent>
       </Card>
@@ -628,17 +630,40 @@ export default function DataTransferPage() {
         }}
         onSuccess={(info: ImportSuccessInfo) => {
           refreshCount();
+          // 根据取消/成功/失败判断状态
+          const status = info.wasCancelled
+            ? "已取消"
+            : info.failedCount === 0
+              ? "成功"
+              : info.successCount === 0
+                ? "失败"
+                : "部分成功";
+          const detail = info.wasCancelled
+            ? `已取消导入${info.successCount > 0 ? `，已成功导入 ${info.successCount} 条记忆` : "，未导入任何记忆"}`
+            : `导入 ${info.successCount} 条记忆${info.failedCount > 0 ? `，失败 ${info.failedCount} 条` : ""}`;
           addRecord({
             type: "导入",
-            status: info.failedCount === 0 ? "成功" : "失败",
+            status,
             filename: info.filename,
             blob: info.blob,
-            detail: `导入 ${info.successCount} 条记忆${info.failedCount > 0 ? `，失败 ${info.failedCount} 条` : ""}`,
+            detail,
           });
           toast({
-            title: "导入成功",
-            description: `成功导入 ${info.successCount} 条记忆${info.failedCount > 0 ? `，${info.failedCount} 条失败` : ""}`,
-            variant: "success",
+            title: info.wasCancelled
+              ? "导入已取消"
+              : info.successCount === 0
+                ? "导入失败"
+                : info.failedCount === 0
+                  ? "导入成功"
+                  : "导入部分成功",
+            description: info.wasCancelled
+              ? `已取消导入${info.successCount > 0 ? `，已成功导入 ${info.successCount} 条` : ""}`
+              : `成功导入 ${info.successCount} 条记忆${info.failedCount > 0 ? `，${info.failedCount} 条失败` : ""}`,
+            variant: info.wasCancelled
+              ? "default"
+              : info.successCount === 0
+                ? "destructive"
+                : "success",
           });
         }}
         onBackgroundImport={(info) => {
@@ -656,26 +681,27 @@ export default function DataTransferPage() {
         onBackgroundComplete={(recordId, info) => {
           // 后台导入完成：更新记录状态
           refreshCount();
+          const status = info.failedCount === 0 ? "成功" : info.successCount === 0 ? "失败" : "部分成功";
           updateRecord(recordId, {
-            status: info.failedCount === 0 ? "成功" : "失败",
+            status,
             detail: `导入 ${info.successCount} 条记忆${info.failedCount > 0 ? `，失败 ${info.failedCount} 条` : ""}`,
           });
           toast({
-            title: "导入成功",
+            title: info.successCount === 0 ? "导入失败" : info.failedCount === 0 ? "导入成功" : "导入部分成功",
             description: `后台导入完成：导入 ${info.successCount} 条记忆${info.failedCount > 0 ? `，${info.failedCount} 条失败` : ""}`,
-            variant: "success",
+            variant: info.successCount === 0 ? "destructive" : "success",
           });
         }}
       />
 
-      {/* 操作汇总 */}
+{/* 记录 */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <ClipboardList className="h-5 w-5" />
-                操作汇总
+记录
               </CardTitle>
               <CardDescription>
                 记录导入导出操作历史，数据持久化存储在浏览器中
@@ -767,6 +793,11 @@ export default function DataTransferPage() {
                           <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
                             <CheckCircle2 className="h-3.5 w-3.5" />
                             成功
+                          </span>
+                        ) : record.status === "部分成功" ? (
+                          <span className="inline-flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                            部分成功
                           </span>
                         ) : record.status === "导入中" ? (
                           <span className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400">

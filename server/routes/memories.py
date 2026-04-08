@@ -140,7 +140,7 @@ async def batch_import_memories(request: BatchImportRequest):
     qdrant_client = m.vector_store.client
 
     # 并行度限制（避免同时发起过多 LLM 请求）
-    _BATCH_CONCURRENCY = 5
+    _BATCH_CONCURRENCY = 15
     _semaphore = asyncio.Semaphore(_BATCH_CONCURRENCY)
 
     async def _process_single_item(idx: int, item: BatchImportItem) -> BatchImportResultItem:

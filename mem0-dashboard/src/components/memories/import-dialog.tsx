@@ -18,8 +18,11 @@ import {
   Loader2,
   CheckCircle,
   AlertTriangle,
+  XCircle,
   User,
+  Ban,
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import {
   parseImportJSON,
   validateImportItems,
@@ -36,6 +39,8 @@ export interface ImportSuccessInfo {
   successCount: number;
   failedCount: number;
   blob: Blob | null;
+  /** 是否为用户主动取消导入 */
+  wasCancelled?: boolean;
 }
 
 /** 后台导入信息 */
@@ -76,7 +81,9 @@ type ImportStep = "upload" | "preview" | "importing" | "done" | "interrupted";
 // 导入限制常量
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_IMPORT_ITEMS = 1000;
-const BATCH_SIZE = 100; // 后端单次最多接受 100 条，前端自动分批
+const PROGRESS_SEGMENTS = 10; // 进度条固定切分为 10 份（每份 10%）
+const MAX_BATCH_SIZE = 100;   // 后端单次最多接受 100 条
+const FRONT_CONCURRENCY = 2;  // 前端同时并行提交的批次数
 
 // 用于生成全局唯一的导入任务 ID
 let importTaskCounter = 0;
@@ -101,6 +108,7 @@ export function ImportDialog({
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [importStage, setImportStage] = useState("");
   const [importFileName, setImportFileName] = useState("");
   const [importFileBlob, setImportFileBlob] = useState<Blob | null>(null);
   // 默认 user_id（用于没有 user_id 的导入记忆）
@@ -116,6 +124,9 @@ export function ImportDialog({
   const [hasLocalProgress, setHasLocalProgress] = useState(false);
   // 当前导入任务的全局唯一 ID（用于全局注册表）
   const importTaskIdRef = useRef<string | null>(null);
+  // 取消导入控制
+  const cancelledRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // 恢复模式：仅在弹窗打开且确认是真正中断时才显示中断界面
   React.useEffect(() => {
@@ -188,11 +199,14 @@ export function ImportDialog({
     setProgress(0);
     setImportFileName("");
     setImportFileBlob(null);
+    setImportStage("");
     setDefaultUserId("");
     backgroundRecordIdRef.current = null;
     isBackgroundRef.current = false;
     isImportingRef.current = false;
     importTaskIdRef.current = null;
+    cancelledRef.current = false;
+    abortControllerRef.current = null;
     setHasLocalProgress(false);
     onPendingResultChange?.(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -240,20 +254,30 @@ export function ImportDialog({
     onImportingChange?.(true);
 
     const result: ImportResult = { success: 0, failed: 0, errors: [] };
+    cancelledRef.current = false;
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    let wasCancelled = false;
 
     try {
-      setProgress(5); // 开始请求
+      setProgress(0); // 开始请求
+      setImportStage("准备导入...");
 
-      // 将 items 按 BATCH_SIZE 分批
+      // 根据数据量动态计算每批大小，使进度条固定切分为 10 份
+      const batchSize = Math.min(Math.max(Math.ceil(items.length / PROGRESS_SEGMENTS), 1), MAX_BATCH_SIZE);
       const batches: ImportItem[][] = [];
-      for (let i = 0; i < items.length; i += BATCH_SIZE) {
-        batches.push(items.slice(i, i + BATCH_SIZE));
+      for (let i = 0; i < items.length; i += batchSize) {
+        batches.push(items.slice(i, i + batchSize));
       }
 
-      // 逐批提交
-      for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+      // 并行流水线提交（同时提交 FRONT_CONCURRENCY 个批次）
+      let completedBatches = 0;
+
+      const submitBatch = async (batchIdx: number) => {
+        if (cancelledRef.current) return;
+
         const batch = batches[batchIdx];
-        const batchOffset = batchIdx * BATCH_SIZE; // 当前批次在总列表中的起始索引
+        const batchOffset = batchIdx * batchSize;
 
         try {
           const response = await mem0Api.batchImport({
@@ -267,7 +291,7 @@ export function ImportDialog({
             default_user_id: defaultUserId.trim() || undefined,
             infer: false,           // 导入时原文整条存储，不让 AI 拆分
             auto_categorize: true,  // AI 自动识别标签
-          });
+          }, abortController.signal);
 
           result.success += response.success;
           result.failed += response.failed;
@@ -279,6 +303,7 @@ export function ImportDialog({
             }
           }
         } catch (err) {
+          if (cancelledRef.current) return;
           // 当前批次整体请求失败
           result.failed += batch.length;
           result.errors.push(
@@ -286,10 +311,45 @@ export function ImportDialog({
           );
         }
 
-        // 更新进度（5% ~ 100%）
-        const progressValue = Math.round(5 + ((batchIdx + 1) / batches.length) * 95);
+        // 更新进度
+        completedBatches++;
+        const progressValue = Math.round((completedBatches / batches.length) * 100);
         setProgress(progressValue);
+        setImportStage(`已完成 ${Math.min(completedBatches * batchSize, items.length)}/${items.length} 条...`);
+      };
+
+      // 以滑动窗口方式并行提交批次
+      for (let i = 0; i < batches.length; i += FRONT_CONCURRENCY) {
+        if (cancelledRef.current) {
+          wasCancelled = true;
+          const remaining = items.length - completedBatches * batchSize;
+          result.errors.push(`用户取消导入，跳过剩余 ${remaining} 条记忆`);
+          break;
+        }
+
+        const windowEnd = Math.min(i + FRONT_CONCURRENCY, batches.length);
+        const windowStart = completedBatches * batchSize + 1;
+        const windowEndItem = Math.min(windowEnd * batchSize, items.length);
+        setImportStage(`正在导入第 ${windowStart}-${windowEndItem} 条，共 ${items.length} 条...`);
+
+        // 同时提交窗口内的所有批次
+        const promises: Promise<void>[] = [];
+        for (let j = i; j < windowEnd; j++) {
+          promises.push(submitBatch(j));
+        }
+        await Promise.all(promises);
+
+        // 窗口完成后检查是否被取消
+        if (cancelledRef.current) {
+          wasCancelled = true;
+          const remaining = items.length - completedBatches * batchSize;
+          if (remaining > 0) {
+            result.errors.push(`用户取消导入，跳过剩余 ${remaining} 条记忆`);
+          }
+          break;
+        }
       }
+      setImportStage(wasCancelled ? "导入已取消" : "导入完成！");
     } catch (err) {
       // 整个导入流程异常（不太可能走到这里，但作为兜底）
       result.failed = items.length - result.success;
@@ -298,6 +358,8 @@ export function ImportDialog({
       );
       setProgress(100);
     }
+
+    abortControllerRef.current = null;
 
     isImportingRef.current = false;
     // 注销全局导入任务
@@ -320,13 +382,15 @@ export function ImportDialog({
     setStep("done");
     // 如果弹窗当前是关闭的，通知父组件有待查看的结果
     onPendingResultChange?.(true);
-    if (result.success > 0 && !backgroundRecordIdRef.current) {
+    if (!backgroundRecordIdRef.current) {
       // 仅在非后台模式下通过 onSuccess 添加记录（后台模式已通过 onBackgroundImport 添加）
+      // 无论成功、失败还是取消，都需要添加操作记录
       onSuccess({
         filename: importFileName,
         successCount: result.success,
         failedCount: result.failed,
         blob: importFileBlob,
+        wasCancelled,
       });
     }
   };
@@ -543,33 +607,44 @@ export function ImportDialog({
         {/* 步骤 3：导入中 */}
         {step === "importing" && (
           <div className="space-y-4 py-4">
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="h-10 w-10 animate-spin text-primary" />
-              <p className="text-sm font-medium">正在导入记忆数据...</p>
-              <p className="text-xs text-muted-foreground">
-                {isBackgroundRunning && !hasLocalProgress ? "导入正在后台执行中，请耐心等待" : "可点击\"后台进行\"在后台继续导入"}
-              </p>
-            </div>
-
-            {/* 进度条：当前弹窗有实际进度数据时显示，或者纯后台恢复模式下不显示 */}
-            {(hasLocalProgress || !isBackgroundRunning) && (
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>进度</span>
-                  <span>{progress}%</span>
+            {/* 进度条区域 */}
+            {(hasLocalProgress || !isBackgroundRunning) ? (
+              <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {importStage || "正在导入记忆数据..."}
+                  </span>
+                  <span className="font-medium text-primary">{progress}%</span>
                 </div>
-                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all duration-300"
-                    style={{ width: `${progress}%` }}
-                  />
+                <Progress value={progress} className="h-2" />
+              </div>
+            ) : (
+              <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  导入正在后台执行中，请耐心等待
                 </div>
               </div>
             )}
 
-            {/* 后台进行按钮：当前弹窗有实际进度数据时显示 */}
+            <p className="text-xs text-muted-foreground text-center">
+              {isBackgroundRunning && !hasLocalProgress ? "" : "可点击\"后台进行\"关闭弹窗，导入将在后台继续"}
+            </p>
+
+            {/* 操作按钮 */}
             {(hasLocalProgress || !isBackgroundRunning) && (
-              <DialogFooter>
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    cancelledRef.current = true;
+                    abortControllerRef.current?.abort();
+                  }}
+                >
+                  <Ban className="mr-1.5 h-4 w-4" />
+                  取消导入
+                </Button>
                 <Button onClick={handleBackgroundImport}>
                   后台进行
                 </Button>
@@ -587,7 +662,7 @@ export function ImportDialog({
               <p className="text-xs text-muted-foreground text-center">
                 上次的导入任务因页面刷新或关闭已中断，部分数据可能未导入完成。
                 <br />
-                请在操作汇总中查看详情，如需继续请重新导入。
+请在记录中查看详情，如需继续请重新导入。
               </p>
             </div>
 
@@ -607,12 +682,16 @@ export function ImportDialog({
         {step === "done" && importResult && (
           <div className="space-y-4 py-4">
             <div className="flex flex-col items-center gap-3">
-              {importResult.failed === 0 ? (
+              {importResult.success > 0 && importResult.failed === 0 ? (
                 <CheckCircle className="h-10 w-10 text-green-500" />
+              ) : importResult.success === 0 ? (
+                <XCircle className="h-10 w-10 text-red-500" />
               ) : (
                 <AlertTriangle className="h-10 w-10 text-yellow-500" />
               )}
-              <p className="text-sm font-medium">导入完成</p>
+              <p className="text-sm font-medium">
+                {importResult.success === 0 ? "导入失败" : importResult.failed === 0 ? "导入成功" : "导入完成"}
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
