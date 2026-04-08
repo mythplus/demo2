@@ -221,9 +221,9 @@ export default function DashboardPage() {
                         <StateBadge state={memory.state} />
                       </div>
                       <p className="text-sm truncate">{memory.memory}</p>
-                      <div className="mt-1 flex items-center gap-2">
+                      <div className="mt-1 flex items-center gap-2 min-w-0">
                         {memory.user_id && (
-                          <Badge variant="secondary" className="text-xs">
+                          <Badge variant="secondary" className="text-xs max-w-[200px] truncate shrink-0" title={memory.user_id}>
                             {memory.user_id}
                           </Badge>
                         )}

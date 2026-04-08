@@ -448,9 +448,9 @@ export default function MemoryDetailPage() {
                   <label className="text-xs font-medium text-muted-foreground">
                     用户
                   </label>
-                  <div>
+                  <div className="min-w-0">
                     <Link href={`/users/${encodeURIComponent(memory.user_id)}`}>
-                      <Badge variant="secondary" className="cursor-pointer hover:bg-secondary/80">
+                      <Badge variant="secondary" className="max-w-full truncate cursor-pointer hover:bg-secondary/80" title={memory.user_id}>
                         {memory.user_id}
                       </Badge>
                     </Link>
@@ -464,8 +464,10 @@ export default function MemoryDetailPage() {
                   <label className="text-xs font-medium text-muted-foreground">
                     Agent ID
                   </label>
-                  <div>
-                    <Badge variant="outline">{memory.agent_id}</Badge>
+                  <div className="min-w-0">
+                    <Badge variant="outline" className="max-w-full truncate" title={memory.agent_id}>
+                      {memory.agent_id}
+                    </Badge>
                   </div>
                 </div>
               )}

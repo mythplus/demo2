@@ -114,9 +114,16 @@ export function MemoryTable({
                 </TableCell>
                 <TableCell className="py-3">
                   {memory.user_id && (
-                    <Badge variant="secondary" className="text-xs font-normal">
-                      {memory.user_id}
-                    </Badge>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge variant="secondary" className="text-xs font-normal max-w-[120px] truncate cursor-default">
+                          {memory.user_id}
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p className="text-xs break-all max-w-xs">{memory.user_id}</p>
+                      </TooltipContent>
+                    </Tooltip>
                   )}
                 </TableCell>
                 <TableCell className="py-3">

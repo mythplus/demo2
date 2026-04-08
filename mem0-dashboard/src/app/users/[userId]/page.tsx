@@ -39,9 +39,20 @@ import { DeleteConfirmDialog } from "@/components/memories/delete-confirm-dialog
 import { MemoryDetailPanel } from "@/components/memories/memory-detail-panel";
 import { CategoryBadges } from "@/components/memories/category-badge";
 import { PageSizeSelector } from "@/components/memories/page-size-selector";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { mem0Api } from "@/lib/api";
 import type { Memory } from "@/lib/api";
 import { usePreferences } from "@/hooks/use-preferences";
+
+/** 截断过长的用户ID，超过指定长度时显示省略号 */
+function truncateId(id: string, maxLen = 24): string {
+  return id.length > maxLen ? id.slice(0, maxLen) + "..." : id;
+}
 
 export default function UserDetailPage() {
   const params = useParams();
@@ -133,19 +144,30 @@ export default function UserDetailPage() {
       </div>
 
       {/* 用户信息头部 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary text-xl font-bold">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4 min-w-0 flex-1">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-xl font-bold">
             {userId.charAt(0).toUpperCase()}
           </div>
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">{userId}</h2>
+          <div className="min-w-0">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <h2 className="text-2xl font-bold tracking-tight truncate max-w-[480px]">{userId}</h2>
+                </TooltipTrigger>
+                {userId.length > 20 && (
+                  <TooltipContent side="bottom" className="max-w-md">
+                    <p className="text-xs break-all">{userId}</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
             <p className="text-muted-foreground">
               共 {memories.length} 条记忆
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <Button variant="outline" size="sm" onClick={fetchMemories} className="gap-1.5">
             <RefreshCw
               className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
@@ -179,8 +201,8 @@ export default function UserDetailPage() {
           <div className="flex items-center justify-between">
             <div className="space-y-1.5">
               <CardTitle>记忆列表</CardTitle>
-              <CardDescription>
-                用户 {userId} 的所有记忆条目，共 <span className="font-semibold text-foreground text-base">{memories.length}</span> 条
+              <CardDescription className="truncate max-w-[600px]" title={userId}>
+                用户 {truncateId(userId, 32)} 的所有记忆条目，共 <span className="font-semibold text-foreground text-base">{memories.length}</span> 条
               </CardDescription>
             </div>
             <PageSizeSelector
@@ -394,7 +416,7 @@ export default function UserDetailPage() {
         onConfirm={handleDeleteAll}
         loading={deleteLoading}
         title="删除所有记忆"
-        description={`确定要删除用户 "${userId}" 的所有记忆吗？此操作不可撤销！`}
+        description={`确定要删除用户 "${truncateId(userId, 32)}" 的所有记忆吗？此操作不可撤销！`}
       />
 
       <MemoryDetailPanel

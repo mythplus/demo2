@@ -11,17 +11,10 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Loader2, Code, Sparkles, Check } from "lucide-react";
 import { mem0Api } from "@/lib/api";
-import type { Memory, Category, MemoryState } from "@/lib/api";
-import { CATEGORY_LIST, STATE_LIST } from "@/lib/constants";
+import type { Memory, Category } from "@/lib/api";
+import { CATEGORY_LIST } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { JsonEditor } from "./json-editor";
 
@@ -42,9 +35,6 @@ export function EditMemoryDialog({
   const [selectedCategories, setSelectedCategories] = useState<Category[]>(
     (memory?.categories as Category[]) || []
   );
-  const [state, setState] = useState<MemoryState>(
-    (memory?.state as MemoryState) || "active"
-  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [metadata, setMetadata] = useState<Record<string, unknown>>(
@@ -58,7 +48,6 @@ export function EditMemoryDialog({
     if (memory) {
       setContent(memory.memory);
       setSelectedCategories((memory.categories as Category[]) || []);
-      setState((memory.state as MemoryState) || "active");
       setMetadata((memory.metadata as Record<string, unknown>) || {});
     }
   }, [memory]);
@@ -83,7 +72,6 @@ export function EditMemoryDialog({
       await mem0Api.updateMemory(memory.id, {
         text: content.trim(),
         categories: selectedCategories,
-        state: state,
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       });
       onOpenChange(false);
@@ -97,7 +85,7 @@ export function EditMemoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent className="sm:max-w-[520px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>编辑记忆</DialogTitle>
           <DialogDescription>
@@ -117,9 +105,9 @@ export function EditMemoryDialog({
           </div>
 
           {memory?.user_id && (
-            <div className="rounded-md bg-muted p-3 text-sm">
+            <div className="rounded-md bg-muted p-3 text-sm overflow-hidden">
               <span className="text-muted-foreground">所属用户：</span>
-              <span className="font-medium">{memory.user_id}</span>
+              <span className="font-medium break-all line-clamp-2" title={memory.user_id}>{memory.user_id}</span>
             </div>
           )}
 
@@ -183,30 +171,6 @@ export function EditMemoryDialog({
                 );
               })}
             </div>
-          </div>
-
-          {/* 状态选择 */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">状态</label>
-            <Select
-              value={state}
-              onValueChange={(v) => setState(v as MemoryState)}
-              disabled={loading}
-            >
-              <SelectTrigger className="w-[160px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {STATE_LIST.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>
-                    <span className="flex items-center gap-1.5">
-                      <span className={cn("h-1.5 w-1.5 rounded-full", s.dotColor)} />
-                      {s.label}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           {/* Metadata 编辑器 */}

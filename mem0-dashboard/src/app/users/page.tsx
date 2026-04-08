@@ -244,16 +244,16 @@ export default function UsersPage() {
                   {/* 用户信息 */}
                   <Link
                     href={`/users/${encodeURIComponent(user.user_id)}`}
-                    className="flex flex-1 items-center gap-4"
+                    className="flex flex-1 items-center gap-4 min-w-0"
                   >
                     {/* 头像 */}
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-bold">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold">
                       {user.user_id.charAt(0).toUpperCase()}
                     </div>
 
                     {/* 信息 */}
-                    <div className="flex-1">
-                      <p className="font-medium">{user.user_id}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate" title={user.user_id}>{user.user_id}</p>
                       <div className="flex items-center gap-3 mt-1">
                         <span className="text-xs text-muted-foreground">
                           <Brain className="mr-1 inline h-3 w-3" />
@@ -387,7 +387,7 @@ export default function UsersPage() {
         onConfirm={handleDeleteUser}
         loading={deleteLoading}
         title="删除用户"
-        description={`确定要删除用户 "${deleteUserId}" 吗？该用户及其所有记忆数据将被永久删除，此操作不可撤销。`}
+        description={`确定要删除用户 "${deleteUserId.length > 20 ? deleteUserId.slice(0, 20) + "..." : deleteUserId}" 吗？该用户及其所有记忆数据将被永久删除，此操作不可撤销。`}
       />
     </div>
   );

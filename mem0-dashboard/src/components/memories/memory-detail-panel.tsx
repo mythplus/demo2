@@ -129,7 +129,7 @@ export function MemoryDetailPanel({
                       用户 ID
                     </label>
                     <div>
-                      <Badge variant="secondary">{memory.user_id}</Badge>
+                      <Badge variant="secondary" className="max-w-full truncate" title={memory.user_id}>{memory.user_id}</Badge>
                     </div>
                   </div>
                   <Separator />
@@ -207,7 +207,7 @@ export function MemoryDetailPanel({
                       Agent ID
                     </label>
                     <div>
-                      <Badge variant="outline">{memory.agent_id}</Badge>
+                      <Badge variant="outline" className="max-w-full truncate" title={memory.agent_id}>{memory.agent_id}</Badge>
                     </div>
                   </div>
                 </>
