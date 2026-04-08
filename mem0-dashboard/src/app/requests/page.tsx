@@ -483,7 +483,7 @@ export default function RequestsPage() {
                           <span>类型</span>
                         </div>
                       </TableHead>
-                      <TableHead className="w-auto">
+                      <TableHead className="w-[200px] max-w-[200px]">
                         <div className="flex items-center gap-1.5">
                           <User className="h-3.5 w-3.5 text-muted-foreground" />
                           <span>实体</span>
@@ -544,11 +544,11 @@ export default function RequestsPage() {
                             </span>
                           </TableCell>
                           {/* Entities */}
-                          <TableCell className="max-w-0">
+                          <TableCell className="max-w-[200px]">
                             {log.user_id ? (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <div className="flex items-center gap-1.5 min-w-0">
+                                  <div className="flex items-center gap-1.5 min-w-0 max-w-full">
                                     <User className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                                     <span className="text-sm truncate">{log.user_id}</span>
                                   </div>
