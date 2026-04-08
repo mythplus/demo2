@@ -8,12 +8,13 @@ import { useUIStore } from "@/store";
 
 // 路径到标题的映射
 const pageTitles: Record<string, string> = {
-"/": "仪表盘",
+  "/": "仪表盘",
   "/memories": "记忆管理",
-"/search": "语义检索",
+  "/search": "语义检索",
   "/users": "用户管理",
-"/requests": "请求日志",
-"/data-transfer": "数据导出",
+  "/requests": "请求日志",
+  "/data-transfer": "数据导出",
+  "/graph-memory": "图谱记忆",
   "/settings": "系统设置",
 };
 
@@ -21,7 +22,7 @@ function getPageTitle(pathname: string): string {
   if (pageTitles[pathname]) return pageTitles[pathname];
   if (pathname.startsWith("/memory/")) return "记忆详情";
   if (pathname.startsWith("/users/")) return "用户详情";
-  return "mem0-dashboard";
+  return "Mem0 Dashboard";
 }
 
 interface HeaderProps {
@@ -29,63 +30,55 @@ interface HeaderProps {
   onCycleTheme: () => void;
 }
 
-// 主题模式图标和提示（label 提示用户点击后将切换到的模式）
-const themeMeta: Record<
-  "light" | "dark",
-  { icon: React.ElementType; label: string }
-> = {
-  light: { icon: Sun, label: "切换到深色模式" },
-  dark: { icon: Moon, label: "切换到浅色模式" },
-};
-
 export function Header({ themeMode, onCycleTheme }: HeaderProps) {
   const pathname = usePathname();
   const title = getPageTitle(pathname);
-
-  // 使用全局 Store 的连接状态（由 ClientLayout 统一轮询）
   const connectionStatus = useUIStore((s) => s.connectionStatus);
 
-  const ThemeIcon = themeMeta[themeMode].icon;
-  const themeLabel = themeMeta[themeMode].label;
-
   return (
-    <header className="flex h-14 items-center justify-between border-b bg-background px-6">
+    <header className="flex h-12 items-center justify-between border-b bg-card/80 backdrop-blur-sm px-6">
       {/* 页面标题 */}
-      <div>
-        <h1 className="text-lg font-semibold">{title}</h1>
-      </div>
+      <h1 className="text-sm font-medium text-foreground">{title}</h1>
 
       {/* 右侧操作区 */}
-      <div className="flex items-center gap-2">
-        {/* 主题模式切换（循环：浅色 → 深色 → 跟随系统） */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onCycleTheme}
-          title={themeLabel}
-        >
-          <ThemeIcon className="h-5 w-5" />
-        </Button>
-
-        {/* 连接状态指示器 */}
-        <div className="flex items-center gap-2 rounded-full border px-3 py-1 text-xs">
+      <div className="flex items-center gap-3">
+        {/* 连接状态 */}
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <div
-            className={`h-2 w-2 rounded-full ${
+            className={`h-1.5 w-1.5 rounded-full ${
               connectionStatus === "connected"
-                ? "bg-green-500"
+                ? "bg-emerald-500"
                 : connectionStatus === "checking"
-                ? "bg-yellow-500 animate-pulse"
+                ? "bg-amber-500 animate-pulse"
                 : "bg-red-500"
             }`}
           />
-          <span className="text-muted-foreground">
+          <span>
             {connectionStatus === "connected"
-              ? "API 已连接"
+              ? "已连接"
               : connectionStatus === "checking"
-              ? "检查中..."
-              : "API 离线"}
+              ? "连接中"
+              : "离线"}
           </span>
         </div>
+
+        {/* 分隔 */}
+        <div className="h-4 w-px bg-border" />
+
+        {/* 主题切换 */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          onClick={onCycleTheme}
+          title={themeMode === "light" ? "切换到深色模式" : "切换到浅色模式"}
+        >
+          {themeMode === "light" ? (
+            <Sun className="h-4 w-4" />
+          ) : (
+            <Moon className="h-4 w-4" />
+          )}
+        </Button>
       </div>
     </header>
   );

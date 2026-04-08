@@ -146,7 +146,7 @@ export default function SettingsPage() {
       {/* 页面头部 */}
       <div>
         <h2 className="text-2xl font-bold tracking-tight">系统设置</h2>
-        <p className="text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           配置 API 连接、显示偏好
         </p>
       </div>

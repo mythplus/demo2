@@ -3,7 +3,7 @@
 ## 项目概述
 - **目标**: 复刻 mem0.ai dashboard 前端功能，自己部署使用
 - **技术栈**: Next.js 14 + TypeScript + Tailwind CSS + Radix UI/shadcn + lucide-react + recharts + zustand | FastAPI + Mem0 + Qdrant(本地文件) + Ollama
-- **风格约束**: 保持 demo2 现有 UI 风格不变，不改整体配色布局
+- **风格约束**: 简约设计系统 (Swiss Modernism + Data-Dense Dashboard)，Inter 字体，Indigo 主色 (#4F46E5)，中性灰基底
 - **排除功能**: Apps 应用管理、Skill/SubAgent（列为扩展任务）
 
 ## 完成状态 (2026-03-27)

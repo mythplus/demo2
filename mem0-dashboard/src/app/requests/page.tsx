@@ -229,7 +229,7 @@ export default function RequestsPage() {
         {/* ===== 页面头部：标题 + 时间范围 ===== */}
         <div>
           <h2 className="text-2xl font-bold tracking-tight">请求日志</h2>
-          <p className="text-muted-foreground">查看所有 API 请求记录，包括类型、耗时和状态等详细信息</p>
+          <p className="text-sm text-muted-foreground">查看所有 API 请求记录，包括类型、耗时和状态等详细信息</p>
         </div>
 
         {/* ===== Tab 筛选栏 ===== */}

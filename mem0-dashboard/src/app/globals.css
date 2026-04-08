@@ -2,50 +2,92 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * ============================================================
+ * Mem0 Dashboard — Minimal Design System
+ * Style: Swiss Modernism + Data-Dense Dashboard
+ * Font: Inter (system fallback)
+ * Palette: Neutral base + single accent (Indigo)
+ * ============================================================
+ */
+
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    /* ---- 核心色彩 ---- */
+    --background: 0 0% 99%;          /* #FCFCFC 微暖白 */
+    --foreground: 224 10% 12%;        /* #1C1E24 近黑 */
+
+    --card: 0 0% 100%;               /* #FFFFFF 纯白卡片 */
+    --card-foreground: 224 10% 12%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    --popover-foreground: 224 10% 12%;
+
+    /* 主色 - 靛蓝（克制、专业） */
+    --primary: 234 89% 59%;           /* #4F46E5 Indigo 600 */
+    --primary-foreground: 0 0% 100%;
+
+    /* 次要色 */
+    --secondary: 220 14% 96%;         /* #F4F5F7 浅灰 */
+    --secondary-foreground: 224 10% 24%;
+
+    /* 柔和区域 */
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;   /* #6B7280 中性灰 */
+
+    --accent: 220 14% 96%;
+    --accent-foreground: 224 10% 24%;
+
+    /* 语义色 */
+    --destructive: 0 72% 51%;         /* #EF4444 */
+    --destructive-foreground: 0 0% 100%;
+
+    /* 边界 */
+    --border: 220 13% 91%;            /* #E5E7EB 轻边框 */
+    --input: 220 13% 91%;
+    --ring: 234 89% 59%;              /* 同 primary */
+
+    /* 圆角 */
     --radius: 0.5rem;
+
+    /* ---- 语义扩展 ---- */
+    --success: 142 71% 45%;           /* #22C55E */
+    --warning: 38 92% 50%;            /* #F59E0B */
+    --info: 199 89% 48%;              /* #0EA5E9 */
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    --background: 224 14% 8%;         /* #111318 深蓝黑 */
+    --foreground: 220 13% 91%;        /* #E5E7EB */
+
+    --card: 224 14% 11%;              /* #181A21 */
+    --card-foreground: 220 13% 91%;
+
+    --popover: 224 14% 11%;
+    --popover-foreground: 220 13% 91%;
+
+    --primary: 234 89% 67%;           /* #6366F1 Indigo 500 */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 224 14% 16%;
+    --secondary-foreground: 220 13% 91%;
+
+    --muted: 224 14% 16%;
+    --muted-foreground: 220 9% 55%;
+
+    --accent: 224 14% 16%;
+    --accent-foreground: 220 13% 91%;
+
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 220 13% 91%;
+
+    --border: 224 14% 18%;
+    --input: 224 14% 18%;
+    --ring: 234 89% 67%;
+
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
+    --info: 199 89% 48%;
   }
 }
 
@@ -54,43 +96,71 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";  /* Inter 的 OpenType 特性 */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
-/* 深色模式滚动条样式 */
-.dark ::-webkit-scrollbar {
+/* ============================================================
+ * 全局滚动条 — 极细、低调
+ * ============================================================ */
+::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
-.dark ::-webkit-scrollbar-track {
-  background: hsl(217.2 32.6% 12%);
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(220 13% 80%);
   border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(220 13% 65%);
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: hsl(215 20.2% 30%);
-  border-radius: 3px;
+  background: hsl(224 14% 24%);
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: hsl(215 20.2% 40%);
+  background: hsl(224 14% 32%);
 }
 
-/* Firefox 深色模式滚动条 */
-.dark * {
+/* Firefox */
+* {
   scrollbar-width: thin;
-  scrollbar-color: hsl(215 20.2% 30%) hsl(217.2 32.6% 12%);
+  scrollbar-color: hsl(220 13% 80%) transparent;
+}
+.dark * {
+  scrollbar-color: hsl(224 14% 24%) transparent;
 }
 
-/* 分类标签深色模式颜色覆盖 */
+/* ============================================================
+ * 统一过渡动效
+ * ============================================================ */
+@layer utilities {
+  .transition-default {
+    @apply transition-all duration-200 ease-out;
+  }
+}
+
+/* ============================================================
+ * 分类标签深色模式覆盖
+ * ============================================================ */
 .dark .category-badge {
   background-color: var(--cat-dark-bg) !important;
   color: var(--cat-dark-text) !important;
 }
 
-/* 不确定进度条动画 */
+/* ============================================================
+ * 进度条动画
+ * ============================================================ */
 @keyframes progress-indeterminate {
   0% {
     transform: translateX(-100%);

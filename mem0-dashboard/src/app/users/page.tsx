@@ -137,7 +137,7 @@ export default function UsersPage() {
       {/* 页面头部 */}
       <div>
         <h2 className="text-2xl font-bold tracking-tight">用户管理</h2>
-        <p className="text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           查看和管理所有拥有记忆的用户，数据从记忆中自动聚合
         </p>
       </div>
