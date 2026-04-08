@@ -379,34 +379,6 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* 每页显示条数 */}
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium">每页显示条数</p>
-              <p className="text-xs text-muted-foreground">
-                记忆列表每页显示的记录数量
-              </p>
-            </div>
-            <Select
-              value={String(preferences.pageSize)}
-              onValueChange={(value) =>
-                savePreferences({ pageSize: parseInt(value) })
-              }
-            >
-              <SelectTrigger className="w-[120px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="5">5 条</SelectItem>
-                <SelectItem value="10">10 条</SelectItem>
-                <SelectItem value="20">20 条</SelectItem>
-                <SelectItem value="50">50 条</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Separator />
-
           {/* 默认排序 */}
           <div className="flex items-center justify-between">
             <div>
