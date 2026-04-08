@@ -250,16 +250,17 @@ export default function DataTransferPage() {
       setExportStage("下载完成！");
       setExportProgress(100);
 
+      const exportUserLabel = filterUserId ? `「${filterUserId}」` : "「全部用户」";
       addRecord({
         type: "导出",
         status: "成功",
         filename: result.filename,
         blob: result.blob,
-        detail: `导出 ${data.length} 条记忆为 ${format.toUpperCase()}`,
+        detail: `导出 ${exportUserLabel} 的 ${data.length} 条记忆为 ${format.toUpperCase()}`,
       });
       toast({
         title: "导出成功",
-        description: `已导出 ${data.length} 条记忆为 ${format.toUpperCase()} 文件`,
+        description: `已导出 ${exportUserLabel} 的 ${data.length} 条记忆为 ${format.toUpperCase()} 文件`,
         variant: "success",
       });
 
@@ -623,7 +624,7 @@ export default function DataTransferPage() {
             .forEach((r) => {
               updateRecord(r.id, {
                 status: "失败",
-                detail: `${r.detail?.replace("正在后台导入", "导入中断：") || "导入中断"}（页面刷新导致导入中断）`,
+detail: `页面刷新，导入中断`,
               });
             });
           setIsImporting(false);
@@ -638,9 +639,10 @@ export default function DataTransferPage() {
               : info.successCount === 0
                 ? "失败"
                 : "部分成功";
+const importUserLabel = info.defaultUserId ? `「${info.defaultUserId}」` : "原ID";
           const detail = info.wasCancelled
-            ? `已取消导入${info.successCount > 0 ? `，已成功导入 ${info.successCount} 条记忆` : "，未导入任何记忆"}`
-            : `导入 ${info.successCount} 条记忆${info.failedCount > 0 ? `，失败 ${info.failedCount} 条` : ""}`;
+? `已取消导入${info.successCount > 0 ? `，已成功导入 ${importUserLabel} 的 ${info.successCount} 条记忆` : ""}`
+            : `导入 ${importUserLabel} 的 ${info.successCount} 条记忆${info.failedCount > 0 ? `，失败 ${info.failedCount} 条` : ""}`;
           addRecord({
             type: "导入",
             status,
@@ -668,12 +670,13 @@ export default function DataTransferPage() {
         }}
         onBackgroundImport={(info) => {
           // 后台进行：先添加一条"导入中"记录
+const bgUserLabel = info.defaultUserId ? `「${info.defaultUserId}」` : "原ID";
           const recordId = addRecord({
             type: "导入",
             status: "导入中",
             filename: info.filename,
             blob: info.blob,
-            detail: `正在后台导入 ${info.totalCount} 条记忆...`,
+            detail: `正在后台导入 ${bgUserLabel} 的 ${info.totalCount} 条记忆...`,
           });
           // 返回 recordId 供后续更新
           return recordId;
@@ -682,9 +685,12 @@ export default function DataTransferPage() {
           // 后台导入完成：更新记录状态
           refreshCount();
           const status = info.failedCount === 0 ? "成功" : info.successCount === 0 ? "失败" : "部分成功";
+          // 从已有记录中提取用户标签（保持与后台开始时一致）
+          const existingRecord = operationRecords.find((r) => r.id === recordId);
+const bgCompleteUserLabel = existingRecord?.detail?.match(/「[^」]+」/)?.[0] || "原ID";
           updateRecord(recordId, {
             status,
-            detail: `导入 ${info.successCount} 条记忆${info.failedCount > 0 ? `，失败 ${info.failedCount} 条` : ""}`,
+            detail: `导入 ${bgCompleteUserLabel} 的 ${info.successCount} 条记忆${info.failedCount > 0 ? `，失败 ${info.failedCount} 条` : ""}`,
           });
           toast({
             title: info.successCount === 0 ? "导入失败" : info.failedCount === 0 ? "导入成功" : "导入部分成功",
@@ -704,7 +710,7 @@ export default function DataTransferPage() {
 记录
               </CardTitle>
               <CardDescription>
-                记录导入导出操作历史，数据持久化存储在浏览器中
+                记录导入导出操作历史，数据持久化存储在浏览器中，只保留最近 20 条记录
               </CardDescription>
             </div>
             {operationRecords.length > 0 && (

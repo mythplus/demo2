@@ -190,9 +190,9 @@ export default function SearchPage() {
     <div className="space-y-6">
       {/* 页面头部 */}
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">语义搜索</h2>
+        <h2 className="text-2xl font-bold tracking-tight">语义检索</h2>
         <p className="text-muted-foreground">
-          使用自然语言搜索已存储的记忆，基于语义相似度智能匹配
+          使用自然语言检索已存储的记忆，基于语义相似度智能匹配
         </p>
       </div>
 
@@ -443,7 +443,7 @@ export default function SearchPage() {
             <div className="flex flex-col items-center justify-center text-center">
               <Sparkles className="mb-4 h-16 w-16 text-muted-foreground/30" />
               <p className="text-lg font-medium text-muted-foreground">
-                开始语义搜索
+开始语义检索
               </p>
               <p className="mt-2 max-w-md text-sm text-muted-foreground">
                 输入自然语言描述，Mem0 会基于语义相似度智能匹配最相关的记忆。
