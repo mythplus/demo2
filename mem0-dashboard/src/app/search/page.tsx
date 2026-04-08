@@ -319,7 +319,7 @@ export default function SearchPage() {
                             {index + 1}
                           </span>
                           {result.user_id && (
-                            <Badge variant="secondary" className="text-xs">
+                            <Badge variant="secondary" className="text-xs max-w-[150px] truncate" title={result.user_id}>
                               {result.user_id}
                             </Badge>
                           )}
@@ -417,7 +417,7 @@ export default function SearchPage() {
                       <p className="text-sm font-medium">{item.query}</p>
                       <div className="flex items-center gap-2 mt-0.5">
                         {item.userId && (
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs text-muted-foreground max-w-[200px] truncate" title={`用户: ${item.userId}`}>
                             用户: {item.userId}
                           </span>
                         )}

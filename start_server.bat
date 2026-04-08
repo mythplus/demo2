@@ -18,9 +18,19 @@ if "%OPENAI_API_KEY%"=="" (
     exit /b 1
 )
 
+REM 定位脚本所在目录（支持任意位置运行）
+cd /d "%~dp0"
+
+REM 检查虚拟环境是否存在
+if not exist ".venv\Scripts\python.exe" (
+    echo [错误] 未找到虚拟环境 .venv，请先创建：python -m venv .venv
+    pause
+    exit /b 1
+)
+
 REM 激活虚拟环境并启动服务
 echo [信息] 正在启动 Mem0 API 服务 (端口: 8080)...
 echo [信息] 按 Ctrl+C 可优雅退出服务
 echo.
 
-d:\Users\V_grhe\Desktop\ai-demo\demo2\.venv\Scripts\python.exe d:\Users\V_grhe\Desktop\ai-demo\demo2\server.py
+.venv\Scripts\python.exe server.py

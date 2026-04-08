@@ -599,10 +599,7 @@ export default function RequestsPage() {
 
                 {/* 分页 */}
                 {totalPages > 1 && (
-                  <div className="flex items-center justify-between border-t px-4 py-3 flex-wrap gap-3 overflow-x-auto">
-                    <p className="text-sm text-muted-foreground">
-                      第 {page + 1} / {totalPages} 页，共 {total} 条
-                    </p>
+                  <div className="flex items-center justify-end border-t px-4 py-3 flex-wrap gap-3 overflow-x-auto">
                     <div className="flex items-center gap-1.5">
                       <Button
                         variant="outline"

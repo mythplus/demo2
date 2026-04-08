@@ -311,10 +311,7 @@ export default function UserDetailPage() {
 
               {/* 分页 */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-between pt-4 flex-wrap gap-3">
-                  <p className="text-sm text-muted-foreground">
-                    第 {currentPage} / {totalPages} 页，共 {sortedMemories.length} 条
-                  </p>
+                <div className="flex items-center justify-end pt-4 flex-wrap gap-3">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <Button
                       variant="outline"
