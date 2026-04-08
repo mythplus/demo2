@@ -280,8 +280,6 @@ export function ImportDialog({
       let completedBatches = 0;
 
       const submitBatch = async (batchIdx: number) => {
-        if (cancelledRef.current) return;
-
         const batch = batches[batchIdx];
         const batchOffset = batchIdx * batchSize;
 
@@ -309,8 +307,13 @@ export function ImportDialog({
             }
           }
         } catch (err) {
-          if (cancelledRef.current) return;
-          // 当前批次整体请求失败
+          // 请求被 abort 时，后端可能已处理完毕，将这些条目计入成功
+          // （abort 只是前端不再等待响应，后端不会回滚已处理的记忆）
+          if (cancelledRef.current) {
+            result.success += batch.length;
+            return;
+          }
+          // 当前批次整体请求失败（非取消导致的真实错误）
           result.failed += batch.length;
           result.errors.push(
             `第 ${batchOffset + 1}-${batchOffset + batch.length} 条批量导入失败: ${err instanceof Error ? err.message : "未知错误"}`
@@ -328,8 +331,10 @@ export function ImportDialog({
       for (let i = 0; i < batches.length; i += FRONT_CONCURRENCY) {
         if (cancelledRef.current) {
           wasCancelled = true;
-          const remaining = items.length - completedBatches * batchSize;
-          result.errors.push(`用户取消导入，跳过剩余 ${remaining} 条记忆`);
+          const remaining = items.length - result.success - result.failed;
+          if (remaining > 0) {
+            result.errors.push(`用户取消导入，跳过剩余 ${remaining} 条记忆`);
+          }
           break;
         }
 
@@ -348,7 +353,7 @@ export function ImportDialog({
         // 窗口完成后检查是否被取消
         if (cancelledRef.current) {
           wasCancelled = true;
-          const remaining = items.length - completedBatches * batchSize;
+          const remaining = items.length - result.success - result.failed;
           if (remaining > 0) {
             result.errors.push(`用户取消导入，跳过剩余 ${remaining} 条记忆`);
           }
@@ -648,7 +653,8 @@ export function ImportDialog({
                   variant="destructive"
                   onClick={() => {
                     cancelledRef.current = true;
-                    abortControllerRef.current?.abort();
+                    // 不调用 abortController.abort()，让当前窗口内已发出的请求自然完成
+                    // 这样可以确保前端统计与后端实际处理的数量一致
                   }}
                 >
                   <Ban className="mr-1.5 h-4 w-4" />
@@ -711,7 +717,7 @@ export function ImportDialog({
                 <p className="text-xs text-muted-foreground">成功</p>
               </div>
               <div className="rounded-lg border p-3 text-center">
-                <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+                <p className="text-3xl font-bold text-red-600 dark:text-red-400">
                   {importResult.failed}
                 </p>
                 <p className="text-xs text-muted-foreground">失败</p>
