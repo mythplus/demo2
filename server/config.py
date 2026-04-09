@@ -179,10 +179,11 @@ MEM0_CONFIG = _yaml_config if _yaml_config else {
         },
     },
     "llm": {
-        "provider": "ollama",
+        "provider": "vllm",
         "config": {
-            "model": os.environ.get("OLLAMA_MODEL", "qwen2.5:7b"),
-            "ollama_base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
+            "model": os.environ.get("VLLM_MODEL", "Qwen/Qwen2.5-7B-Instruct"),
+            "vllm_base_url": os.environ.get("VLLM_BASE_URL", "http://localhost:8000/v1"),
+            "api_key": os.environ.get("VLLM_API_KEY", "vllm-api-key"),
             "temperature": 0.1,
         },
     },

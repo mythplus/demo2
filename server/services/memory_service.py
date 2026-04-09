@@ -167,7 +167,11 @@ def apply_filters(memories: list, categories: list = None, state: str = None,
 # ============ AI 自动分类 ============
 
 async def auto_categorize_memory(memory_text: str) -> List[str]:
-    """使用 LLM 对记忆内容进行自动分类（复用全局异步 HTTP 客户端）"""
+    """使用 LLM 对记忆内容进行自动分类（复用全局异步 HTTP 客户端）。
+    根据 LLM provider 类型自动选择调用方式：
+    - vllm / openai：使用 OpenAI 兼容 API（/v1/chat/completions）
+    - ollama：使用 Ollama 私有 API（/api/generate）
+    """
     try:
         # 构建分类描述文本
         cat_text = "\n".join(f"- {k}: {v}" for k, v in CATEGORY_DESCRIPTIONS.items())
@@ -176,23 +180,47 @@ async def auto_categorize_memory(memory_text: str) -> List[str]:
             memory_content=memory_text,
         )
 
-        # 调用 Ollama API（异步，复用全局客户端）
-        ollama_base_url = MEM0_CONFIG["llm"]["config"]["ollama_base_url"]
-        model = MEM0_CONFIG["llm"]["config"]["model"]
+        provider = MEM0_CONFIG["llm"].get("provider", "ollama")
+        config = MEM0_CONFIG["llm"]["config"]
+        model = config.get("model", "")
 
-        response = await http_client.post(
-            f"{ollama_base_url}/api/generate",
-            json={
-                "model": model,
-                "prompt": prompt,
-                "stream": False,
-                "format": "json",
-                "options": {"temperature": 0.1},
-            },
-            timeout=30,
-        )
-        response.raise_for_status()
-        result_text = response.json().get("response", "")
+        if provider in ("vllm", "openai"):
+            # ---- OpenAI 兼容 API（vLLM / OpenAI） ----
+            base_url = config.get("vllm_base_url", config.get("openai_base_url", ""))
+            headers = {"Content-Type": "application/json"}
+            api_key = config.get("api_key", "")
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+
+            response = await http_client.post(
+                f"{base_url}/chat/completions",
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.1,
+                    "response_format": {"type": "json_object"},
+                },
+                headers=headers,
+                timeout=30,
+            )
+            response.raise_for_status()
+            result_text = response.json()["choices"][0]["message"]["content"]
+        else:
+            # ---- Ollama 私有 API（保持原有逻辑） ----
+            ollama_base_url = config.get("ollama_base_url", "")
+            response = await http_client.post(
+                f"{ollama_base_url}/api/generate",
+                json={
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "format": "json",
+                    "options": {"temperature": 0.1},
+                },
+                timeout=30,
+            )
+            response.raise_for_status()
+            result_text = response.json().get("response", "")
 
         # 解析 JSON 结果
         parsed = json.loads(result_text)
@@ -200,7 +228,7 @@ async def auto_categorize_memory(memory_text: str) -> List[str]:
 
         # 校验：只保留合法的分类
         valid = [c for c in raw_categories if c in VALID_CATEGORIES]
-        logger.info(f"AI 自动分类结果: {valid} (原始: {raw_categories})")
+        logger.info(f"AI 自动分类结果: {valid} (原始: {raw_categories}, provider: {provider})")
         return valid
 
     except Exception as e:

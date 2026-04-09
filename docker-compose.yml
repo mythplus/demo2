@@ -26,6 +26,9 @@ services:
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
       - EMBED_MODEL=${EMBED_MODEL:-nomic-embed-text}
+      - VLLM_BASE_URL=${VLLM_BASE_URL:-http://vllm:8000/v1}
+      - VLLM_MODEL=${VLLM_MODEL:-Qwen/Qwen2.5-7B-Instruct}
+      - VLLM_API_KEY=${VLLM_API_KEY:-vllm-api-key}
       - NEO4J_URL=${NEO4J_URL:-bolt://neo4j:7687}
       - NEO4J_USER=${NEO4J_USER:-neo4j}
       - NEO4J_PASSWORD=${NEO4J_PASSWORD:-mem0_neo4j_2024}
@@ -87,6 +90,39 @@ services:
     depends_on:
       - frontend
       - backend
+
+  # ---- vLLM 推理服务 ----
+  vllm:
+    image: vllm/vllm-openai:latest
+    container_name: mem0-vllm
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - VLLM_API_KEY=${VLLM_API_KEY:-vllm-api-key}
+    command: >
+      --model ${VLLM_MODEL:-Qwen/Qwen2.5-7B-Instruct}
+      --host 0.0.0.0
+      --port 8000
+      --max-model-len 8192
+      --gpu-memory-utilization 0.85
+      --enable-auto-tool-choice
+      --tool-call-parser hermes
+    ports:
+      - "${VLLM_PORT:-8000}:8000"
+    networks:
+      - mem0-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 5
 
   # ---- Neo4j 图数据库 ----
   neo4j:

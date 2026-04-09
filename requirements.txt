@@ -23,6 +23,7 @@ langchain-neo4j==0.9.0
 # LLM 相关
 ollama==0.6.1
 litellm==1.82.6
+openai>=1.0.0
 
 # 配置与工具
 PyYAML==6.0.3

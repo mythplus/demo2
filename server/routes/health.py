@@ -53,7 +53,8 @@ async def get_config_info():
     # 是否为生产环境（生产环境对 URL 做脱敏处理）
     is_prod = os.environ.get("ENV", "development") == "production"
 
-    llm_base_url = llm_config.get("config", {}).get("ollama_base_url", llm_config.get("config", {}).get("openai_base_url", ""))
+    llm_cfg = llm_config.get("config", {})
+    llm_base_url = llm_cfg.get("vllm_base_url", llm_cfg.get("ollama_base_url", llm_cfg.get("openai_base_url", "")))
     embedder_base_url = embedder_config.get("config", {}).get("ollama_base_url", embedder_config.get("config", {}).get("openai_base_url", ""))
     graph_url = graph_config.get("config", {}).get("url", "")
 
@@ -89,7 +90,7 @@ async def test_llm_connection():
     provider = llm_config.get("provider", "unknown")
     config = llm_config.get("config", {})
     model = config.get("model", "unknown")
-    base_url = config.get("ollama_base_url", config.get("openai_base_url", ""))
+    base_url = config.get("vllm_base_url", config.get("ollama_base_url", config.get("openai_base_url", "")))
 
     try:
         client = memory_service.http_client
@@ -119,6 +120,44 @@ async def test_llm_connection():
                 "model_available": model_found,
                 "test_response": gen_text[:100] if gen_text else "(空响应)",
                 "message": f"LLM 连接成功，模型 {model} {'可用' if model_found else '未在模型列表中找到，但生成测试通过'}",
+            }
+        elif provider == "vllm":
+            # 测试 vLLM：调用 OpenAI 兼容的 /models 接口，再做一次简单生成测试
+            headers = {"Content-Type": "application/json"}
+            api_key = config.get("api_key", "")
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+
+            # 获取模型列表
+            resp = await client.get(f"{base_url}/models", headers=headers, timeout=10)
+            resp.raise_for_status()
+            models_data = resp.json().get("data", [])
+            model_ids = [m.get("id", "") for m in models_data]
+            model_found = model in model_ids
+
+            # 简单生成测试
+            gen_resp = await client.post(
+                f"{base_url}/chat/completions",
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": "hi"}],
+                    "max_tokens": 5,
+                    "temperature": 0.1,
+                },
+                headers=headers,
+                timeout=30,
+            )
+            gen_resp.raise_for_status()
+            gen_text = gen_resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+
+            return {
+                "status": "connected",
+                "provider": provider,
+                "model": model,
+                "base_url": base_url,
+                "model_available": model_found,
+                "test_response": gen_text[:100] if gen_text else "(空响应)",
+                "message": f"vLLM 连接成功，模型 {model} {'可用' if model_found else '未在模型列表中找到，但生成测试通过'}",
             }
         else:
             # OpenAI 兼容接口测试
@@ -240,33 +279,67 @@ async def _check_qdrant() -> dict:
         }
 
 
-async def _check_ollama() -> dict:
-    """检测 Ollama LLM 服务连通性（轻量级，仅请求 /api/tags）"""
+async def _check_llm() -> dict:
+    """检测 LLM 服务连通性（根据 provider 自动选择检测方式）"""
     start = time.time()
     try:
         client = memory_service.http_client
+        llm_provider = MEM0_CONFIG.get("llm", {}).get("provider", "ollama")
         llm_config = MEM0_CONFIG.get("llm", {}).get("config", {})
-        base_url = llm_config.get("ollama_base_url", llm_config.get("openai_base_url", ""))
+        base_url = llm_config.get("vllm_base_url", llm_config.get("ollama_base_url", llm_config.get("openai_base_url", "")))
         if not base_url:
-            return {"status": "skip", "latency_ms": 0, "message": "未配置 Ollama 地址"}
+            return {"status": "skip", "latency_ms": 0, "message": "未配置 LLM 服务地址"}
 
-        resp = await client.get(f"{base_url}/api/tags", timeout=5)
-        resp.raise_for_status()
-        models = resp.json().get("models", [])
-        latency = round((time.time() - start) * 1000, 1)
-        return {
-            "status": "ok",
-            "latency_ms": latency,
-            "models_count": len(models),
-            "message": f"Ollama 正常，共 {len(models)} 个模型可用",
-        }
+        if llm_provider == "ollama":
+            # Ollama：请求 /api/tags
+            resp = await client.get(f"{base_url}/api/tags", timeout=5)
+            resp.raise_for_status()
+            models = resp.json().get("models", [])
+            latency = round((time.time() - start) * 1000, 1)
+            return {
+                "status": "ok",
+                "latency_ms": latency,
+                "models_count": len(models),
+                "message": f"Ollama 正常，共 {len(models)} 个模型可用",
+            }
+        elif llm_provider == "vllm":
+            # vLLM：请求 OpenAI 兼容的 /models
+            headers = {}
+            api_key = llm_config.get("api_key", "")
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+            resp = await client.get(f"{base_url}/models", headers=headers, timeout=5)
+            resp.raise_for_status()
+            models = resp.json().get("data", [])
+            latency = round((time.time() - start) * 1000, 1)
+            return {
+                "status": "ok",
+                "latency_ms": latency,
+                "models_count": len(models),
+                "message": f"vLLM 正常，共 {len(models)} 个模型可用",
+            }
+        else:
+            # 其他 OpenAI 兼容接口
+            headers = {}
+            api_key = llm_config.get("api_key", "")
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+            resp = await client.get(f"{base_url}/models", headers=headers, timeout=5)
+            resp.raise_for_status()
+            latency = round((time.time() - start) * 1000, 1)
+            return {
+                "status": "ok",
+                "latency_ms": latency,
+                "message": f"LLM 服务（{llm_provider}）正常",
+            }
     except Exception as e:
         latency = round((time.time() - start) * 1000, 1)
-        logger.warning(f"深度健康检查 - Ollama 异常: {e}")
+        llm_provider = MEM0_CONFIG.get("llm", {}).get("provider", "unknown")
+        logger.warning(f"深度健康检查 - LLM（{llm_provider}）异常: {e}")
         return {
             "status": "error",
             "latency_ms": latency,
-            "message": f"Ollama 不可用: {_safe_error_detail(e)}",
+            "message": f"LLM 服务（{llm_provider}）不可用: {_safe_error_detail(e)}",
         }
 
 
@@ -299,29 +372,29 @@ async def _check_neo4j() -> dict:
 
 @router.get("/v1/health/deep")
 async def deep_health_check():
-    """深度健康检查 — 一次性检测所有依赖服务的连通性（Qdrant / Ollama / Neo4j）
+    """深度健康检查 — 一次性检测所有依赖服务的连通性（Qdrant / LLM / Neo4j）
     返回各服务状态和整体健康状态，适用于 K8s readinessProbe 或监控系统。
     """
     import asyncio
 
     # 并发检测所有依赖服务
     qdrant_task = asyncio.create_task(_check_qdrant())
-    ollama_task = asyncio.create_task(_check_ollama())
+    llm_task = asyncio.create_task(_check_llm())
     neo4j_task = asyncio.create_task(_check_neo4j())
 
-    qdrant_result, ollama_result, neo4j_result = await asyncio.gather(
-        qdrant_task, ollama_task, neo4j_task
+    qdrant_result, llm_result, neo4j_result = await asyncio.gather(
+        qdrant_task, llm_task, neo4j_task
     )
 
     # 判断整体健康状态：任一核心服务异常则整体不健康
-    # Qdrant 和 Ollama 是核心依赖，Neo4j 为可选（skip 不算异常）
+    # Qdrant 和 LLM 是核心依赖，Neo4j 为可选（skip 不算异常）
     all_checks = {
         "qdrant": qdrant_result,
-        "ollama": ollama_result,
+        "llm": llm_result,
         "neo4j": neo4j_result,
     }
 
-    core_services = ["qdrant", "ollama"]
+    core_services = ["qdrant", "llm"]
     has_core_error = any(
         all_checks[svc]["status"] == "error" for svc in core_services
     )
