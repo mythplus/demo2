@@ -261,34 +261,30 @@ export default function RequestsPage() {
 
           {/* 右侧操作按钮 */}
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center h-9 px-3 rounded-md border border-border bg-background text-sm text-muted-foreground whitespace-nowrap">
-              共 <span className="font-semibold text-foreground text-base mx-0.5">{total}</span> 条日志
+            <span className="inline-flex items-center h-[34px] px-3 rounded-lg border border-border bg-background text-sm text-muted-foreground whitespace-nowrap">
+              共 <span className="font-semibold text-foreground text-sm mx-0.5">{total}</span> 条日志
             </span>
-            <Button
-              variant="outline"
-              size="sm"
-              className={`h-9 gap-1.5 ${
-                showFilter || hasDateFilter
-                  ? "border-primary text-primary bg-primary/10"
-                  : ""
+            <button
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-150 border ${
+                showFilter
+                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                  : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
               }`}
               onClick={() => setShowFilter((v) => !v)}
             >
               <CalendarDays className="h-3.5 w-3.5" />
               时间筛选
               {hasDateFilter && (
-                <span className="ml-1 h-1.5 w-1.5 rounded-full bg-primary" />
+                <span className={`ml-1 h-1.5 w-1.5 rounded-full ${showFilter ? "bg-primary-foreground" : "bg-primary"}`} />
               )}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 gap-1.5"
+            </button>
+            <button
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-150 border bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
               onClick={fetchLogs}
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
               刷新
-            </Button>
+            </button>
           </div>
         </div>
 

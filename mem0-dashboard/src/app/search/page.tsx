@@ -238,7 +238,7 @@ export default function SearchPage() {
 
               {/* 查找条数选择 */}
               <Select value={limit} onValueChange={setLimit}>
-                <SelectTrigger className="w-[130px]">
+                <SelectTrigger className="w-[130px] h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -254,7 +254,7 @@ export default function SearchPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="shrink-0"
+                  className="shrink-0 h-9"
                   title="清除搜索"
                   onClick={() => {
                     setQuery("");
