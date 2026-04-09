@@ -8,24 +8,12 @@
 # ============================================
 
 # LLM 大语言模型配置
-# provider 支持: "ollama"（Ollama 原生）、"vllm"（vLLM 高性能推理）、"openai"（OpenAI 兼容）
-# 使用 vLLM 时：provider 改为 "vllm"，配置 vllm_base_url 指向 vLLM 服务地址
 llm:
-  provider: "vllm"
+  provider: "ollama"
   config:
-    model: "${VLLM_MODEL}"
-    vllm_base_url: "${VLLM_BASE_URL}"
-    api_key: "${VLLM_API_KEY}"
+    model: "qwen2.5:7b"
+    ollama_base_url: "${OLLAMA_BASE_URL}"
     temperature: 0.1
-    max_tokens: 8192
-
-# --- 如果使用 Ollama 作为 LLM，取消下方注释并注释掉上方 vLLM 配置 ---
-# llm:
-#   provider: "ollama"
-#   config:
-#     model: "qwen2.5:7b"
-#     ollama_base_url: "${OLLAMA_BASE_URL}"
-#     temperature: 0.1
 
 # Embedder 嵌入模型配置
 embedder:
