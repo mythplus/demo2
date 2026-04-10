@@ -3,6 +3,7 @@ Playground 对话测试路由 — 记忆增强的 AI 对话
 整合 search → LLM → add 三步流程，让用户直观体验"AI 记住了我"的效果
 """
 
+import asyncio
 import json
 import logging
 from typing import Optional, List
@@ -295,43 +296,47 @@ async def playground_chat_stream(request: PlaygroundChatRequest):
                     except json.JSONDecodeError:
                         continue
 
-            # 第3步：流式结束后，存储记忆
-            new_memories = []
-            try:
-                add_result = m.add(
-                    messages=[
-                        {"role": "user", "content": request.message},
-                        {"role": "assistant", "content": full_reply},
-                    ],
-                    user_id=user_id,
-                    metadata={"state": "active"},
-                )
-                raw_new = add_result.get("results", []) if isinstance(add_result, dict) else add_result
-                for item in raw_new:
-                    event = item.get("event", "NONE")
-                    if event in ("ADD", "UPDATE"):
-                        mem_id = item.get("id", "")
-                        mem_text = item.get("memory", "")
-                        new_memories.append({
-                            "id": mem_id,
-                            "memory": mem_text,
-                            "event": event,
-                        })
-                        # 自动分类并写入 Qdrant
-                        if mem_text and mem_id:
-                            try:
-                                cats = await auto_categorize_memory(mem_text)
-                                if cats:
-                                    _write_categories_to_qdrant(m, mem_id, cats)
-                            except Exception as e:
-                                logger.warning(f"Playground 自动分类失败 [{mem_id}]: {e}")
-                if new_memories:
-                    memory_service.invalidate_stats_cache()
-            except Exception as e:
-                logger.warning(f"存储记忆失败: {e}")
+            # 第3步：LLM 输出完毕，先发送 done 事件让前端立即解锁
+            yield f"data: {json.dumps({'type': 'done', 'new_memories': []}, ensure_ascii=False)}\n\n"
 
-            # 发送完成事件（包含新增记忆）
-            yield f"data: {json.dumps({'type': 'done', 'new_memories': new_memories}, ensure_ascii=False)}\n\n"
+            # 第4步：异步存储记忆（不阻塞 SSE 流关闭）
+            async def _save_memories_background():
+                try:
+                    # m.add() 是同步阻塞调用，必须放到线程池中执行，否则会阻塞事件循环
+                    loop = asyncio.get_event_loop()
+                    add_result = await loop.run_in_executor(
+                        None,
+                        lambda: m.add(
+                            messages=[
+                                {"role": "user", "content": request.message},
+                                {"role": "assistant", "content": full_reply},
+                            ],
+                            user_id=user_id,
+                            metadata={"state": "active"},
+                        )
+                    )
+                    raw_new = add_result.get("results", []) if isinstance(add_result, dict) else add_result
+                    has_new = False
+                    for item in raw_new:
+                        event = item.get("event", "NONE")
+                        if event in ("ADD", "UPDATE"):
+                            has_new = True
+                            mem_id = item.get("id", "")
+                            mem_text = item.get("memory", "")
+                            # 自动分类并写入 Qdrant
+                            if mem_text and mem_id:
+                                try:
+                                    cats = await auto_categorize_memory(mem_text)
+                                    if cats:
+                                        _write_categories_to_qdrant(m, mem_id, cats)
+                                except Exception as e:
+                                    logger.warning(f"Playground 自动分类失败 [{mem_id}]: {e}")
+                    if has_new:
+                        memory_service.invalidate_stats_cache()
+                except Exception as e:
+                    logger.warning(f"后台存储记忆失败: {e}")
+
+            asyncio.create_task(_save_memories_background())
 
         except Exception as e:
             logger.error(f"流式对话失败: {e}", exc_info=True)

@@ -197,7 +197,11 @@ function MemorySidebar({
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : userMemories.length > 0 ? (
-              userMemories.map((mem) => (
+              [...userMemories].sort((a, b) => {
+                const aHighlight = highlightMemoryIds.has(a.id) ? 1 : 0;
+                const bHighlight = highlightMemoryIds.has(b.id) ? 1 : 0;
+                return bHighlight - aHighlight;
+              }).map((mem) => (
                 <div
                   key={mem.id}
                   className={`rounded-lg border p-2.5 text-sm transition-all duration-300 ${
@@ -404,6 +408,9 @@ export default function PlaygroundPage() {
                     : m
                 )
               );
+              // 收到 done 事件后立即解锁输入框，不等待 SSE 流关闭
+              setIsGenerating(false);
+              abortControllerRef.current = null;
               if (event.new_memories && event.new_memories.length > 0) {
                 loadUserMemories();
               }
@@ -417,6 +424,9 @@ export default function PlaygroundPage() {
                     : m
                 )
               );
+              // 收到 error 事件后也立即解锁输入框
+              setIsGenerating(false);
+              abortControllerRef.current = null;
               break;
           }
         },
@@ -447,7 +457,6 @@ export default function PlaygroundPage() {
     } finally {
       setIsGenerating(false);
       abortControllerRef.current = null;
-      setTimeout(() => setHighlightMemoryIds(new Set()), 5000);
     }
   };
 
@@ -469,7 +478,6 @@ export default function PlaygroundPage() {
   const handleShowMemories = (memories: PlaygroundRetrievedMemory[]) => {
     if (!sidebarOpen) setSidebarOpen(true);
     setHighlightMemoryIds(new Set(memories.map((m) => m.id)));
-    setTimeout(() => setHighlightMemoryIds(new Set()), 5000);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
