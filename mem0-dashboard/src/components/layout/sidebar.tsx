@@ -15,6 +15,7 @@ import {
   Database,
   Network,
   MessageSquare,
+  Webhook,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ const navItems = [
   { title: "请求日志", href: "/requests", icon: Activity },
   { title: "图谱记忆", href: "/graph-memory", icon: Network },
   { title: "数据导出", href: "/data-transfer", icon: Database },
+  { title: "Webhooks", href: "/webhooks", icon: Webhook },
 ];
 
 const bottomNavItems = [

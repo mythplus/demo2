@@ -17,6 +17,7 @@ const pageTitles: Record<string, string> = {
   "/graph-memory": "图谱记忆",
   "/settings": "系统设置",
   "/playground": "调试台",
+  "/webhooks": "Webhooks",
 };
 
 function getPageTitle(pathname: string): string {

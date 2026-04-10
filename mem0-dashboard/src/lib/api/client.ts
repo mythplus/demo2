@@ -542,4 +542,36 @@ export const mem0Api = {
       reader.releaseLock();
     }
   },
+
+  // ============ Webhooks ============
+
+  async getWebhooks(): Promise<{ webhooks: any[]; total: number }> {
+    return request<{ webhooks: any[]; total: number }>("/v1/webhooks/");
+  },
+
+  async createWebhook(data: any): Promise<any> {
+    return request<any>("/v1/webhooks/", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async updateWebhook(id: string, data: any): Promise<any> {
+    return request<any>(`/v1/webhooks/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+
+  async deleteWebhook(id: string): Promise<any> {
+    return request<any>(`/v1/webhooks/${id}`, { method: "DELETE" });
+  },
+
+  async toggleWebhook(id: string): Promise<any> {
+    return request<any>(`/v1/webhooks/${id}/toggle`, { method: "POST" });
+  },
+
+  async testWebhook(id: string): Promise<{ success: boolean; message: string }> {
+    return request<{ success: boolean; message: string }>(`/v1/webhooks/${id}/test`, { method: "POST" });
+  },
 };

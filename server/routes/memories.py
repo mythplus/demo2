@@ -21,6 +21,7 @@ from server.services.memory_service import (
 from server.services.log_service import (
     log_access, save_change_log, save_category_snapshot, get_change_logs,
 )
+from server.services import webhook_service, memory_service as _mem_svc
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +124,14 @@ async def add_memory(request: AddMemoryRequest):
             logger.warning(f"补写 metadata 失败: {e2}")
 
         invalidate_stats_cache()
+
+        # 触发 Webhook（后台异步，不阻塞响应）
+        try:
+            _wh_data = {"user_id": request.user_id or "", "memory": " ".join(msg.content for msg in request.messages)[:200]}
+            asyncio.ensure_future(webhook_service.trigger_webhooks("memory.added", _wh_data, _mem_svc.http_client))
+        except Exception:
+            pass
+
         return result
     except Exception as e:
         logger.error(f"添加记忆失败: {e}")
@@ -415,6 +424,14 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
         save_change_log(memory_id, "UPDATE", new_memory_text, new_cats, effective_old_memory, old_categories)
 
         invalidate_stats_cache()
+
+        # 触发 Webhook
+        try:
+            _wh_data = {"memory_id": memory_id, "memory": new_memory_text[:200], "user_id": result.get("user_id", "")}
+            asyncio.ensure_future(webhook_service.trigger_webhooks("memory.updated", _wh_data, _mem_svc.http_client))
+        except Exception:
+            pass
+
         return result
     except Exception as e:
         logger.error(f"更新记忆失败: {e}")
@@ -461,6 +478,14 @@ async def delete_memory_by_id(memory_id: str):
 
             logger.info(f"已软删除记忆 {memory_id}")
             invalidate_stats_cache()
+
+            # 触发 Webhook
+            try:
+                _wh_data = {"memory_id": memory_id, "memory": old_memory_text[:200] if old_memory_text else ""}
+                asyncio.ensure_future(webhook_service.trigger_webhooks("memory.deleted", _wh_data, _mem_svc.http_client))
+            except Exception:
+                pass
+
             return {"message": "记忆已删除"}
         except HTTPException:
             raise

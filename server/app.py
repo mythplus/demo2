@@ -21,7 +21,7 @@ from server.services.graph_service import close_neo4j_driver
 from server.middleware.auth import ApiKeyAuthMiddleware
 from server.middleware.rate_limit import RateLimitMiddleware
 from server.middleware.request_log import RequestLogMiddleware
-from server.routes import health, memories, search, stats, logs, graph, playground
+from server.routes import health, memories, search, stats, logs, graph, playground, webhooks
 
 logger = logging.getLogger(__name__)
 
@@ -136,3 +136,4 @@ app.include_router(stats.router)
 app.include_router(logs.router)
 app.include_router(graph.router)
 app.include_router(playground.router)
+app.include_router(webhooks.router)
