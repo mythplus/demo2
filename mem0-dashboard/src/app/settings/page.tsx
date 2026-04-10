@@ -251,7 +251,7 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Brain className="h-5 w-5 text-purple-500" />
-                    <span className="text-base font-semibold">LLM 大语言模型</span>
+                    <span className="text-base font-semibold">LLM 模型</span>
                   </div>
                   <Button
                     variant="outline"
@@ -299,7 +299,7 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Database className="h-5 w-5 text-blue-500" />
-                    <span className="text-base font-semibold">Embedder 嵌入模型</span>
+                    <span className="text-base font-semibold">Embedding 模型</span>
                   </div>
                   <Button
                     variant="outline"
