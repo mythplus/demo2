@@ -69,12 +69,12 @@ export function MemoryTable({
                   />
                 </TableHead>
               )}
-              <TableHead className="min-w-[280px] max-w-[500px] py-3 font-semibold text-xs uppercase tracking-wider">记忆内容</TableHead>
-              <TableHead className="min-w-[70px] w-[100px] max-w-[120px] py-3 font-semibold text-xs uppercase tracking-wider">用户</TableHead>
-              <TableHead className="min-w-[160px] w-[180px] py-3 font-semibold text-xs uppercase tracking-wider">分类</TableHead>
-              <TableHead className="min-w-[70px] w-[80px] py-3 font-semibold text-xs uppercase tracking-wider">状态</TableHead>
-              <TableHead className="min-w-[100px] w-[120px] py-3 font-semibold text-xs uppercase tracking-wider">创建时间</TableHead>
-              <TableHead className="w-[50px] py-3 font-semibold text-xs uppercase tracking-wider text-right">操作</TableHead>
+              <TableHead className="w-[40%] py-3 font-semibold text-xs uppercase tracking-wider">记忆内容</TableHead>
+              <TableHead className="w-[15%] py-3 font-semibold text-xs uppercase tracking-wider">用户</TableHead>
+              <TableHead className="w-[15%] py-3 font-semibold text-xs uppercase tracking-wider">分类</TableHead>
+              <TableHead className="w-[8%] py-3 font-semibold text-xs uppercase tracking-wider">状态</TableHead>
+              <TableHead className="w-[12%] py-3 font-semibold text-xs uppercase tracking-wider">创建时间</TableHead>
+              <TableHead className="w-[5%] py-3 font-semibold text-xs uppercase tracking-wider text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -112,11 +112,11 @@ export function MemoryTable({
                     </TooltipContent>
                   </Tooltip>
                 </TableCell>
-                <TableCell className="py-3">
+                <TableCell className="py-3 overflow-hidden">
                   {memory.user_id && (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Badge variant="secondary" className="text-xs font-normal max-w-[120px] truncate cursor-default">
+                        <Badge variant="secondary" className="text-xs font-normal max-w-full truncate block w-fit cursor-default">
                           {memory.user_id}
                         </Badge>
                       </TooltipTrigger>
@@ -126,7 +126,7 @@ export function MemoryTable({
                     </Tooltip>
                   )}
                 </TableCell>
-                <TableCell className="py-3">
+                <TableCell className="py-3 overflow-hidden">
                   <CategoryBadges categories={memory.categories} max={2} nowrap />
                 </TableCell>
                 <TableCell className="py-3 whitespace-nowrap">

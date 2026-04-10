@@ -502,7 +502,7 @@ export default function PlaygroundPage() {
           {/* 对话区域 */}
           <div className="flex flex-1 flex-col min-w-0">
             {/* 用户选择栏 */}
-            <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-2.5">
+            <div className="flex items-center justify-between border-b px-4 py-3">
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 text-sm">
                   <MessageSquare className="h-4 w-4 text-muted-foreground" />

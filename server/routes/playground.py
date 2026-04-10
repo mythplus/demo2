@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from server.config import MEM0_CONFIG
-from server.services import memory_service
+from server.services.memory_service import memory_service, auto_categorize_memory
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,37 @@ def _get_ollama_config():
     model = llm_config.get("model", "qwen2.5:7b")
     temperature = llm_config.get("temperature", 0.7)
     return base_url, model, temperature
+
+
+def _write_categories_to_qdrant(m, memory_id: str, categories: list):
+    """将自动分类结果写入 Qdrant metadata"""
+    try:
+        from qdrant_client.models import PointVectors
+        vector_store = getattr(m, "vector_store", None)
+        if not vector_store:
+            return
+        client = getattr(vector_store, "client", None)
+        collection_name = getattr(vector_store, "collection_name", None)
+        if not client or not collection_name:
+            return
+        points = client.retrieve(
+            collection_name=collection_name,
+            ids=[memory_id],
+            with_payload=True,
+        )
+        if points:
+            current_meta = dict((points[0].payload or {}).get("metadata", {}) or {})
+            current_meta["categories"] = categories
+            if "state" not in current_meta:
+                current_meta["state"] = "active"
+            client.set_payload(
+                collection_name=collection_name,
+                payload={"metadata": current_meta},
+                points=[memory_id],
+            )
+            logger.info(f"Playground 自动分类写入成功 [{memory_id}]: {categories}")
+    except Exception as e:
+        logger.warning(f"写入 Qdrant 分类失败 [{memory_id}]: {e}")
 
 
 def _build_system_prompt(memories_str: str) -> str:
@@ -143,16 +174,27 @@ async def playground_chat(request: PlaygroundChatRequest):
                     {"role": "assistant", "content": ai_reply},
                 ],
                 user_id=user_id,
+                metadata={"state": "active"},
             )
             raw_new = add_result.get("results", []) if isinstance(add_result, dict) else add_result
             for item in raw_new:
                 event = item.get("event", "NONE")
                 if event in ("ADD", "UPDATE"):
+                    mem_id = item.get("id", "")
+                    mem_text = item.get("memory", "")
                     new_memories.append({
-                        "id": item.get("id", ""),
-                        "memory": item.get("memory", ""),
+                        "id": mem_id,
+                        "memory": mem_text,
                         "event": event,
                     })
+                    # 自动分类并写入 Qdrant
+                    if mem_text and mem_id:
+                        try:
+                            cats = await auto_categorize_memory(mem_text)
+                            if cats:
+                                _write_categories_to_qdrant(m, mem_id, cats)
+                        except Exception as e:
+                            logger.warning(f"Playground 自动分类失败 [{mem_id}]: {e}")
             # 使统计缓存失效
             if new_memories:
                 memory_service.invalidate_stats_cache()
@@ -261,16 +303,27 @@ async def playground_chat_stream(request: PlaygroundChatRequest):
                         {"role": "assistant", "content": full_reply},
                     ],
                     user_id=user_id,
+                    metadata={"state": "active"},
                 )
                 raw_new = add_result.get("results", []) if isinstance(add_result, dict) else add_result
                 for item in raw_new:
                     event = item.get("event", "NONE")
                     if event in ("ADD", "UPDATE"):
+                        mem_id = item.get("id", "")
+                        mem_text = item.get("memory", "")
                         new_memories.append({
-                            "id": item.get("id", ""),
-                            "memory": item.get("memory", ""),
+                            "id": mem_id,
+                            "memory": mem_text,
                             "event": event,
                         })
+                        # 自动分类并写入 Qdrant
+                        if mem_text and mem_id:
+                            try:
+                                cats = await auto_categorize_memory(mem_text)
+                                if cats:
+                                    _write_categories_to_qdrant(m, mem_id, cats)
+                            except Exception as e:
+                                logger.warning(f"Playground 自动分类失败 [{mem_id}]: {e}")
                 if new_memories:
                     memory_service.invalidate_stats_cache()
             except Exception as e:
