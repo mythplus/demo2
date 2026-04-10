@@ -86,6 +86,7 @@ export function exportToCSV(memories: Memory[], filename?: string): ExportOutput
 export interface ImportResult {
   success: number;
   failed: number;
+  skipped: number;
   errors: string[];
 }
 

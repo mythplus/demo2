@@ -21,6 +21,7 @@ import {
   XCircle,
   User,
   Ban,
+  SkipForward,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -259,7 +260,7 @@ export function ImportDialog({
     registerImportTask(taskId);
     onImportingChange?.(true);
 
-    const result: ImportResult = { success: 0, failed: 0, errors: [] };
+    const result: ImportResult = { success: 0, failed: 0, skipped: 0, errors: [] };
     cancelledRef.current = false;
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
@@ -311,6 +312,7 @@ export function ImportDialog({
           // 将这些条目视为"跳过"（既不计入 success 也不计入 failed），
           // 这样取消导入时状态才能正确反映为"已取消"或"部分成功"
           if (cancelledRef.current) {
+            result.skipped += batch.length;
             return;
           }
           // 当前批次整体请求失败（非取消导致的真实错误）
@@ -331,9 +333,9 @@ export function ImportDialog({
       for (let i = 0; i < batches.length; i += FRONT_CONCURRENCY) {
         if (cancelledRef.current) {
           wasCancelled = true;
-          const remaining = items.length - result.success - result.failed;
+          const remaining = items.length - result.success - result.failed - result.skipped;
           if (remaining > 0) {
-            result.errors.push(`用户取消导入，跳过剩余 ${remaining} 条记忆`);
+            result.skipped += remaining;
           }
           break;
         }
@@ -353,12 +355,16 @@ export function ImportDialog({
         // 窗口完成后检查是否被取消
         if (cancelledRef.current) {
           wasCancelled = true;
-          const remaining = items.length - result.success - result.failed;
+          const remaining = items.length - result.success - result.failed - result.skipped;
           if (remaining > 0) {
-            result.errors.push(`用户取消导入，跳过剩余 ${remaining} 条记忆`);
+            result.skipped += remaining;
           }
           break;
         }
+      }
+      // 取消导入时，统一生成一条包含总跳过数的提示信息
+      if (wasCancelled && result.skipped > 0) {
+        result.errors.push(`用户取消导入，跳过 ${result.skipped} 条记忆`);
       }
       setImportStage(wasCancelled ? "导入已取消" : "导入完成！");
     } catch (err) {
@@ -698,19 +704,27 @@ export function ImportDialog({
         {step === "done" && importResult && (
           <div className="space-y-4 py-4">
             <div className="flex flex-col items-center gap-3">
-              {importResult.success > 0 && importResult.failed === 0 ? (
+              {importResult.success > 0 && importResult.failed === 0 && importResult.skipped === 0 ? (
                 <CheckCircle className="h-10 w-10 text-green-500" />
+              ) : importResult.success === 0 && importResult.failed === 0 ? (
+                <Ban className="h-10 w-10 text-yellow-500" />
               ) : importResult.success === 0 ? (
                 <XCircle className="h-10 w-10 text-red-500" />
               ) : (
                 <AlertTriangle className="h-10 w-10 text-yellow-500" />
               )}
               <p className="text-sm font-medium">
-                {importResult.success === 0 ? "导入失败" : importResult.failed === 0 ? "导入成功" : "导入完成"}
+                {importResult.success === 0 && importResult.failed === 0
+                  ? "导入已取消"
+                  : importResult.success === 0
+                    ? "导入失败"
+                    : importResult.failed === 0 && importResult.skipped === 0
+                      ? "导入成功"
+                      : "导入完成"}
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className={`grid gap-3 ${importResult.skipped > 0 ? "grid-cols-3" : "grid-cols-2"}`}>
               <div className="rounded-lg border p-3 text-center">
                 <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                   {importResult.success}
@@ -718,11 +732,19 @@ export function ImportDialog({
                 <p className="text-xs text-muted-foreground">成功</p>
               </div>
               <div className="rounded-lg border p-3 text-center">
-                <p className="text-3xl font-bold text-red-600 dark:text-red-400">
+                <p className="text-2xl font-bold text-red-600 dark:text-red-400">
                   {importResult.failed}
                 </p>
                 <p className="text-xs text-muted-foreground">失败</p>
               </div>
+              {importResult.skipped > 0 && (
+                <div className="rounded-lg border p-3 text-center">
+                  <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+                    {importResult.skipped}
+                  </p>
+                  <p className="text-xs text-muted-foreground">跳过</p>
+                </div>
+              )}
             </div>
 
             {importResult.errors.length > 0 && (
