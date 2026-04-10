@@ -74,7 +74,7 @@ export function MemoryTable({
               <TableHead className="w-[15%] py-3 font-semibold text-xs uppercase tracking-wider">分类</TableHead>
               <TableHead className="w-[8%] py-3 font-semibold text-xs uppercase tracking-wider">状态</TableHead>
               <TableHead className="w-[12%] py-3 font-semibold text-xs uppercase tracking-wider">创建时间</TableHead>
-              <TableHead className="w-[5%] py-3 font-semibold text-xs uppercase tracking-wider text-right">操作</TableHead>
+              <TableHead className="w-[5%] py-3 font-semibold text-xs uppercase tracking-wider text-right whitespace-nowrap">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

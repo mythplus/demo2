@@ -76,7 +76,7 @@ import type {
 
 // 动态导入图谱可视化组件（完全禁用 SSR，避免 window is not defined）
 const ForceGraphViewerDynamic = dynamic<ForceGraphViewerProps>(
-  () => import("@/components/graph/force-graph-viewer").then((mod) => mod.default),
+  () => import("@/components/graph/force-graph-viewer"),
   {
     ssr: false,
     loading: () => (
@@ -415,11 +415,11 @@ export default function GraphMemoryPage() {
   // ============ 渲染 ============
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 页面标题 */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">图谱记忆</h2>
+          <h2 className="text-xl font-bold tracking-tight">图谱记忆</h2>
           <p className="text-muted-foreground">知识图谱可视化与管理</p>
         </div>
         <div className="flex items-center gap-2">

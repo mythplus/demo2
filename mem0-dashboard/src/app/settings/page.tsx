@@ -138,10 +138,10 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 页面头部 */}
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">系统设置</h2>
+        <h2 className="text-xl font-bold tracking-tight">系统设置</h2>
         <p className="text-sm text-muted-foreground">
           查看 API 连接信息、显示偏好
         </p>

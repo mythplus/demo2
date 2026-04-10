@@ -487,10 +487,10 @@ export default function PlaygroundPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 页面标题区域 — 与其他页面统一 */}
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">调试台</h2>
+        <h2 className="text-xl font-bold tracking-tight">调试台</h2>
         <p className="text-sm text-muted-foreground">
           与 AI 进行记忆增强对话，实时查看记忆的检索与存储过程
         </p>
@@ -498,7 +498,7 @@ export default function PlaygroundPage() {
 
       {/* 对话主体区域 — Card 包裹 */}
       <Card className="overflow-hidden">
-        <div className="flex" style={{ height: "calc(100vh - 13rem)" }}>
+        <div className="flex" style={{ height: "calc(100vh - 11rem)" }}>
           {/* 对话区域 */}
           <div className="flex flex-1 flex-col min-w-0">
             {/* 用户选择栏 */}
