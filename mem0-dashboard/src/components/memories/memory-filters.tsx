@@ -246,9 +246,9 @@ export function MemoryFilters({
                 </Badge>
               )}
               {filters.user_id && (
-                <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => updateFilter("user_id", undefined)}>
-                  用户: {filters.user_id}
-                  <X className="h-3 w-3" />
+                <Badge variant="secondary" className="gap-1 cursor-pointer max-w-[200px]" onClick={() => updateFilter("user_id", undefined)}>
+                  <span className="truncate">用户: {filters.user_id}</span>
+                  <X className="h-3 w-3 shrink-0" />
                 </Badge>
               )}
             </div>
@@ -295,7 +295,7 @@ function UserFilterDropdown({
           "hover:bg-accent/50 transition-colors"
         )}
       >
-        <span className="text-foreground">
+        <span className="text-foreground truncate max-w-[120px]">
           {value || "全部用户"}
         </span>
         <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", open && "rotate-180")} />
@@ -334,7 +334,7 @@ function UserFilterDropdown({
                 )}
               >
                 {value === u && <Check className="mr-2 h-3.5 w-3.5" />}
-                <span className={value === u ? "" : "pl-5"}>{u}</span>
+                <span className={value === u ? "truncate" : "pl-5 truncate"}>{u}</span>
               </div>
             ))}
             {filtered.length === 0 && (

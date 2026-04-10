@@ -569,6 +569,46 @@ async def delete_all_memories(
         raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
+# ============ 硬删除用户接口 ============
+
+@router.delete("/v1/memories/user/{user_id}/hard-delete")
+async def hard_delete_user(user_id: str):
+    """硬删除用户：物理删除该用户的所有记忆数据（不可恢复）"""
+    try:
+        from qdrant_client.models import Filter, FieldCondition, MatchValue, PointIdsList
+        m = get_memory()
+        collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+        qdrant_client = m.vector_store.client
+        total_deleted = 0
+        # 分页滚动物理删除该用户的所有记忆（包括已软删除的）
+        while True:
+            records, _ = qdrant_client.scroll(
+                collection_name=collection_name,
+                scroll_filter=Filter(
+                    must=[
+                        FieldCondition(key="user_id", match=MatchValue(value=user_id)),
+                    ],
+                ),
+                limit=100,
+                with_payload=False,
+                with_vectors=False,
+            )
+            if not records:
+                break
+            ids = [str(record.id) for record in records]
+            qdrant_client.delete(
+                collection_name=collection_name,
+                points_selector=PointIdsList(points=ids),
+            )
+            total_deleted += len(ids)
+        invalidate_stats_cache()
+        logger.info(f"已硬删除用户 {user_id} 的所有记忆（共 {total_deleted} 条）")
+        return {"message": f"用户 {user_id} 及其所有记忆已永久删除（共 {total_deleted} 条）"}
+    except Exception as e:
+        logger.error(f"硬删除用户失败: {e}")
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
+
+
 # ============ 批量删除接口 ============
 
 @router.post("/v1/memories/batch-delete")

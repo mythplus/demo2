@@ -57,7 +57,7 @@ export function MemoryTable({
   return (
     <TooltipProvider>
       <div className="rounded-md border overflow-x-auto">
-        <Table className="min-w-[800px]">
+        <Table className="min-w-[800px] table-fixed">
           <TableHeader>
             <TableRow className="bg-muted/40">
               {selectionMode && (
@@ -70,7 +70,7 @@ export function MemoryTable({
                 </TableHead>
               )}
               <TableHead className="min-w-[280px] max-w-[500px] py-3 font-semibold text-xs uppercase tracking-wider">记忆内容</TableHead>
-              <TableHead className="min-w-[70px] w-[80px] py-3 font-semibold text-xs uppercase tracking-wider">用户</TableHead>
+              <TableHead className="min-w-[70px] w-[100px] max-w-[120px] py-3 font-semibold text-xs uppercase tracking-wider">用户</TableHead>
               <TableHead className="min-w-[160px] w-[180px] py-3 font-semibold text-xs uppercase tracking-wider">分类</TableHead>
               <TableHead className="min-w-[70px] w-[80px] py-3 font-semibold text-xs uppercase tracking-wider">状态</TableHead>
               <TableHead className="min-w-[100px] w-[120px] py-3 font-semibold text-xs uppercase tracking-wider">创建时间</TableHead>

@@ -28,9 +28,9 @@ import {
 // 导航菜单配置
 const navItems = [
   { title: "仪表盘", href: "/", icon: LayoutDashboard },
+  { title: "调试台", href: "/playground", icon: MessageSquare },
   { title: "记忆管理", href: "/memories", icon: Brain },
   { title: "语义检索", href: "/search", icon: Search },
-  { title: "调试台", href: "/playground", icon: MessageSquare },
   { title: "用户管理", href: "/users", icon: Users },
   { title: "请求日志", href: "/requests", icon: Activity },
   { title: "图谱记忆", href: "/graph-memory", icon: Network },
@@ -103,7 +103,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       >
         {/* Logo */}
         <div className={cn(
-          "flex h-14 items-center border-b",
+          "flex h-12 items-center border-b",
           collapsed ? "justify-center" : "px-4"
         )}>
           <Link href="/" className="flex items-center gap-2.5">

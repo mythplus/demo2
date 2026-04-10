@@ -95,11 +95,21 @@ export default function UsersPage() {
     fetchUsers();
   }, []);
 
-  // 搜索过滤
-  const filteredUsers = users.filter((u) => {
-    if (!searchText.trim()) return true;
-    return u.user_id.toLowerCase().includes(searchText.toLowerCase());
-  });
+  // 搜索过滤 + 前缀匹配优先排序
+  const filteredUsers = users
+    .filter((u) => {
+      if (!searchText.trim()) return true;
+      return u.user_id.toLowerCase().includes(searchText.toLowerCase());
+    })
+    .sort((a, b) => {
+      if (!searchText.trim()) return 0;
+      const keyword = searchText.toLowerCase();
+      const aStartsWith = a.user_id.toLowerCase().startsWith(keyword);
+      const bStartsWith = b.user_id.toLowerCase().startsWith(keyword);
+      if (aStartsWith && !bStartsWith) return -1;
+      if (!aStartsWith && bStartsWith) return 1;
+      return 0;
+    });
 
   // 分页计算
   const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
@@ -118,7 +128,7 @@ export default function UsersPage() {
     if (!deleteUserId) return;
     setDeleteLoading(true);
     try {
-      await mem0Api.deleteAllMemories(deleteUserId);
+      await mem0Api.hardDeleteUser(deleteUserId);
       setDeleteDialogOpen(false);
       setDeleteUserId("");
       fetchUsers();

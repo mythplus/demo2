@@ -16,6 +16,7 @@ const pageTitles: Record<string, string> = {
   "/data-transfer": "数据导出",
   "/graph-memory": "图谱记忆",
   "/settings": "系统设置",
+  "/playground": "调试台",
 };
 
 function getPageTitle(pathname: string): string {

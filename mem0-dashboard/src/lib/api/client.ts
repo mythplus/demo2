@@ -227,11 +227,21 @@ export const mem0Api = {
   },
 
   /**
-   * 删除用户的所有记忆
+   * 删除用户的所有记忆（软删除）
    * @param userId 用户 ID
    */
   async deleteAllMemories(userId: string): Promise<DeleteResponse> {
     return request<DeleteResponse>(`/v1/memories/?user_id=${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+    });
+  },
+
+  /**
+   * 硬删除用户：物理删除该用户及其所有记忆数据（不可恢复）
+   * @param userId 用户 ID
+   */
+  async hardDeleteUser(userId: string): Promise<DeleteResponse> {
+    return request<DeleteResponse>(`/v1/memories/user/${encodeURIComponent(userId)}/hard-delete`, {
       method: "DELETE",
     });
   },

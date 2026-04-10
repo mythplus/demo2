@@ -21,6 +21,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { mem0Api } from "@/lib/api";
 import type {
   PlaygroundMessage,
@@ -240,7 +247,7 @@ export default function PlaygroundPage() {
   const [isGenerating, setIsGenerating] = useState(false);
 
   // 用户选择
-  const [userId, setUserId] = useState("default_user");
+  const [userId, setUserId] = useState("");
   const [users, setUsers] = useState<string[]>([]);
 
   // 记忆侧边栏
@@ -480,188 +487,180 @@ export default function PlaygroundPage() {
   };
 
   return (
-    <div className="flex h-full flex-col">
-      {/* 页面标题区域 — 与其他页面风格统一 */}
-      <div className="border-b bg-background px-6 py-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">调试台</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              与 AI 进行记忆增强对话，实时查看记忆的检索与存储过程
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleClear}
-              disabled={messages.length === 0}
-            >
-              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-              清空对话
-            </Button>
-            {!sidebarOpen && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSidebarOpen(true)}
-              >
-                <PanelRightOpen className="mr-1.5 h-3.5 w-3.5" />
-                记忆面板
-              </Button>
-            )}
-          </div>
-        </div>
+    <div className="space-y-6">
+      {/* 页面标题区域 — 与其他页面统一 */}
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight">调试台</h2>
+        <p className="text-sm text-muted-foreground">
+          与 AI 进行记忆增强对话，实时查看记忆的检索与存储过程
+        </p>
       </div>
 
-      {/* 主内容区域 */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* 对话区域 */}
-        <div className="flex flex-1 flex-col min-w-0">
-          {/* 用户选择栏 */}
-          <div className="flex items-center gap-3 border-b bg-muted/30 px-6 py-2.5">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <MessageSquare className="h-4 w-4" />
-              <span className="font-medium">对话用户</span>
-            </div>
-            <Separator orientation="vertical" className="h-5" />
-            <UserCombobox
-              value={userId}
-              users={users}
-              onChange={handleUserChange}
-              placeholder="选择用户..."
-            />
-            {isGenerating && (
-              <>
+      {/* 对话主体区域 — Card 包裹 */}
+      <Card className="overflow-hidden">
+        <div className="flex" style={{ height: "calc(100vh - 13rem)" }}>
+          {/* 对话区域 */}
+          <div className="flex flex-1 flex-col min-w-0">
+            {/* 用户选择栏 */}
+            <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-2.5">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium text-foreground">对话用户</span>
+                </div>
                 <Separator orientation="vertical" className="h-5" />
-                <div className="flex items-center gap-1.5 text-xs text-primary">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  <span>AI 正在回复...</span>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* 消息列表 */}
-          <div
-            ref={messagesContainerRef}
-            className="relative flex-1 overflow-y-auto"
-          >
-            {messages.length === 0 ? (
-              /* 空状态引导 */
-              <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 mb-5">
-                  <Sparkles className="h-8 w-8 text-primary" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">开始对话</h3>
-                <p className="text-sm text-muted-foreground max-w-md mb-8 leading-relaxed">
-                  在下方输入消息开始与 AI 对话。AI 会自动记住你说过的重要信息，
-                  并在后续对话中运用这些记忆，提供个性化的回复。
-                </p>
-                <div className="grid grid-cols-2 gap-3 max-w-lg">
-                  {[
-                    "你好，我叫小明，我是一名前端工程师",
-                    "我喜欢蓝色，最近在学 React",
-                    "帮我推荐一本技术书籍",
-                    "我住在北京，喜欢吃火锅",
-                  ].map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      className="rounded-xl border bg-card px-4 py-3 text-left text-[13px] text-muted-foreground hover:bg-muted hover:text-foreground hover:border-primary/20 transition-all"
-                      onClick={() => {
-                        setInputValue(suggestion);
-                        inputRef.current?.focus();
-                      }}
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="max-w-3xl mx-auto space-y-6 px-6 py-6">
-                {messages.map((msg) => (
-                  <MessageBubble
-                    key={msg.id}
-                    message={msg}
-                    onShowMemories={handleShowMemories}
-                  />
-                ))}
-                <div ref={messagesEndRef} />
-              </div>
-            )}
-
-            {/* 滚动到底部按钮 */}
-            {showScrollDown && (
-              <div className="sticky bottom-4 flex justify-center pointer-events-none">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="rounded-full shadow-lg pointer-events-auto"
-                  onClick={scrollToBottom}
-                >
-                  <ArrowDown className="mr-1 h-3.5 w-3.5" />
-                  回到底部
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {/* 输入区域 */}
-          <div className="border-t bg-background px-6 py-4">
-            <div className="max-w-3xl mx-auto">
-              <div className="flex items-end gap-3 rounded-xl border bg-muted/30 p-2 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/30 transition-all">
-                <textarea
-                  ref={inputRef}
-                  value={inputValue}
-                  onChange={handleInputChange}
-                  onKeyDown={handleKeyDown}
-                  placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
-                  className="flex-1 resize-none bg-transparent px-2 py-1.5 text-sm leading-relaxed placeholder:text-muted-foreground/50 focus:outline-none"
-                  rows={1}
-                  style={{ maxHeight: "120px" }}
-                  disabled={isGenerating}
+                <UserCombobox
+                  value={userId}
+                  users={users}
+                  onChange={handleUserChange}
+                  placeholder="选择用户"
                 />
-                {isGenerating ? (
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="default"
+                  onClick={handleClear}
+                  disabled={messages.length === 0}
+                  className="gap-1.5"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  清空对话
+                </Button>
+                {!sidebarOpen && (
                   <Button
-                    variant="destructive"
-                    size="icon"
-                    className="h-8 w-8 rounded-lg shrink-0"
-                    onClick={handleStop}
-                    title="停止生成"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSidebarOpen(true)}
+                    className="h-7 gap-1.5 text-xs"
                   >
-                    <Square className="h-3 w-3 fill-current" />
-                  </Button>
-                ) : (
-                  <Button
-                    size="icon"
-                    className="h-8 w-8 rounded-lg shrink-0"
-                    onClick={handleSend}
-                    disabled={!inputValue.trim()}
-                    title="发送消息"
-                  >
-                    <Send className="h-3.5 w-3.5" />
+                    <PanelRightOpen className="h-3.5 w-3.5" />
+                    记忆面板
                   </Button>
                 )}
               </div>
-              <p className="mt-2 text-center text-[11px] text-muted-foreground/40">
-                AI 会自动提取对话中的关键信息作为记忆存储
-              </p>
+            </div>
+
+            {/* 消息列表 */}
+            <div
+              ref={messagesContainerRef}
+              className="relative flex-1 overflow-y-auto"
+            >
+              {messages.length === 0 ? (
+                /* 空状态引导 */
+                <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 mb-5">
+                    <Sparkles className="h-8 w-8 text-primary" />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">开始对话</h3>
+                  <p className="text-sm text-muted-foreground max-w-md mb-8 leading-relaxed">
+                    在下方输入消息开始与 AI 对话。AI 会自动记住你说过的重要信息，
+                    并在后续对话中运用这些记忆，提供个性化的回复。
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 max-w-lg">
+                    {[
+                      "你好，我叫小明，我是一名前端工程师",
+                      "我喜欢蓝色，最近在学 React",
+                      "帮我推荐一本技术书籍",
+                      "我住在北京，喜欢吃火锅",
+                    ].map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        className="rounded-xl border bg-card px-4 py-3 text-left text-[13px] text-muted-foreground hover:bg-muted hover:text-foreground hover:border-primary/20 transition-all"
+                        onClick={() => {
+                          setInputValue(suggestion);
+                          inputRef.current?.focus();
+                        }}
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="max-w-3xl mx-auto space-y-6 px-6 py-6">
+                  {messages.map((msg) => (
+                    <MessageBubble
+                      key={msg.id}
+                      message={msg}
+                      onShowMemories={handleShowMemories}
+                    />
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
+              )}
+
+              {/* 滚动到底部按钮 */}
+              {showScrollDown && (
+                <div className="sticky bottom-4 flex justify-center pointer-events-none">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="rounded-full shadow-lg pointer-events-auto"
+                    onClick={scrollToBottom}
+                  >
+                    <ArrowDown className="mr-1 h-3.5 w-3.5" />
+                    回到底部
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* 输入区域 */}
+            <div className="border-t bg-background px-6 py-4">
+              <div className="max-w-3xl mx-auto">
+                <div className="flex items-end gap-3 rounded-xl border bg-muted/30 p-2 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/30 transition-all">
+                  <textarea
+                    ref={inputRef}
+                    value={inputValue}
+                    onChange={handleInputChange}
+                    onKeyDown={handleKeyDown}
+                    placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
+                    className="flex-1 resize-none bg-transparent px-2 py-1.5 text-sm leading-relaxed placeholder:text-muted-foreground/50 focus:outline-none"
+                    rows={1}
+                    style={{ maxHeight: "120px" }}
+                    disabled={isGenerating}
+                  />
+                  {isGenerating ? (
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="h-8 w-8 rounded-lg shrink-0"
+                      onClick={handleStop}
+                      title="停止生成"
+                    >
+                      <Square className="h-3 w-3 fill-current" />
+                    </Button>
+                  ) : (
+                    <Button
+                      size="icon"
+                      className="h-8 w-8 rounded-lg shrink-0"
+                      onClick={handleSend}
+                      disabled={!inputValue.trim()}
+                      title="发送消息"
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+                <p className="mt-2 text-center text-[11px] text-muted-foreground/40">
+                  AI 会自动提取对话中的关键信息作为记忆存储
+                </p>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* 记忆侧边栏 */}
-        <MemorySidebar
-          open={sidebarOpen}
-          onToggle={() => setSidebarOpen(false)}
-          userMemories={userMemories}
-          loadingMemories={loadingMemories}
-          onRefresh={loadUserMemories}
-          highlightMemoryIds={highlightMemoryIds}
-        />
-      </div>
+          {/* 记忆侧边栏 */}
+          <MemorySidebar
+            open={sidebarOpen}
+            onToggle={() => setSidebarOpen(false)}
+            userMemories={userMemories}
+            loadingMemories={loadingMemories}
+            onRefresh={loadUserMemories}
+            highlightMemoryIds={highlightMemoryIds}
+          />
+        </div>
+      </Card>
     </div>
   );
 }
-
