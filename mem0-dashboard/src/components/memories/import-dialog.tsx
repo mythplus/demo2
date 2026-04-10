@@ -307,10 +307,10 @@ export function ImportDialog({
             }
           }
         } catch (err) {
-          // 请求被 abort 时，后端可能已处理完毕，将这些条目计入成功
-          // （abort 只是前端不再等待响应，后端不会回滚已处理的记忆）
+          // 请求被 abort 时，无法确认后端实际处理了多少条
+          // 将这些条目视为"跳过"（既不计入 success 也不计入 failed），
+          // 这样取消导入时状态才能正确反映为"已取消"或"部分成功"
           if (cancelledRef.current) {
-            result.success += batch.length;
             return;
           }
           // 当前批次整体请求失败（非取消导致的真实错误）
@@ -653,8 +653,9 @@ export function ImportDialog({
                   variant="destructive"
                   onClick={() => {
                     cancelledRef.current = true;
-                    // 不调用 abortController.abort()，让当前窗口内已发出的请求自然完成
-                    // 这样可以确保前端统计与后端实际处理的数量一致
+                    // 立即 abort 当前正在进行的网络请求，让 await Promise.all 马上返回
+                    // 这样用户点击取消后不需要等待当前批次请求完成
+                    abortControllerRef.current?.abort();
                   }}
                 >
                   <Ban className="mr-1.5 h-4 w-4" />

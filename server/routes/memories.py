@@ -485,8 +485,51 @@ async def delete_all_memories(
     try:
         m = get_memory()
         if user_id:
-            m.delete_all(user_id=user_id)
-            return {"message": f"用户 {user_id} 的所有记忆已删除"}
+            # 分页滚动软删除该用户的所有记忆（mem0 的 delete_all 默认只删 100 条）
+            from qdrant_client.models import Filter, FieldCondition, MatchValue
+            collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+            qdrant_client = m.vector_store.client
+            total_deleted = 0
+            offset = None  # scroll 游标
+            while True:
+                records, next_offset = qdrant_client.scroll(
+                    collection_name=collection_name,
+                    scroll_filter=Filter(
+                        must=[
+                            FieldCondition(key="user_id", match=MatchValue(value=user_id)),
+                        ],
+                        must_not=[
+                            FieldCondition(key="metadata.state", match=MatchValue(value="deleted")),
+                        ],
+                    ),
+                    limit=100,
+                    offset=offset,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+                if not records:
+                    break
+                for point in records:
+                    mid = str(point.id)
+                    payload = point.payload or {}
+                    metadata = dict(payload.get("metadata", {}) or {})
+                    old_memory_text = payload.get("data", "")
+                    old_categories = metadata.get("categories", [])
+                    # 软删除：标记 state 为 deleted
+                    metadata["state"] = "deleted"
+                    qdrant_client.set_payload(
+                        collection_name=collection_name,
+                        payload={"metadata": metadata},
+                        points=[mid],
+                    )
+                    save_change_log(mid, "DELETE", old_memory_text, old_categories)
+                    total_deleted += 1
+                # 如果没有下一页游标，说明已经遍历完毕
+                if next_offset is None:
+                    break
+                offset = next_offset
+            invalidate_stats_cache()
+            return {"message": f"用户 {user_id} 的所有记忆已删除（共 {total_deleted} 条）"}
         else:
             # 无 user_id 时必须显式确认，防止误删全部数据
             if not confirm:

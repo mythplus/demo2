@@ -579,7 +579,7 @@ detail: `页面刷新，导入中断`,
           refreshCount();
           // 根据取消/成功/失败判断状态
           const status = info.wasCancelled
-            ? (info.successCount > 0 ? "成功" : "已取消")
+            ? (info.successCount > 0 ? "部分成功" : "已取消")
             : info.failedCount === 0
               ? "成功"
               : info.successCount === 0
