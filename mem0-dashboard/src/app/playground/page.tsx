@@ -37,22 +37,7 @@ import type {
   Memory,
 } from "@/lib/api";
 import { UserCombobox } from "@/components/shared/user-combobox";
-
-// ============ 类型定义 ============
-
-/** 对话消息（前端扩展，包含记忆信息） */
-interface ChatMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  timestamp: Date;
-  /** 该轮对话检索到的记忆 */
-  retrievedMemories?: PlaygroundRetrievedMemory[];
-  /** 该轮对话新增的记忆 */
-  newMemories?: PlaygroundNewMemory[];
-  /** 是否正在生成中 */
-  loading?: boolean;
-}
+import { usePlaygroundChat, type ChatMessage } from "@/hooks/use-playground-chat";
 
 // ============ 辅助函数 ============
 
@@ -245,14 +230,14 @@ function MemorySidebar({
 // ============ 主页面 ============
 
 export default function PlaygroundPage() {
-  // 对话状态
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputValue, setInputValue] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-
   // 用户选择
   const [userId, setUserId] = useState("");
   const [users, setUsers] = useState<string[]>([]);
+
+  // 对话状态（IndexedDB 持久化）
+  const { messages, loaded: chatLoaded, updateMessages, clearMessages, flushSave } = usePlaygroundChat(userId);
+  const [inputValue, setInputValue] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // 记忆侧边栏
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -357,7 +342,7 @@ export default function PlaygroundPage() {
       loading: true,
     };
 
-    setMessages((prev) => [...prev, userMsg, aiMsg]);
+    updateMessages((prev) => [...prev, userMsg, aiMsg]);
 
     const history: PlaygroundMessage[] = messages.map((m) => ({
       role: m.role,
@@ -379,7 +364,7 @@ export default function PlaygroundPage() {
         (event: PlaygroundSSEEvent) => {
           switch (event.type) {
             case "memories":
-              setMessages((prev) =>
+              updateMessages((prev) =>
                 prev.map((m) =>
                   m.id === aiMsgId
                     ? { ...m, retrievedMemories: event.retrieved_memories }
@@ -391,7 +376,7 @@ export default function PlaygroundPage() {
               break;
 
             case "content":
-              setMessages((prev) =>
+              updateMessages((prev) =>
                 prev.map((m) =>
                   m.id === aiMsgId
                     ? { ...m, content: m.content + event.content }
@@ -401,13 +386,16 @@ export default function PlaygroundPage() {
               break;
 
             case "done":
-              setMessages((prev) =>
-                prev.map((m) =>
+              updateMessages((prev) => {
+                const updated = prev.map((m) =>
                   m.id === aiMsgId
                     ? { ...m, loading: false, newMemories: event.new_memories }
                     : m
-                )
-              );
+                );
+                // AI 回复完成，立即强制保存到 IndexedDB
+                flushSave(updated);
+                return updated;
+              });
               // 收到 done 事件后立即解锁输入框，不等待 SSE 流关闭
               setIsGenerating(false);
               abortControllerRef.current = null;
@@ -417,7 +405,7 @@ export default function PlaygroundPage() {
               break;
 
             case "error":
-              setMessages((prev) =>
+              updateMessages((prev) =>
                 prev.map((m) =>
                   m.id === aiMsgId
                     ? { ...m, content: `⚠️ 错误: ${event.error}`, loading: false }
@@ -434,7 +422,7 @@ export default function PlaygroundPage() {
       );
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
-        setMessages((prev) =>
+        updateMessages((prev) =>
           prev.map((m) =>
             m.id === aiMsgId
               ? { ...m, content: m.content || "（已取消）", loading: false }
@@ -442,7 +430,7 @@ export default function PlaygroundPage() {
           )
         );
       } else {
-        setMessages((prev) =>
+        updateMessages((prev) =>
           prev.map((m) =>
             m.id === aiMsgId
               ? {
@@ -465,13 +453,13 @@ export default function PlaygroundPage() {
   };
 
   const handleClear = () => {
-    setMessages([]);
+    clearMessages();
     setHighlightMemoryIds(new Set());
   };
 
   const handleUserChange = (newUserId: string) => {
     setUserId(newUserId);
-    setMessages([]);
+    // 切换用户时，对话记录会由 usePlaygroundChat 自动从 IndexedDB 加载
     setHighlightMemoryIds(new Set());
   };
 
