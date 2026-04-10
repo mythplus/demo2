@@ -11,12 +11,20 @@ const DB_VERSION = 1;
 /** 对象仓库名称 */
 const STORE_NAME = "records";
 
+/** 操作记录状态（与页面中的状态展示保持一致） */
+export type OperationRecordStatus =
+  | "成功"
+  | "失败"
+  | "导入中"
+  | "部分成功"
+  | "已取消";
+
 /** 操作记录类型（与页面中保持一致） */
 export interface OperationRecord {
   id: string;
   type: "导入" | "导出";
   time: string;
-  status: "成功" | "失败" | "导入中";
+  status: OperationRecordStatus;
   filename: string;
   blob: Blob | null;
   detail?: string;

@@ -69,11 +69,14 @@ import type {
   GraphStatsResponse,
   GraphHealthResponse,
 } from "@/lib/api";
-import type { ForceGraphViewerHandle } from "@/components/graph/force-graph-viewer";
+import type {
+  ForceGraphViewerHandle,
+  ForceGraphViewerProps,
+} from "@/components/graph/force-graph-viewer";
 
 // 动态导入图谱可视化组件（完全禁用 SSR，避免 window is not defined）
-const ForceGraphViewerDynamic = dynamic(
-  () => import("@/components/graph/force-graph-viewer"),
+const ForceGraphViewerDynamic = dynamic<ForceGraphViewerProps>(
+  () => import("@/components/graph/force-graph-viewer").then((mod) => mod.default),
   {
     ssr: false,
     loading: () => (
@@ -85,7 +88,10 @@ const ForceGraphViewerDynamic = dynamic(
 );
 
 // 包装动态组件以支持 ref 转发
-const ForceGraphViewer = React.forwardRef<ForceGraphViewerHandle, any>(
+const ForceGraphViewer = React.forwardRef<
+  ForceGraphViewerHandle,
+  Omit<ForceGraphViewerProps, "forwardedRef">
+>(
   (props, ref) => <ForceGraphViewerDynamic {...props} forwardedRef={ref} />
 );
 ForceGraphViewer.displayName = "ForceGraphViewer";

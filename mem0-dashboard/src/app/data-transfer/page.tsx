@@ -757,6 +757,11 @@ const bgCompleteUserLabel = existingRecord?.detail?.match(/「[^」]+」/)?.[0] 
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             导入中
                           </span>
+                        ) : record.status === "已取消" ? (
+                          <span className="inline-flex items-center gap-1 text-muted-foreground">
+                            <XCircle className="h-3.5 w-3.5" />
+                            已取消
+                          </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400">
                             <XCircle className="h-3.5 w-3.5" />

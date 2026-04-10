@@ -4,7 +4,7 @@ import React, { useRef, useEffect, useState, useCallback, useImperativeHandle, f
 import ForceGraph2D from "react-force-graph-2d";
 import { Loader2 } from "lucide-react";
 
-interface GraphNode {
+export interface GraphNode {
   id: string;
   name: string;
   user_id?: string;
@@ -14,14 +14,14 @@ interface GraphNode {
   y?: number;
 }
 
-interface GraphLink {
+export interface GraphLink {
   source: string;
   target: string;
   relation: string;
   color?: string;
 }
 
-interface ForceGraphViewerProps {
+export interface ForceGraphViewerProps {
   nodes: GraphNode[];
   links: GraphLink[];
   onNodeClick?: (node: GraphNode) => void;

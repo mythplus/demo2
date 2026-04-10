@@ -41,9 +41,9 @@ import { usePreferences } from "@/hooks/use-preferences";
 
 export default function SettingsPage() {
   const { preferences, savePreferences, resetPreferences } = usePreferences();
+  const apiUrl = process.env.NEXT_PUBLIC_MEM0_API_URL || "http://localhost:8080";
 
   // API 连接测试
-  const [apiUrl, setApiUrl] = useState("");
   const [testStatus, setTestStatus] = useState<
     "idle" | "testing" | "success" | "error"
   >("idle");
@@ -56,10 +56,6 @@ export default function SettingsPage() {
   const [llmTestResult, setLlmTestResult] = useState<ServiceTestResponse | null>(null);
   const [embedderTestStatus, setEmbedderTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [embedderTestResult, setEmbedderTestResult] = useState<ServiceTestResponse | null>(null);
-
-  useEffect(() => {
-    setApiUrl(preferences.apiUrl);
-  }, [preferences.apiUrl]);
 
   // 获取配置信息
   const fetchConfigInfo = useCallback(async () => {
@@ -147,7 +143,7 @@ export default function SettingsPage() {
       <div>
         <h2 className="text-2xl font-bold tracking-tight">系统设置</h2>
         <p className="text-sm text-muted-foreground">
-          配置 API 连接、显示偏好
+          查看 API 连接信息、显示偏好
         </p>
       </div>
 
@@ -156,21 +152,21 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
-            API 连接配置
+            API 连接信息
           </CardTitle>
           <CardDescription>
-            配置 Mem0 API Server 的连接地址
+            查看前端当前使用的 Mem0 API Server 连接地址，并验证服务连通性
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">API 地址</label>
+            <label className="text-sm font-medium">当前 API 地址</label>
             <div className="flex gap-3">
               <Input
                 value={apiUrl}
-                onChange={(e) => setApiUrl(e.target.value)}
-                placeholder="http://localhost:8080"
-                className="flex-1"
+                readOnly
+                title={apiUrl}
+                className="flex-1 bg-muted"
               />
               <Button onClick={handleTestConnection} variant="outline">
                 {testStatus === "testing" ? (
@@ -198,7 +194,7 @@ export default function SettingsPage() {
             {testStatus === "error" && (
               <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
                 <XCircle className="h-4 w-4" />
-                连接失败，请检查 API 地址和服务状态
+                连接失败，请检查环境变量配置和服务状态
               </div>
             )}
           </div>
@@ -207,11 +203,11 @@ export default function SettingsPage() {
 
           <div className="rounded-lg bg-muted px-4 py-3">
             <p className="text-xs text-muted-foreground">
-              💡 API 地址通过环境变量{" "}
+              💡 当前地址由环境变量{" "}
               <code className="rounded bg-background px-1 py-0.5">
                 NEXT_PUBLIC_MEM0_API_URL
               </code>{" "}
-              配置。修改后需要重启前端服务才能生效。启动 Mem0 API Server：
+              控制。如需修改，请调整环境变量并重启前端服务。启动 Mem0 API Server：
               <code className="ml-1 rounded bg-background px-1 py-0.5">
                 mem0 server start --port 8080
               </code>

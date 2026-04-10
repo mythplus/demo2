@@ -10,21 +10,35 @@ export interface UserPreferences {
   sortOrder: "newest" | "oldest";
   /** 主题模式 */
   themeMode: "light" | "dark";
-  /** API 地址 */
-  apiUrl: string;
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
   pageSize: 10,
   sortOrder: "newest",
   themeMode: "light",
-  apiUrl: "http://localhost:8080",
 };
 
 const STORAGE_KEY = "mem0-preferences";
 
 /** 自定义事件名，用于同一页面内跨组件同步 */
 const SYNC_EVENT = "mem0-preferences-sync";
+
+function normalizePreferences(raw: unknown): UserPreferences {
+  if (!raw || typeof raw !== "object") {
+    return { ...DEFAULT_PREFERENCES };
+  }
+
+  const parsed = raw as Partial<UserPreferences> & { themeMode?: string };
+
+  return {
+    pageSize:
+      typeof parsed.pageSize === "number"
+        ? parsed.pageSize
+        : DEFAULT_PREFERENCES.pageSize,
+    sortOrder: parsed.sortOrder === "oldest" ? "oldest" : "newest",
+    themeMode: parsed.themeMode === "dark" ? "dark" : "light",
+  };
+}
 
 /**
  * 全局用户偏好设置 Hook
@@ -40,17 +54,9 @@ export function usePreferences() {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        const parsed = JSON.parse(saved);
-        // 兼容旧数据：如果存储的是 "system"，自动迁移为 "light"
-        if (parsed.themeMode === "system") {
-          parsed.themeMode = "light";
-        }
-        setPreferences({ ...DEFAULT_PREFERENCES, ...parsed });
-      }
-      // 也读取环境变量中的 API 地址
-      const envUrl = process.env.NEXT_PUBLIC_MEM0_API_URL;
-      if (envUrl && !saved) {
-        setPreferences((prev) => ({ ...prev, apiUrl: envUrl }));
+        const normalized = normalizePreferences(JSON.parse(saved));
+        setPreferences(normalized);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
       }
     } catch {
       // 忽略解析错误
@@ -64,11 +70,7 @@ export function usePreferences() {
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed.themeMode === "system") {
-            parsed.themeMode = "light";
-          }
-          setPreferences({ ...DEFAULT_PREFERENCES, ...parsed });
+          setPreferences(normalizePreferences(JSON.parse(saved)));
         }
       } catch {
         // 忽略
