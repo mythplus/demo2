@@ -121,11 +121,11 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 页面标题区域 */}
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">仪表盘</h2>
-        <p className="text-muted-foreground">系统概览与核心指标</p>
+        <h2 className="text-xl font-bold tracking-tight">仪表盘</h2>
+        <p className="text-sm text-muted-foreground">系统概览与核心指标</p>
       </div>
 
       {/* 连接状态提示 */}
@@ -210,7 +210,7 @@ export default function DashboardPage() {
       {stats && <StatsCharts stats={stats} />}
 
       {/* 最近记忆 + 用户排行 */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         {/* 最近记忆 */}
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between pb-3">

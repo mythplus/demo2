@@ -188,10 +188,10 @@ export default function SearchPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 页面头部 */}
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">语义检索</h2>
+        <h2 className="text-xl font-bold tracking-tight">语义检索</h2>
         <p className="text-sm text-muted-foreground">
           使用自然语言检索已存储的记忆，基于语义相似度智能匹配
         </p>
@@ -199,7 +199,7 @@ export default function SearchPage() {
 
       {/* 搜索栏 */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="pt-4">
           <form
             onSubmit={(e) => {
               e.preventDefault();

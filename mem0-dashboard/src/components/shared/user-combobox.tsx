@@ -54,7 +54,7 @@ export function UserCombobox({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm hover:bg-accent/50 transition-colors"
+        className="flex h-8 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm hover:bg-accent/50 transition-colors"
       >
         <span className={value ? "text-foreground truncate" : "text-muted-foreground"}>
           {value || placeholder}

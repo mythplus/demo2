@@ -573,14 +573,14 @@ async def delete_all_memories(
 
 @router.delete("/v1/memories/user/{user_id}/hard-delete")
 async def hard_delete_user(user_id: str):
-    """硬删除用户：物理删除该用户的所有记忆数据（不可恢复）"""
+    """硬删除用户：物理删除该用户的所有记忆数据和图谱数据（不可恢复）"""
     try:
         from qdrant_client.models import Filter, FieldCondition, MatchValue, PointIdsList
         m = get_memory()
         collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
         qdrant_client = m.vector_store.client
         total_deleted = 0
-        # 分页滚动物理删除该用户的所有记忆（包括已软删除的）
+        # 1. 分页滚动物理删除该用户在 Qdrant 中的所有记忆（包括已软删除的）
         while True:
             records, _ = qdrant_client.scroll(
                 collection_name=collection_name,
@@ -601,9 +601,26 @@ async def hard_delete_user(user_id: str):
                 points_selector=PointIdsList(points=ids),
             )
             total_deleted += len(ids)
+
+        # 2. 清理 Neo4j 中该用户的所有图谱实体和关系
+        graph_deleted = 0
+        try:
+            from server.services.graph_service import neo4j_query
+            result = neo4j_query(
+                "MATCH (n {user_id: $user_id}) DETACH DELETE n RETURN count(n) AS deleted",
+                {"user_id": user_id},
+            )
+            if result:
+                graph_deleted = result[0].get("deleted", 0)
+            logger.info(f"已清理用户 {user_id} 的图谱数据（删除 {graph_deleted} 个实体及其关系）")
+        except Exception as graph_err:
+            logger.warning(f"清理用户 {user_id} 的图谱数据失败（不影响记忆删除）: {graph_err}")
+
         invalidate_stats_cache()
         logger.info(f"已硬删除用户 {user_id} 的所有记忆（共 {total_deleted} 条）")
-        return {"message": f"用户 {user_id} 及其所有记忆已永久删除（共 {total_deleted} 条）"}
+        return {
+            "message": f"用户 {user_id} 及其所有数据已永久删除（记忆 {total_deleted} 条，图谱实体 {graph_deleted} 个）"
+        }
     except Exception as e:
         logger.error(f"硬删除用户失败: {e}")
         raise HTTPException(status_code=500, detail=_safe_error_detail(e))

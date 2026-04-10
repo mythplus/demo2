@@ -143,10 +143,10 @@ export default function UsersPage() {
   const totalMemories = users.reduce((sum, u) => sum + u.memory_count, 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 页面头部 */}
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">用户管理</h2>
+        <h2 className="text-xl font-bold tracking-tight">用户管理</h2>
         <p className="text-sm text-muted-foreground">
           查看和管理所有拥有记忆的用户，数据从记忆中自动聚合
         </p>

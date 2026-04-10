@@ -85,7 +85,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
           />
 
           {/* 页面内容 */}
-          <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+          <main className="flex-1 overflow-y-auto p-3 md:p-4">
             {children}
           </main>
         </div>

@@ -12,7 +12,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from server.config import MEM0_CONFIG
-from server.services.memory_service import memory_service, auto_categorize_memory
+from server.services import memory_service
+from server.services.memory_service import auto_categorize_memory
 
 logger = logging.getLogger(__name__)
 

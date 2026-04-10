@@ -108,10 +108,10 @@ export default function MemoriesPage() {
   } = useMemoriesPage();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 页面头部 */}
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">记忆管理</h2>
+        <h2 className="text-xl font-bold tracking-tight">记忆管理</h2>
         <p className="text-sm text-muted-foreground">
           管理所有存储的记忆条目，支持添加、编辑、删除操作
         </p>
@@ -119,7 +119,7 @@ export default function MemoriesPage() {
 
       {/* 筛选栏 */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="pt-4">
           <div className="space-y-3">
             {/* 搜索框 */}
             <div className="relative">

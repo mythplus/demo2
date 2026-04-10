@@ -142,13 +142,13 @@ export function StatsCharts({ stats }: StatsChartsProps) {
       </Card>
 
       {/* 状态分布饼图 */}
-      {hasAnyStateData && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">状态分布</CardTitle>
-            <CardDescription>各状态的记忆数量</CardDescription>
-          </CardHeader>
-          <CardContent>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">状态分布</CardTitle>
+          <CardDescription>各状态的记忆数量</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {hasAnyStateData ? (
             <div className="flex items-center gap-4">
               <div className="w-[180px] shrink-0">
                 <ResponsiveContainer width="100%" height={180}>
@@ -193,9 +193,13 @@ export function StatsCharts({ stats }: StatsChartsProps) {
                 ))}
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <div className="flex items-center justify-center h-[220px] text-sm text-muted-foreground">
+              暂无状态数据
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* 记忆增长趋势折线图 */}
       <Card className="md:col-span-2">

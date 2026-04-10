@@ -161,7 +161,7 @@ function MemorySidebar({
     >
       {open && (
         <>
-          <div className="flex items-center justify-between border-b px-4 py-3">
+          <div className="flex items-center justify-between border-b px-4 h-12">
             <div className="flex items-center gap-2">
               <Brain className="h-4 w-4 text-primary" />
               <span className="text-sm font-semibold">用户记忆</span>
@@ -502,7 +502,7 @@ export default function PlaygroundPage() {
           {/* 对话区域 */}
           <div className="flex flex-1 flex-col min-w-0">
             {/* 用户选择栏 */}
-            <div className="flex items-center justify-between border-b px-4 py-3">
+            <div className="flex items-center justify-between border-b px-4 h-12">
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 text-sm">
                   <MessageSquare className="h-4 w-4 text-muted-foreground" />
@@ -519,12 +519,12 @@ export default function PlaygroundPage() {
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
-                  size="default"
+                  size="sm"
                   onClick={handleClear}
                   disabled={messages.length === 0}
-                  className="gap-1.5"
+                  className="h-8 gap-1.5"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-3.5 w-3.5" />
                   清空对话
                 </Button>
                 {!sidebarOpen && (
