@@ -21,7 +21,7 @@ from server.services.graph_service import close_neo4j_driver
 from server.middleware.auth import ApiKeyAuthMiddleware
 from server.middleware.rate_limit import RateLimitMiddleware
 from server.middleware.request_log import RequestLogMiddleware
-from server.routes import health, memories, search, stats, logs, graph
+from server.routes import health, memories, search, stats, logs, graph, playground
 
 logger = logging.getLogger(__name__)
 
@@ -61,11 +61,24 @@ async def lifespan(app: FastAPI):
 
 # ============ FastAPI 应用 ============
 
+# ============ Swagger 分类标签（控制 /docs 页面的分组顺序和描述） ============
+
+openapi_tags = [
+    {"name": "记忆管理", "description": "记忆的增删改查、批量导入/删除、修改历史"},
+    {"name": "语义检索", "description": "基于向量嵌入的语义相似度搜索"},
+    {"name": "统计", "description": "全局统计（分类/状态分布、趋势）"},
+    {"name": "日志", "description": "访问日志、请求日志"},
+    {"name": "图谱记忆", "description": "Neo4j 知识图谱实体/关系管理"},
+    {"name": "调试台", "description": "AI 记忆增强对话调试"},
+    {"name": "系统", "description": "健康检查、配置信息、服务测试"},
+]
+
 app = FastAPI(
     title="Mem0 Dashboard API",
     description="Mem0 记忆管理后端服务（Qdrant 本地文件模式）",
     version="1.1.0",
     lifespan=lifespan,
+    openapi_tags=openapi_tags,
 )
 
 # ============ 全局异常处理 ============
@@ -122,3 +135,4 @@ app.include_router(search.router)
 app.include_router(stats.router)
 app.include_router(logs.router)
 app.include_router(graph.router)
+app.include_router(playground.router)

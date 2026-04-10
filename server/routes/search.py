@@ -13,7 +13,7 @@ from server.services.memory_service import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(tags=["语义检索"])
 
 
 @router.post("/v1/memories/search/")

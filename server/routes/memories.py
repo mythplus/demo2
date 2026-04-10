@@ -24,7 +24,7 @@ from server.services.log_service import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(tags=["记忆管理"])
 
 
 @router.post("/v1/memories/")

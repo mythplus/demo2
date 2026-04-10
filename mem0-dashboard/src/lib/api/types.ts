@@ -416,3 +416,49 @@ export interface BatchDeleteResponse {
     error?: string;
   }>;
 }
+
+// ============ Playground 对话 ============
+
+/** Playground 对话消息 */
+export interface PlaygroundMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+}
+
+/** Playground 对话请求 */
+export interface PlaygroundChatRequest {
+  message: string;
+  user_id?: string;
+  history?: PlaygroundMessage[];
+  memory_limit?: number;
+  stream?: boolean;
+}
+
+/** Playground 检索到的记忆 */
+export interface PlaygroundRetrievedMemory {
+  id: string;
+  memory: string;
+  score: number;
+  user_id?: string;
+}
+
+/** Playground 新增的记忆 */
+export interface PlaygroundNewMemory {
+  id: string;
+  memory: string;
+  event: "ADD" | "UPDATE";
+}
+
+/** Playground 对话响应（非流式） */
+export interface PlaygroundChatResponse {
+  reply: string;
+  retrieved_memories: PlaygroundRetrievedMemory[];
+  new_memories: PlaygroundNewMemory[];
+}
+
+/** Playground SSE 事件类型 */
+export type PlaygroundSSEEvent =
+  | { type: "memories"; retrieved_memories: PlaygroundRetrievedMemory[] }
+  | { type: "content"; content: string }
+  | { type: "done"; new_memories: PlaygroundNewMemory[] }
+  | { type: "error"; error: string };

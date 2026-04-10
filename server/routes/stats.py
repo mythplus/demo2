@@ -16,7 +16,7 @@ from server.services.memory_service import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(tags=["统计"])
 
 _STATS_CACHE_TTL = 30  # 统计数据缓存 30 秒
 

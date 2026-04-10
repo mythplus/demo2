@@ -16,7 +16,7 @@ from server.services.graph_service import get_neo4j_driver
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(tags=["系统"])
 
 
 def _mask_url(url: str) -> str:

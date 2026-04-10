@@ -14,6 +14,7 @@ import {
   Activity,
   Database,
   Network,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ const navItems = [
   { title: "仪表盘", href: "/", icon: LayoutDashboard },
   { title: "记忆管理", href: "/memories", icon: Brain },
   { title: "语义检索", href: "/search", icon: Search },
+  { title: "调试台", href: "/playground", icon: MessageSquare },
   { title: "用户管理", href: "/users", icon: Users },
   { title: "请求日志", href: "/requests", icon: Activity },
   { title: "图谱记忆", href: "/graph-memory", icon: Network },

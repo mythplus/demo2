@@ -13,7 +13,7 @@ from server.services.graph_service import get_neo4j_driver, neo4j_query
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(tags=["图谱记忆"])
 
 
 @router.get("/v1/graph/stats")

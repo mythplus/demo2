@@ -33,6 +33,9 @@ import type {
   GraphHealthResponse,
   ConfigInfoResponse,
   ServiceTestResponse,
+  PlaygroundChatRequest,
+  PlaygroundChatResponse,
+  PlaygroundSSEEvent,
 } from "./types";
 
 // API 基础地址
@@ -455,5 +458,78 @@ export const mem0Api = {
    */
   async testEmbedderConnection(): Promise<ServiceTestResponse> {
     return request<ServiceTestResponse>("/v1/config/test-embedder");
+  },
+
+  // ============ Playground 对话 ============
+
+  /**
+   * Playground 非流式对话
+   */
+  async playgroundChat(data: PlaygroundChatRequest): Promise<PlaygroundChatResponse> {
+    return request<PlaygroundChatResponse>("/v1/playground/chat", {
+      method: "POST",
+      body: JSON.stringify(data),
+      timeout: 120000,
+    });
+  },
+
+  /**
+   * Playground 流式对话（SSE）
+   * 返回一个 ReadableStream，调用方通过 EventSource 或手动解析 SSE 消息
+   */
+  async playgroundChatStream(
+    data: PlaygroundChatRequest,
+    onEvent: (event: PlaygroundSSEEvent) => void,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const url = `${API_BASE}/v1/playground/chat/stream`;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (API_KEY) {
+      headers["X-API-Key"] = API_KEY;
+    }
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(data),
+      signal,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
+      throw new Error(typeof error.detail === "string" ? error.detail : JSON.stringify(error.detail));
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("无法获取响应流");
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const eventData = JSON.parse(line.slice(6));
+              onEvent(eventData as PlaygroundSSEEvent);
+            } catch {
+              // 忽略解析失败的行
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
   },
 };

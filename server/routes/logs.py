@@ -14,7 +14,7 @@ from server.services.log_service import get_access_logs, get_request_logs, _get_
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(tags=["日志"])
 
 
 @router.get("/v1/access-logs/")
