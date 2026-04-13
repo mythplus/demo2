@@ -256,6 +256,20 @@ async def _send_webhook(
             )
             raise Exception(f"HTTP {response.status_code}")
 
+        # 企业微信 API 返回 HTTP 200 但 errcode != 0 时也视为失败
+        if _is_wecom_bot(url):
+            try:
+                resp_json = response.json()
+                errcode = resp_json.get("errcode", 0)
+                errmsg = resp_json.get("errmsg", "")
+                if errcode != 0:
+                    logger.warning(
+                        f"Webhook 企业微信返回错误 [{webhook.get('name')}]: errcode={errcode}, errmsg={errmsg}"
+                    )
+                    raise Exception(f"企业微信错误: errcode={errcode}, errmsg={errmsg}")
+            except (ValueError, KeyError):
+                pass  # 非 JSON 响应，忽略
+
         logger.info(f"Webhook 推送成功 [{webhook.get('name')}]: {event_type}")
 
     except Exception as e:

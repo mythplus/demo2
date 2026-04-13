@@ -58,7 +58,7 @@ function fromPersisted(msg: PersistedChatMessage): ChatMessage {
 }
 
 /**
- * 自定义 Hook：调试台对话持久化管理
+ * 自定义 Hook：Playground 对话持久化管理
  *
  * 将 IndexedDB 持久化存储与 React 状态同步，
  * 页面加载时自动从 IndexedDB 恢复对话记录，

@@ -2,6 +2,7 @@
 语义搜索 + 关联记忆路由
 """
 
+import asyncio
 import logging
 from fastapi import APIRouter, HTTPException, Query
 
@@ -10,6 +11,7 @@ from server.models.schemas import SearchMemoryRequest
 from server.services.memory_service import (
     get_memory, format_mem0_result, get_real_states,
 )
+from server.services import webhook_service, memory_service as _mem_svc
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +61,19 @@ async def search_memories(request: SearchMemoryRequest):
             if mid in real_states:
                 item["state"] = real_states[mid]
         formatted = [item for item in formatted if item.get("state", "active") != "deleted"]
+
+        # 触发 Webhook（后台异步，不阻塞响应）
+        try:
+            _wh_data = {
+                "user_id": request.user_id or "",
+                "memory": f"语义检索: {request.query[:200]}",
+                "result_count": len(formatted),
+            }
+            asyncio.ensure_future(
+                webhook_service.trigger_webhooks("memory.searched", _wh_data, _mem_svc.http_client)
+            )
+        except Exception:
+            pass
 
         return {"results": formatted}
     except Exception as e:

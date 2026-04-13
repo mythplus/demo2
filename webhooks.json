@@ -1,0 +1,18 @@
+[
+  {
+    "id": "wh_1776050391105_wyri7i",
+    "name": "test-try",
+    "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=2b3206c0-f724-4f5c-95f0-782a2bee7ceb",
+    "enabled": true,
+    "events": [
+      "memory.added",
+      "memory.updated",
+      "memory.deleted",
+      "memory.searched"
+    ],
+    "secret": "123456",
+    "created_at": "2026-04-13T11:19:51.426372",
+    "last_triggered": "2026-04-13T11:39:35.816454",
+    "last_status": "success"
+  }
+]

@@ -69,7 +69,7 @@ openapi_tags = [
     {"name": "统计", "description": "全局统计（分类/状态分布、趋势）"},
     {"name": "日志", "description": "访问日志、请求日志"},
     {"name": "图谱记忆", "description": "Neo4j 知识图谱实体/关系管理"},
-    {"name": "调试台", "description": "AI 记忆增强对话调试"},
+{"name": "Playground", "description": "AI 记忆增强对话调试"},
     {"name": "系统", "description": "健康检查、配置信息、服务测试"},
 ]
 

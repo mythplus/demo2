@@ -1,7 +1,7 @@
 /**
- * IndexedDB 封装工具 —— 调试台对话持久化存储
+ * IndexedDB 封装工具 —— Playground 对话持久化存储
  *
- * 使用浏览器原生 IndexedDB 存储调试台的对话会话记录，
+ * 使用浏览器原生 IndexedDB 存储 Playground 的对话会话记录，
  * 页面刷新或切换页面后数据不丢失。
  */
 

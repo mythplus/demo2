@@ -486,7 +486,7 @@ export default function PlaygroundPage() {
     <div className="space-y-4">
       {/* 页面标题区域 — 与其他页面统一 */}
       <div>
-        <h2 className="text-xl font-bold tracking-tight">调试台</h2>
+        <h2 className="text-xl font-bold tracking-tight">Playground</h2>
         <p className="text-sm text-muted-foreground">
           与 AI 进行记忆增强对话，实时查看记忆的检索与存储过程
         </p>

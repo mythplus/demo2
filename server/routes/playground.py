@@ -18,7 +18,7 @@ from server.services.memory_service import auto_categorize_memory
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/v1/playground", tags=["调试台"])
+router = APIRouter(prefix="/v1/playground", tags=["Playground"])
 
 
 # ============ 请求/响应模型 ============

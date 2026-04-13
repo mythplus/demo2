@@ -29,7 +29,7 @@ import {
 // 导航菜单配置
 const navItems = [
   { title: "仪表盘", href: "/", icon: LayoutDashboard },
-  { title: "调试台", href: "/playground", icon: MessageSquare },
+{ title: "Playground", href: "/playground", icon: MessageSquare },
   { title: "记忆管理", href: "/memories", icon: Brain },
   { title: "语义检索", href: "/search", icon: Search },
   { title: "用户管理", href: "/users", icon: Users },
