@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { DeleteConfirmDialog } from "@/components/memories/delete-confirm-dialog";
+import { toast } from "@/hooks/use-toast";
 import { mem0Api } from "@/lib/api";
 import type { Memory, UserInfo } from "@/lib/api";
 
@@ -129,11 +130,21 @@ export default function UsersPage() {
     setDeleteLoading(true);
     try {
       await mem0Api.hardDeleteUser(deleteUserId);
+      toast({
+        title: "删除成功",
+        description: `用户 "${deleteUserId.length > 20 ? deleteUserId.slice(0, 20) + "..." : deleteUserId}" 及其所有数据已永久删除`,
+        variant: "success",
+      });
       setDeleteDialogOpen(false);
       setDeleteUserId("");
       fetchUsers();
     } catch (err) {
       console.error("删除失败:", err);
+      toast({
+        title: "删除失败",
+        description: err instanceof Error ? err.message : "未知错误",
+        variant: "destructive",
+      });
     } finally {
       setDeleteLoading(false);
     }

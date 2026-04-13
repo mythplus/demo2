@@ -187,38 +187,46 @@ def _is_wecom_bot(url: str) -> bool:
 
 
 def _build_wecom_payload(event_type: str, data: dict) -> dict:
-    """构建企业微信群机器人消息格式 — 纯色简约风格"""
+    """构建企业微信群机器人消息格式 — 结构化键值对风格"""
     memory_text = data.get("memory", "")[:150]
-    user_id = data.get("user_id", "") or "—"
-    memory_id = data.get("memory_id", "")[:12]
-    now_str = datetime.now().strftime("%m/%d %H:%M")
+    user_id = data.get("user_id", "") or ""
+    memory_id = data.get("memory_id", "")
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # 纯色标题：用 font color 控制颜色
+    # 事件配置
     event_config = {
-        "memory.added":    {"label": "新增记忆", "color": "info"},
-        "memory.updated":  {"label": "更新记忆", "color": "warning"},
-        "memory.deleted":  {"label": "删除记忆", "color": "comment"},
-        "memory.searched": {"label": "语义检索", "color": "info"},
-        "user.hard_deleted": {"label": "用户删除", "color": "comment"},
+        "memory.added":      {"label": "新增记忆", "color": "info"},
+        "memory.updated":    {"label": "更新记忆", "color": "info"},
+        "memory.deleted":    {"label": "删除记忆", "color": "warning"},
+        "memory.searched":   {"label": "语义检索", "color": "info"},
+        "user.hard_deleted": {"label": "用户删除", "color": "warning"},
     }
     cfg = event_config.get(event_type, {"label": event_type, "color": "info"})
 
     lines = []
 
     # 标题行
-    lines.append(f'<font color="{cfg["color"]}">**[ {cfg["label"]} ]**</font>')
+    lines.append(f'<font color="{cfg["color"]}">**[{cfg["label"]}]**</font>')
+    lines.append("")  # 空行分隔
 
-    # 信息区
-    if user_id != "—":
-        lines.append(f"用户: <font color=\"info\">{user_id}</font>")
+    # 事件类型
+    lines.append(f'**事件：**{cfg["label"]}')
+
+    # 用户
+    if user_id:
+        lines.append(f'**用户：**<font color="info">{user_id}</font>')
+
+    # 记忆ID
     if memory_id:
-        lines.append(f"ID: `{memory_id}`")
+        lines.append(f'**记忆ID：**{memory_id}')
+
+    # 内容
     if memory_text:
         display = memory_text if len(memory_text) <= 80 else memory_text[:77] + "..."
-        lines.append(f"> {display}")
+        lines.append(f'**内容：**{display}')
 
     # 时间
-    lines.append(f'<font color="comment">{now_str}</font>')
+    lines.append(f'**时间：**{now_str}')
 
     return {
         "msgtype": "markdown",

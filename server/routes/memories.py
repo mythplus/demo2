@@ -127,7 +127,17 @@ async def add_memory(request: AddMemoryRequest):
 
         # 触发 Webhook（后台异步，不阻塞响应）
         try:
-            _wh_data = {"user_id": request.user_id or "", "memory": " ".join(msg.content for msg in request.messages)[:200]}
+            # 提取新增记忆的 ID 列表
+            _added_ids = []
+            if isinstance(result, dict) and "results" in result:
+                _added_ids = [r.get("id", "") for r in result["results"] if r.get("id")]
+            elif isinstance(result, list):
+                _added_ids = [r.get("id", "") for r in result if r.get("id")]
+            _wh_data = {
+                "user_id": request.user_id or "",
+                "memory": " ".join(msg.content for msg in request.messages)[:200],
+                "memory_id": ", ".join(_added_ids) if _added_ids else "",
+            }
             asyncio.ensure_future(webhook_service.trigger_webhooks("memory.added", _wh_data, _mem_svc.http_client))
         except Exception:
             pass
