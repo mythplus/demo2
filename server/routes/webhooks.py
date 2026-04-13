@@ -63,7 +63,7 @@ async def get_webhook(webhook_id: str):
 async def create_webhook(request: WebhookCreateRequest):
     """创建 Webhook"""
     # 校验事件类型
-    valid_events = {"memory.added", "memory.updated", "memory.deleted", "memory.searched", "user.hard_deleted"}
+    valid_events = {"memory.added", "memory.updated", "memory.deleted", "memory.searched", "user.hard_deleted", "memory.batch_imported", "memory.batch_deleted"}
     invalid = [e for e in request.events if e not in valid_events]
     if invalid:
         raise HTTPException(status_code=400, detail=f"无效的事件类型: {invalid}")

@@ -24,7 +24,7 @@ export function useMemoriesPage() {
 
   // ============ 筛选状态 ============
   const [searchText, setSearchText] = useState("");
-  const [filters, setFilters] = useState<FilterParams>({});
+  const [filters, setFilters] = useState<FilterParams>({ state: "active" });
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(preferences.pageSize);
   const [jumpPage, setJumpPage] = useState("");

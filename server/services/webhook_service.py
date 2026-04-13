@@ -163,8 +163,8 @@ async def validate_webhook_url(
         test_wh = {"url": url, "name": "验证测试"}
         test_data = {
             "memory_id": "validate_test",
-            "memory": "🔗 Webhook 连通性验证（此消息用于验证 URL 是否可用，可忽略）",
-            "user_id": "system",
+            "memory": "Webhook 连通性验证（此消息用于验证 URL 是否可用，可忽略）",
+            "user_id": "test",
             "event": "test",
         }
         await _send_webhook(client, test_wh, "memory.added", test_data)
@@ -195,11 +195,13 @@ def _build_wecom_payload(event_type: str, data: dict) -> dict:
 
     # 事件配置
     event_config = {
-        "memory.added":      {"label": "新增记忆", "color": "info"},
-        "memory.updated":    {"label": "更新记忆", "color": "info"},
-        "memory.deleted":    {"label": "删除记忆", "color": "warning"},
-        "memory.searched":   {"label": "语义检索", "color": "info"},
-        "user.hard_deleted": {"label": "用户删除", "color": "warning"},
+        "memory.added":          {"label": "新增记忆", "color": "info"},
+        "memory.updated":        {"label": "更新记忆", "color": "info"},
+        "memory.deleted":        {"label": "删除记忆", "color": "warning"},
+        "memory.searched":       {"label": "语义检索", "color": "info"},
+        "user.hard_deleted":     {"label": "用户删除", "color": "warning"},
+        "memory.batch_imported": {"label": "批量导入", "color": "info"},
+        "memory.batch_deleted":  {"label": "批量删除", "color": "warning"},
     }
     cfg = event_config.get(event_type, {"label": event_type, "color": "info"})
 

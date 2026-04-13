@@ -367,6 +367,20 @@ export function ImportDialog({
         result.errors.push(`用户取消导入，跳过 ${result.skipped} 条记忆`);
       }
       setImportStage(wasCancelled ? "导入已取消" : "导入完成！");
+
+      // 所有批次完成后，发送 Webhook 汇总通知（无论是否取消，只要有成功/失败都通知）
+      if (result.success > 0 || result.failed > 0) {
+        try {
+          await mem0Api.batchImportNotify({
+            total: items.length,
+            success: result.success,
+            failed: result.failed,
+            skipped: result.skipped,
+          });
+        } catch {
+          // Webhook 通知失败不影响导入结果
+        }
+      }
     } catch (err) {
       // 整个导入流程异常（不太可能走到这里，但作为兜底）
       result.failed = items.length - result.success;

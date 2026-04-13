@@ -66,7 +66,7 @@ async def search_memories(request: SearchMemoryRequest):
         try:
             _wh_data = {
                 "user_id": request.user_id or "",
-                "memory": f"语义检索: {request.query[:200]}",
+                "memory": request.query[:200],
                 "result_count": len(formatted),
             }
             asyncio.ensure_future(

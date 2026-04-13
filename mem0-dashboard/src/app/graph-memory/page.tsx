@@ -652,7 +652,7 @@ export default function GraphMemoryPage() {
           <Card>
             <CardHeader>
               <div className="flex items-center gap-4">
-                <CardTitle className="text-lg">实体列表</CardTitle>
+                <CardTitle className="text-sm font-semibold">实体列表</CardTitle>
                 <div className="flex items-center gap-2">
                   <Input
                     placeholder="搜索实体名称..."
@@ -737,7 +737,7 @@ export default function GraphMemoryPage() {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base">关系列表</CardTitle>
+<CardTitle className="text-sm font-semibold">关系列表</CardTitle>
                 <div className="flex items-center gap-2">
                   <Input
                     placeholder="搜索实体名称..."
@@ -811,7 +811,7 @@ export default function GraphMemoryPage() {
         <TabsContent value="distribution">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">关系类型分布</CardTitle>
+<CardTitle className="text-sm font-semibold">关系类型分布</CardTitle>
               <CardDescription>各类关系的数量统计</CardDescription>
             </CardHeader>
             <CardContent>

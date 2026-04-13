@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { mem0Api } from "@/lib/api";
+import { DeleteConfirmDialog } from "@/components/memories/delete-confirm-dialog";
 
 // ============ 类型 ============
 
@@ -53,6 +54,8 @@ const EVENT_TYPES = [
   { value: "memory.deleted", label: "记忆删除", description: "当记忆被删除时触发" },
   { value: "memory.searched", label: "记忆检索", description: "当执行语义搜索时触发" },
   { value: "user.hard_deleted", label: "用户删除", description: "当用户被删除（永久清除所有数据）时触发" },
+  { value: "memory.batch_imported", label: "批量导入", description: "当通过数据导入批量创建记忆时触发" },
+  { value: "memory.batch_deleted", label: "批量删除", description: "当在记忆管理中批量删除记忆时触发" },
 ];
 
 function generateId(): string {
@@ -69,6 +72,11 @@ export default function WebhooksPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  // 删除确认弹窗状态
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // 表单状态
   const [formName, setFormName] = useState("");
@@ -167,12 +175,24 @@ export default function WebhooksPage() {
     }
   };
 
-  // 删除
-  const handleDelete = async (id: string) => {
+  // 删除（打开确认弹窗）
+  const handleDeleteClick = (id: string) => {
+    setDeleteTargetId(id);
+    setDeleteDialogOpen(true);
+  };
+
+  // 确认删除
+  const handleConfirmDelete = async () => {
+    if (!deleteTargetId) return;
+    setDeleteLoading(true);
     try {
-      await mem0Api.deleteWebhook(id);
+      await mem0Api.deleteWebhook(deleteTargetId);
       fetchWebhooks();
-    } catch {}
+    } catch {} finally {
+      setDeleteLoading(false);
+      setDeleteDialogOpen(false);
+      setDeleteTargetId(null);
+    }
   };
 
   // 启用/禁用
@@ -236,30 +256,30 @@ export default function WebhooksPage() {
       {/* 统计概览 */}
       <div className="grid gap-3 grid-cols-3">
         <Card>
-          <CardContent className="flex items-center gap-3 py-3">
-            <Webhook className="h-4 w-4 text-muted-foreground" />
-            <div>
-              <p className="text-lg font-bold">{webhooks.length}</p>
-              <p className="text-xs text-muted-foreground">Webhook 总数</p>
+          <CardContent className="py-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Webhook className="h-4 w-4" />
+              Webhook 总数
             </div>
+            <p className="text-lg font-bold mt-1">{webhooks.length}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="flex items-center gap-3 py-3">
-            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-            <div>
-              <p className="text-lg font-bold">{enabledCount}</p>
-              <p className="text-xs text-muted-foreground">已启用</p>
+          <CardContent className="py-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+              已启用
             </div>
+            <p className="text-lg font-bold mt-1">{enabledCount}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="flex items-center gap-3 py-3">
-            <AlertCircle className="h-4 w-4 text-muted-foreground" />
-            <div>
-              <p className="text-lg font-bold">{webhooks.length - enabledCount}</p>
-              <p className="text-xs text-muted-foreground">已禁用</p>
+          <CardContent className="py-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <AlertCircle className="h-4 w-4" />
+              已禁用
             </div>
+            <p className="text-lg font-bold mt-1">{webhooks.length - enabledCount}</p>
           </CardContent>
         </Card>
       </div>
@@ -274,7 +294,7 @@ export default function WebhooksPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {formError && (
-              <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">
+              <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/15 border border-destructive/30 rounded-md px-3 py-2">
                 <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                 {formError}
               </div>
@@ -418,7 +438,7 @@ export default function WebhooksPage() {
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(webhook)} title="编辑">
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDelete(webhook.id)} title="删除">
+<Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(webhook.id)} title="删除">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -465,6 +485,15 @@ export default function WebhooksPage() {
           )}
         </CardContent>
       </Card>
+      {/* 删除确认弹窗 */}
+      <DeleteConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleConfirmDelete}
+        loading={deleteLoading}
+        title="删除 Webhook"
+        description={`确定要删除该 Webhook 吗？删除后将不再接收事件通知，此操作不可撤销。`}
+      />
     </div>
   );
 }

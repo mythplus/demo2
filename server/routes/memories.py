@@ -7,6 +7,7 @@ import logging
 from typing import Optional, Dict, Any, List
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from server.config import MEM0_CONFIG, VALID_CATEGORIES, VALID_STATES, _safe_error_detail
 from server.models.schemas import (
@@ -261,12 +262,41 @@ async def batch_import_memories(request: BatchImportRequest):
     failed_count = len(results) - success_count
 
     invalidate_stats_cache()
+
+    # Webhook 由前端在所有批次完成后调用 /v1/memories/batch-import-notify 统一触发
+
     return BatchImportResponse(
         total=len(request.items),
         success=success_count,
         failed=failed_count,
         results=list(results),
     )
+
+
+# ============ 批量导入 Webhook 汇总通知 ============
+
+class _BatchImportNotifyRequest(BaseModel):
+    """批量导入完成后的 Webhook 汇总通知请求"""
+    total: int = Field(..., description="全局总条数")
+    success: int = Field(..., description="全局成功条数")
+    failed: int = Field(..., description="全局失败条数")
+    skipped: int = Field(0, description="全局跳过条数（用户取消导入时未处理的）")
+
+@router.post("/v1/memories/batch-import-notify")
+async def batch_import_notify(request: _BatchImportNotifyRequest):
+    """批量导入完成后发送 Webhook 汇总通知（前端在所有批次完成后调用）"""
+    try:
+        parts = [f"批量导入 {request.total} 条记忆，成功 {request.success} 条，失败 {request.failed} 条"]
+        if request.skipped > 0:
+            parts.append(f"跳过 {request.skipped} 条")
+        _wh_data = {
+            "memory": "，".join(parts),
+            "memory_id": "",
+        }
+        asyncio.ensure_future(webhook_service.trigger_webhooks("memory.batch_imported", _wh_data, _mem_svc.http_client))
+    except Exception:
+        pass
+    return {"message": "通知已发送"}
 
 
 @router.get("/v1/memories/")
@@ -658,7 +688,7 @@ async def hard_delete_user(user_id: str):
         try:
             _wh_data = {
                 "user_id": user_id,
-                "memory": f"用户 {user_id} 已被硬删除（记忆 {total_deleted} 条，图谱实体 {graph_deleted} 个）",
+"memory": f"用户 {user_id} 已被删除（记忆 {total_deleted} 条，图谱实体 {graph_deleted} 个）",
                 "event_detail": "hard_delete_user",
                 "deleted_memories_count": total_deleted,
                 "deleted_graph_entities_count": graph_deleted,
@@ -748,6 +778,21 @@ async def batch_delete_memories(request: BatchDeleteRequest):
             pass
 
     invalidate_stats_cache()
+
+    # 触发 Webhook（批量删除汇总通知）
+    try:
+        # 记忆ID列表截断显示，避免消息过长
+        _id_summary = ", ".join(to_delete_ids[:5])
+        if len(to_delete_ids) > 5:
+            _id_summary += f" ...等共 {len(to_delete_ids)} 条"
+        _wh_data = {
+            "memory": f"批量删除 {len(request.memory_ids)} 条记忆，成功 {success_count} 条，失败 {failed_count} 条",
+            "memory_id": _id_summary,
+        }
+        asyncio.ensure_future(webhook_service.trigger_webhooks("memory.batch_deleted", _wh_data, _mem_svc.http_client))
+    except Exception:
+        pass
+
     return BatchDeleteResponse(
         total=len(request.memory_ids),
         success=success_count,

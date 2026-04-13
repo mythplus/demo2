@@ -158,6 +158,17 @@ export const mem0Api = {
   },
 
   /**
+   * 批量导入完成后发送 Webhook 汇总通知
+   * @param summary 全局导入汇总信息
+   */
+  async batchImportNotify(summary: { total: number; success: number; failed: number; skipped?: number }): Promise<void> {
+    return request<void>("/v1/memories/batch-import-notify", {
+      method: "POST",
+      body: JSON.stringify(summary),
+    });
+  },
+
+  /**
    * 获取所有记忆（支持多维筛选）
    * @param filters 可选的筛选参数
    */
