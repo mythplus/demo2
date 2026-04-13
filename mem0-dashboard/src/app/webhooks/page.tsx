@@ -52,6 +52,7 @@ const EVENT_TYPES = [
   { value: "memory.updated", label: "记忆更新", description: "当记忆内容或元数据被修改时触发" },
   { value: "memory.deleted", label: "记忆删除", description: "当记忆被删除时触发" },
   { value: "memory.searched", label: "记忆检索", description: "当执行语义搜索时触发" },
+  { value: "user.hard_deleted", label: "用户删除", description: "当用户被删除（永久清除所有数据）时触发" },
 ];
 
 function generateId(): string {
@@ -94,8 +95,13 @@ export default function WebhooksPage() {
     fetchWebhooks();
   }, [fetchWebhooks]);
 
-  // 打开新增表单
+  // 切换新增表单（展开/收起）
   const handleAdd = () => {
+    if (showForm && !editingId) {
+      // 当前已打开新增表单，再次点击则收起
+      setShowForm(false);
+      return;
+    }
     setEditingId(null);
     setFormName("");
     setFormUrl("");
@@ -121,6 +127,16 @@ export default function WebhooksPage() {
     if (!formName.trim()) { setFormError("请输入 Webhook 名称"); return; }
     if (!formUrl.trim()) { setFormError("请输入 Webhook URL"); return; }
     try { new URL(formUrl); } catch { setFormError("请输入合法的 URL"); return; }
+    // 企业微信 URL 校验：key 参数不能为空
+    if (formUrl.includes("qyapi.weixin.qq.com/cgi-bin/webhook/send")) {
+      try {
+        const urlObj = new URL(formUrl);
+        const key = urlObj.searchParams.get("key");
+        if (!key || !key.trim()) {
+          setFormError("企业微信 Webhook URL 的 key 参数不能为空"); return;
+        }
+      } catch { /* URL 格式错误已在上方校验 */ }
+    }
     if (formEvents.length === 0) { setFormError("请至少选择一个触发事件"); return; }
 
     setSaving(true);
@@ -210,7 +226,7 @@ export default function WebhooksPage() {
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             刷新
           </Button>
-          <Button size="sm" onClick={handleAdd}>
+          <Button size="sm" variant={showForm && !editingId ? "default" : "outline"} onClick={handleAdd}>
             <Plus className="mr-1.5 h-4 w-4" />
             添加 Webhook
           </Button>
@@ -264,23 +280,23 @@ export default function WebhooksPage() {
               </div>
             )}
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">名称</label>
-                <Input
-                  placeholder="例如：企微群通知"
-                  value={formName}
-                  onChange={(e) => { setFormName(e.target.value); setFormError(""); }}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Webhook URL</label>
-                <Input
-                  placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..."
-                  value={formUrl}
-                  onChange={(e) => { setFormUrl(e.target.value); setFormError(""); }}
-                />
-              </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">名称</label>
+              <Input
+                placeholder="例如：企微群通知"
+                value={formName}
+                onChange={(e) => { setFormName(e.target.value); setFormError(""); }}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Webhook URL</label>
+              <Input
+                placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..."
+                value={formUrl}
+                onChange={(e) => { setFormUrl(e.target.value); setFormError(""); }}
+                autoComplete="off"
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -289,7 +305,7 @@ export default function WebhooksPage() {
                 placeholder="用于验证请求的 HMAC 签名（企业微信无需填写）"
                 value={formSecret}
                 onChange={(e) => setFormSecret(e.target.value)}
-                type="password"
+                autoComplete="off"
               />
             </div>
 
@@ -336,7 +352,7 @@ export default function WebhooksPage() {
       {/* Webhook 列表 */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Webhook 列表</CardTitle>
+          <CardTitle className="text-lg">Webhook 列表</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -361,7 +377,7 @@ export default function WebhooksPage() {
                 <div
                   key={webhook.id}
                   className={cn(
-                    "rounded-lg border p-4 transition-colors",
+                    "rounded-lg border p-5 transition-colors",
                     webhook.enabled ? "hover:bg-muted/30" : "opacity-60"
                   )}
                 >
@@ -374,71 +390,71 @@ export default function WebhooksPage() {
                         title={webhook.enabled ? "点击禁用" : "点击启用"}
                       >
                         {togglingId === webhook.id ? (
-                          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                         ) : webhook.enabled ? (
-                          <ToggleRight className="h-5 w-5 text-emerald-500" />
+                          <ToggleRight className="h-6 w-6 text-emerald-500" />
                         ) : (
-                          <ToggleLeft className="h-5 w-5 text-muted-foreground" />
+                          <ToggleLeft className="h-6 w-6 text-muted-foreground" />
                         )}
                       </button>
-                      <span className="text-sm font-semibold">{webhook.name}</span>
-                      <Badge variant={webhook.enabled ? "default" : "secondary"} className="text-[10px] h-5">
+                      <span className="text-base font-semibold">{webhook.name}</span>
+                      <Badge variant={webhook.enabled ? "default" : "secondary"} className="text-xs h-5.5 px-2">
                         {webhook.enabled ? "已启用" : "已禁用"}
                       </Badge>
                     </div>
                     <div className="flex items-center gap-1">
                       <Button
-                        variant="ghost" size="icon" className="h-7 w-7"
+                        variant="ghost" size="icon" className="h-8 w-8"
                         onClick={() => handleTest(webhook.id)}
                         disabled={testingId === webhook.id}
                         title="发送测试"
                       >
                         {testingId === webhook.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                          <ExternalLink className="h-3.5 w-3.5" />
+                          <ExternalLink className="h-4 w-4" />
                         )}
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(webhook)} title="编辑">
-                        <Pencil className="h-3.5 w-3.5" />
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(webhook)} title="编辑">
+                        <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(webhook.id)} title="删除">
-                        <Trash2 className="h-3.5 w-3.5" />
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDelete(webhook.id)} title="删除">
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
 
                   {/* URL */}
-                  <div className="mt-2 flex items-center gap-2">
-                    <code className="flex-1 truncate text-xs text-muted-foreground bg-muted rounded px-2 py-1">
+                  <div className="mt-3 flex items-center gap-2">
+                    <code className="flex-1 truncate text-sm text-muted-foreground bg-muted rounded px-3 py-2">
                       {webhook.url}
                     </code>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => handleCopy(webhook.id, webhook.url)} title="复制 URL">
-                      {copiedId === webhook.id ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => handleCopy(webhook.id, webhook.url)} title="复制 URL">
+                      {copiedId === webhook.id ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
                     </Button>
                   </div>
 
                   {/* 事件标签 + 状态 */}
-                  <div className="mt-2.5 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="mt-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2 flex-wrap">
                       {webhook.events.map((event) => {
                         const info = EVENT_TYPES.find((e) => e.value === event);
                         return (
-                          <Badge key={event} variant="outline" className="text-[10px] font-normal">
+                          <Badge key={event} variant="outline" className="text-xs font-normal px-2 py-0.5">
                             {info?.label || event}
                           </Badge>
                         );
                       })}
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
                       {webhook.last_triggered && (
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
+                        <span className="flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5" />
                           {new Date(webhook.last_triggered).toLocaleString("zh-CN", {
                             month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
                           })}
-                          {webhook.last_status === "success" && <CheckCircle2 className="h-3 w-3 text-emerald-500" />}
-                          {webhook.last_status === "failed" && <AlertCircle className="h-3 w-3 text-red-500" />}
+                          {webhook.last_status === "success" && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
+                          {webhook.last_status === "failed" && <AlertCircle className="h-3.5 w-3.5 text-red-500" />}
                         </span>
                       )}
                     </div>

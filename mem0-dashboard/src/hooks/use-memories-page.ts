@@ -165,6 +165,11 @@ export function useMemoriesPage() {
     setDeleteLoading(true);
     try {
       await mem0Api.deleteMemory(selectedMemory.id);
+      toast({
+        title: "删除成功",
+        description: "记忆已成功删除",
+        variant: "success",
+      });
       setDeleteDialogOpen(false);
       setSelectedMemory(null);
       fetchMemories();
@@ -262,6 +267,12 @@ export function useMemoriesPage() {
           title: "部分删除失败",
           description: `成功 ${result.success} 条，失败 ${result.failed} 条`,
           variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "批量删除成功",
+          description: `已成功删除 ${result.success} 条记忆`,
+          variant: "success",
         });
       }
       setBatchDeleteDialogOpen(false);

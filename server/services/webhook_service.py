@@ -127,6 +127,58 @@ def delete_webhook(webhook_id: str) -> bool:
     return True
 
 
+# ============ URL 验证 ============
+
+async def validate_webhook_url(
+    url: str,
+    http_client: Optional[httpx.AsyncClient] = None,
+) -> dict:
+    """
+    验证 Webhook URL 是否可用：
+    - 企业微信 URL：检查 key 参数非空，并发送测试消息验证连通性
+    - 通用 URL：发送 POST 请求验证可达性
+    返回 {"valid": True/False, "message": "..."}
+    """
+    # 1. 基本格式校验
+    try:
+        from urllib.parse import urlparse, parse_qs
+        parsed = urlparse(url)
+        if not parsed.scheme or not parsed.netloc:
+            return {"valid": False, "message": "URL 格式不合法"}
+    except Exception:
+        return {"valid": False, "message": "URL 格式不合法"}
+
+    # 2. 企业微信 URL 特殊校验
+    if _is_wecom_bot(url):
+        qs = parse_qs(parsed.query)
+        key_values = qs.get("key", [])
+        if not key_values or not key_values[0].strip():
+            return {"valid": False, "message": "企业微信 Webhook URL 缺少 key 参数"}
+
+    # 3. 实际发送验证请求
+    client = http_client or httpx.AsyncClient(timeout=10.0)
+    own_client = http_client is None
+
+    try:
+        test_wh = {"url": url, "name": "验证测试"}
+        test_data = {
+            "memory_id": "validate_test",
+            "memory": "🔗 Webhook 连通性验证（此消息用于验证 URL 是否可用，可忽略）",
+            "user_id": "system",
+            "event": "test",
+        }
+        await _send_webhook(client, test_wh, "memory.added", test_data)
+        return {"valid": True, "message": "验证通过"}
+    except Exception as e:
+        err_msg = str(e)
+        if "企业微信错误" in err_msg:
+            return {"valid": False, "message": f"企业微信返回错误: {err_msg}"}
+        return {"valid": False, "message": f"URL 不可达或响应异常: {err_msg}"}
+    finally:
+        if own_client:
+            await client.aclose()
+
+
 # ============ 企业微信检测 ============
 
 def _is_wecom_bot(url: str) -> bool:
@@ -135,34 +187,43 @@ def _is_wecom_bot(url: str) -> bool:
 
 
 def _build_wecom_payload(event_type: str, data: dict) -> dict:
-    """构建企业微信群机器人消息格式"""
-    # 提取关键信息
-    memory_text = data.get("memory", "")[:200]
-    user_id = data.get("user_id", "未知用户")
+    """构建企业微信群机器人消息格式 — 纯色简约风格"""
+    memory_text = data.get("memory", "")[:150]
+    user_id = data.get("user_id", "") or "—"
     memory_id = data.get("memory_id", "")[:12]
+    now_str = datetime.now().strftime("%m/%d %H:%M")
 
-    event_labels = {
-        "memory.added": "📝 新增记忆",
-        "memory.updated": "✏️ 更新记忆",
-        "memory.deleted": "🗑️ 删除记忆",
-        "memory.searched": "🔍 语义检索",
+    # 纯色标题：用 font color 控制颜色
+    event_config = {
+        "memory.added":    {"label": "新增记忆", "color": "info"},
+        "memory.updated":  {"label": "更新记忆", "color": "warning"},
+        "memory.deleted":  {"label": "删除记忆", "color": "comment"},
+        "memory.searched": {"label": "语义检索", "color": "info"},
+        "user.hard_deleted": {"label": "用户删除", "color": "comment"},
     }
-    title = event_labels.get(event_type, f"📌 {event_type}")
+    cfg = event_config.get(event_type, {"label": event_type, "color": "info"})
 
-    content_lines = [
-        f"**{title}**",
-        f"> 用户: {user_id}",
-    ]
+    lines = []
+
+    # 标题行
+    lines.append(f'<font color="{cfg["color"]}">**[ {cfg["label"]} ]**</font>')
+
+    # 信息区
+    if user_id != "—":
+        lines.append(f"用户: <font color=\"info\">{user_id}</font>")
     if memory_id:
-        content_lines.append(f"> ID: `{memory_id}`")
+        lines.append(f"ID: `{memory_id}`")
     if memory_text:
-        content_lines.append(f"> 内容: {memory_text}")
-    content_lines.append(f"> 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        display = memory_text if len(memory_text) <= 80 else memory_text[:77] + "..."
+        lines.append(f"> {display}")
+
+    # 时间
+    lines.append(f'<font color="comment">{now_str}</font>')
 
     return {
         "msgtype": "markdown",
         "markdown": {
-            "content": "\n".join(content_lines),
+            "content": "\n".join(lines),
         },
     }
 

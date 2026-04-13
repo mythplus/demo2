@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Code, Sparkles, Check } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 import { mem0Api } from "@/lib/api";
 import type { Memory, Category } from "@/lib/api";
 import { CATEGORY_LIST } from "@/lib/constants";
@@ -73,6 +74,11 @@ export function EditMemoryDialog({
         text: content.trim(),
         categories: selectedCategories,
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+      });
+      toast({
+        title: "编辑成功",
+        description: "记忆内容已更新",
+        variant: "success",
       });
       onOpenChange(false);
       onSuccess();

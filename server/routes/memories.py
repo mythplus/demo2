@@ -643,6 +643,22 @@ async def hard_delete_user(user_id: str):
 
         invalidate_stats_cache()
         logger.info(f"已硬删除用户 {user_id} 的所有记忆（共 {total_deleted} 条）")
+
+        # 触发 Webhook（硬删除用户）
+        try:
+            _wh_data = {
+                "user_id": user_id,
+                "memory": f"用户 {user_id} 已被硬删除（记忆 {total_deleted} 条，图谱实体 {graph_deleted} 个）",
+                "event_detail": "hard_delete_user",
+                "deleted_memories_count": total_deleted,
+                "deleted_graph_entities_count": graph_deleted,
+            }
+            asyncio.ensure_future(
+                webhook_service.trigger_webhooks("user.hard_deleted", _wh_data, _mem_svc.http_client)
+            )
+        except Exception:
+            pass
+
         return {
             "message": f"用户 {user_id} 及其所有数据已永久删除（记忆 {total_deleted} 条，图谱实体 {graph_deleted} 个）"
         }

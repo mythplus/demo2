@@ -63,10 +63,18 @@ async def get_webhook(webhook_id: str):
 async def create_webhook(request: WebhookCreateRequest):
     """创建 Webhook"""
     # 校验事件类型
-    valid_events = {"memory.added", "memory.updated", "memory.deleted", "memory.searched"}
+    valid_events = {"memory.added", "memory.updated", "memory.deleted", "memory.searched", "user.hard_deleted"}
     invalid = [e for e in request.events if e not in valid_events]
     if invalid:
         raise HTTPException(status_code=400, detail=f"无效的事件类型: {invalid}")
+
+    # 验证 Webhook URL 可用性
+    validation = await webhook_service.validate_webhook_url(
+        request.url,
+        http_client=memory_service.http_client,
+    )
+    if not validation["valid"]:
+        raise HTTPException(status_code=400, detail=f"Webhook URL 验证失败: {validation['message']}，请检查URL的正确性")
 
     data = request.dict()
     result = webhook_service.create_webhook(data)

@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, AlertTriangle, Sparkles, Check } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 import { mem0Api } from "@/lib/api";
 import type { Category, MemoryState, AddMemoryResponse } from "@/lib/api";
 import { CATEGORY_LIST, STATE_LIST, getCategoryInfo } from "@/lib/constants";
@@ -96,6 +97,11 @@ export function AddMemoryDialog({
       setInfer(false);
       setAutoCategorize(true);
       setWarning("");
+      toast({
+        title: "添加成功",
+        description: `已成功添加 ${addedCount} 条记忆`,
+        variant: "success",
+      });
       onOpenChange(false);
       onSuccess();
     } catch (err) {
