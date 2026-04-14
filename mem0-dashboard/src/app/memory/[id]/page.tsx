@@ -530,24 +530,58 @@ export default function MemoryDetailPage() {
               </Button>
 
               {/* 状态切换按钮 */}
-              {memory.state !== "active" && (
+              {memory.state !== "active" && memory.state !== "deleted" && (
                 <Button
                   variant="outline"
                   className="w-full justify-start"
-                  onClick={() => handleStateChange("active")}
+                  onClick={async () => {
+                    try {
+                      await mem0Api.restoreMemories([memoryId]);
+                      fetchMemory();
+                      fetchHistory();
+                    } catch (err) {
+                      console.error("恢复失败:", err);
+                    }
+                  }}
                 >
                   <Play className="mr-2 h-4 w-4" />
-                  设为活跃
+                  恢复为活跃
                 </Button>
               )}
-              {memory.state !== "paused" && memory.state !== "deleted" && (
+              {memory.state === "active" && (
                 <Button
                   variant="outline"
                   className="w-full justify-start"
-                  onClick={() => handleStateChange("paused")}
+                  onClick={async () => {
+                    try {
+                      await mem0Api.pauseMemories([memoryId]);
+                      fetchMemory();
+                      fetchHistory();
+                    } catch (err) {
+                      console.error("暂停失败:", err);
+                    }
+                  }}
                 >
                   <Pause className="mr-2 h-4 w-4" />
                   暂停
+                </Button>
+              )}
+              {memory.state !== "archived" && memory.state !== "deleted" && (
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={async () => {
+                    try {
+                      await mem0Api.archiveMemories([memoryId]);
+                      fetchMemory();
+                      fetchHistory();
+                    } catch (err) {
+                      console.error("归档失败:", err);
+                    }
+                  }}
+                >
+                  <Archive className="mr-2 h-4 w-4" />
+                  归档
                 </Button>
               )}
 

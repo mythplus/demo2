@@ -88,3 +88,17 @@ class GraphSearchRequest(BaseModel):
     query: str = Field(..., max_length=500)  # 图谱搜索查询最大 500 字符
     user_id: Optional[str] = Field(None, max_length=100)
     limit: Optional[int] = Field(20, ge=1, le=200)  # 返回数量限制 1-200
+
+
+class BatchStateChangeRequest(BaseModel):
+    """批量状态变更请求（归档/暂停/恢复等）"""
+    memory_ids: List[str] = Field(..., max_length=100, description="要变更状态的记忆 ID 列表，最多 100 条")
+    operator: Optional[str] = Field(None, max_length=100, description="操作者标识")
+    reason: Optional[str] = Field(None, max_length=500, description="变更原因")
+
+
+class RestoreMemoriesRequest(BaseModel):
+    """恢复记忆请求（从 archived/paused 恢复到 active）"""
+    memory_ids: List[str] = Field(..., max_length=100, description="要恢复的记忆 ID 列表，最多 100 条")
+    operator: Optional[str] = Field(None, max_length=100, description="操作者标识")
+    reason: Optional[str] = Field(None, max_length=500, description="恢复原因")

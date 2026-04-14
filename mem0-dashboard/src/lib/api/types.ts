@@ -113,6 +113,16 @@ export interface MemoryHistory {
   old_categories?: string[];
 }
 
+/** 状态变更历史记录（对齐 openmemory） */
+export interface MemoryStateHistoryItem {
+  memory_id: string;
+  old_state?: MemoryState;
+  new_state: MemoryState;
+  changed_by: string;
+  reason?: string;
+  changed_at: string;
+}
+
 // ============ 筛选参数 ============
 
 /** 多维筛选参数 */
@@ -128,6 +138,7 @@ export interface FilterParams {
   page?: number;
   page_size?: number;
   exclude_state?: MemoryState;
+  show_archived?: boolean;
 }
 
 /** 分页记忆列表响应 */

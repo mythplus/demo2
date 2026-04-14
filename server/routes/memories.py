@@ -14,6 +14,7 @@ from server.models.schemas import (
     AddMemoryRequest, UpdateMemoryRequest,
     BatchImportItem, BatchImportRequest, BatchImportResponse, BatchImportResultItem,
     BatchDeleteRequest, BatchDeleteResponse,
+    BatchStateChangeRequest, RestoreMemoriesRequest,
 )
 from server.services.memory_service import (
     get_memory, disable_graph, get_all_memories_raw, get_memories_page, get_users_summary,
@@ -22,9 +23,13 @@ from server.services.memory_service import (
 )
 from server.services.log_service import (
     log_access, save_change_log, save_category_snapshot, save_memory_audit_snapshot, get_change_logs,
+    get_state_history,
 )
 from server.services import webhook_service, memory_service as _mem_svc
 from server.services import meta_service
+from server.services.memory_state_service import (
+    update_memory_state, batch_update_memory_state, resolve_list_state_filters,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -404,7 +409,7 @@ async def batch_import_notify(request: _BatchImportNotifyRequest):
 async def get_memories(
     user_id: Optional[str] = Query(None),
     categories: Optional[str] = Query(None, description="逗号分隔的分类列表"),
-    state: Optional[str] = Query(None, description="记忆状态: active/paused/deleted"),
+    state: Optional[str] = Query(None, description="记忆状态: active/paused/archived/deleted"),
     date_from: Optional[str] = Query(None, description="起始日期 ISO 格式"),
     date_to: Optional[str] = Query(None, description="截止日期 ISO 格式"),
     search: Optional[str] = Query(None, description="文本搜索关键词"),
@@ -413,16 +418,27 @@ async def get_memories(
     sort_by: Optional[str] = Query("created_at", description="排序字段: created_at/updated_at"),
     sort_order: Optional[str] = Query("desc", description="排序方向: asc/desc"),
     exclude_state: Optional[str] = Query(None, description="排除的记忆状态，如 deleted"),
+    show_archived: bool = Query(False, description="是否在默认列表中显示已归档记忆"),
 ):
-    """获取记忆列表（优先使用服务端过滤；传 page/page_size 时启用服务端分页）"""
+    """获取记忆列表（默认排除 archived 和 deleted，对齐 openmemory 行为）"""
     try:
         cat_list = [c.strip() for c in categories.split(",") if c.strip()] if categories else None
 
+        # 应用默认列表过滤规则（对齐 openmemory：默认排除 archived + deleted）
+        resolved_state, exclude_states = resolve_list_state_filters(
+            state=state, exclude_state=exclude_state, show_archived=show_archived,
+        )
+
+        # 如果有多个排除状态，需要逐个处理（Qdrant 过滤支持多个 must_not）
+        # 当前 build_memory_filter 只支持单个 exclude_state，所以这里用第一个
+        # 如果 resolved_state 有值，exclude_states 为空
+        effective_exclude = exclude_states[0] if exclude_states else None
+
         if page is not None or page_size is not None:
-            return get_memories_page(
+            result = get_memories_page(
                 user_id=user_id,
                 categories=cat_list,
-                state=state,
+                state=resolved_state,
                 date_from=date_from,
                 date_to=date_to,
                 search=search,
@@ -430,20 +446,29 @@ async def get_memories(
                 page_size=page_size or 20,
                 order_by=sort_by or "created_at",
                 order_direction=sort_order or "desc",
-                exclude_state=exclude_state,
+                exclude_state=effective_exclude,
             )
+            # 如果有多个排除状态，客户端侧补充过滤
+            if len(exclude_states) > 1:
+                exclude_set = set(exclude_states)
+                result["items"] = [m for m in result["items"] if m.get("state", "active") not in exclude_set]
+            return result
 
         memories = get_all_memories_raw(
             user_id=user_id,
             categories=cat_list,
-            state=state,
+            state=resolved_state,
             date_from=date_from,
             date_to=date_to,
             search=search,
             order_by=sort_by or "created_at",
             order_direction=sort_order or "desc",
-            exclude_state=exclude_state,
+            exclude_state=effective_exclude,
         )
+        # 如果有多个排除状态，客户端侧补充过滤
+        if len(exclude_states) > 1:
+            exclude_set = set(exclude_states)
+            memories = [m for m in memories if m.get("state", "active") not in exclude_set]
         return memories
     except HTTPException:
         raise
@@ -633,72 +658,44 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
 
 @router.delete("/v1/memories/{memory_id}/")
 async def delete_memory_by_id(memory_id: str):
-    """软删除单条记忆（将 state 标记为 deleted，而非物理删除）"""
+    """软删除单条记忆（通过统一状态服务将 state 标记为 deleted）"""
     try:
-        m = get_memory()
-        collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
-        qdrant_client = m.vector_store.client
+        # 通过统一状态服务执行软删除
+        result = await update_memory_state(
+            memory_id=memory_id,
+            new_state="deleted",
+            operator="user",
+            reason="api_delete",
+        )
 
-        # 先获取当前记忆信息
+        if not result.get("changed", False):
+            raise HTTPException(status_code=400, detail="该记忆已处于删除状态，无法重复删除")
+
+        # 记录 DELETE 事件到修改历史
         try:
-            points = qdrant_client.retrieve(
-                collection_name=collection_name,
-                ids=[memory_id],
-                with_payload=True,
-            )
-            if not points:
-                raise HTTPException(status_code=404, detail="记忆不存在")
+            collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+            qdrant_client = get_memory().vector_store.client
+            points = qdrant_client.retrieve(collection_name=collection_name, ids=[memory_id], with_payload=True)
+            if points:
+                payload = points[0].payload or {}
+                old_memory_text = payload.get("data", "")
+                old_categories = (payload.get("metadata", {}) or {}).get("categories", [])
+                save_change_log(memory_id, "DELETE", old_memory_text, old_categories)
 
-            payload = points[0].payload or {}
-            metadata = payload.get("metadata", {})
-            old_memory_text = payload.get("data", "")
-            old_categories = metadata.get("categories", [])
+                # 触发 Webhook
+                try:
+                    _wh_data = {"memory_id": memory_id, "memory": old_memory_text[:200] if old_memory_text else "", "user_id": payload.get("user_id", "")}
+                    asyncio.ensure_future(webhook_service.trigger_webhooks("memory.deleted", _wh_data, _mem_svc.http_client))
+                except Exception:
+                    pass
+        except Exception as log_err:
+            logger.warning(f"删除后记录日志失败（不影响主流程）: {log_err}")
 
-            # 检查是否已经是 deleted 状态，防止重复删除
-            if metadata.get("state") == "deleted":
-                raise HTTPException(status_code=400, detail="该记忆已处于删除状态，无法重复删除")
-
-            # 将 state 标记为 deleted
-            metadata["state"] = "deleted"
-            qdrant_client.set_payload(
-                collection_name=collection_name,
-                payload={"metadata": metadata},
-                points=[memory_id],
-            )
-
-            # 记录 DELETE 事件到修改历史
-            save_change_log(memory_id, "DELETE", old_memory_text, old_categories)
-
-            # 双写关系库（对齐 OpenMemory 架构）
-            try:
-                await asyncio.to_thread(
-                    meta_service.soft_delete_memory,
-                    memory_id=memory_id,
-                    changed_by=payload.get("user_id", ""),
-                )
-            except Exception as db_err:
-                logger.warning(f"关系库双写删除失败（不影响主流程）: {db_err}")
-
-            logger.info(f"已软删除记忆 {memory_id}")
-            invalidate_stats_cache()
-
-            # 触发 Webhook
-            try:
-                _wh_data = {"memory_id": memory_id, "memory": old_memory_text[:200] if old_memory_text else "", "user_id": payload.get("user_id", "")}
-                asyncio.ensure_future(webhook_service.trigger_webhooks("memory.deleted", _wh_data, _mem_svc.http_client))
-            except Exception:
-                pass
-
-            return {"message": "记忆已删除"}
-        except HTTPException:
-            raise
-        except Exception as inner_err:
-            logger.warning(f"软删除失败，回退到物理删除: {inner_err}")
-            m.delete(memory_id=memory_id)
-            invalidate_stats_cache()
-            return {"message": "记忆已删除"}
+        return {"message": "记忆已删除"}
     except HTTPException:
         raise
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
     except Exception as e:
         logger.error(f"删除记忆失败: {e}")
         raise HTTPException(status_code=500, detail=_safe_error_detail(e))
@@ -1160,4 +1157,214 @@ async def migrate_qdrant_to_db():
             db.close()
     except Exception as e:
         logger.error(f"迁移失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
+
+
+# ============ 状态动作接口（对齐 openmemory） ============
+
+@router.post("/v1/memories/actions/archive")
+async def archive_memories(request: BatchStateChangeRequest):
+    """归档记忆（单条或批量）— 归档后默认列表不再显示，但可通过筛选查到"""
+    try:
+        result = await batch_update_memory_state(
+            memory_ids=request.memory_ids,
+            new_state="archived",
+            operator=request.operator or "user",
+            reason=request.reason or "manual_archive",
+        )
+
+        # 触发 Webhook
+        try:
+            _wh_data = {
+                "memory": f"归档 {result['success']} 条记忆",
+                "memory_id": ", ".join(request.memory_ids[:5]),
+            }
+            asyncio.ensure_future(webhook_service.trigger_webhooks("memory.archived", _wh_data, _mem_svc.http_client))
+        except Exception:
+            pass
+
+        return result
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"归档记忆失败: {e}")
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
+
+
+@router.post("/v1/memories/actions/pause")
+async def pause_memories(request: BatchStateChangeRequest):
+    """暂停记忆（单条或批量）— 暂停后仍在默认列表显示，但不参与语义搜索"""
+    try:
+        result = await batch_update_memory_state(
+            memory_ids=request.memory_ids,
+            new_state="paused",
+            operator=request.operator or "user",
+            reason=request.reason or "manual_pause",
+        )
+
+        # 触发 Webhook
+        try:
+            _wh_data = {
+                "memory": f"暂停 {result['success']} 条记忆",
+                "memory_id": ", ".join(request.memory_ids[:5]),
+            }
+            asyncio.ensure_future(webhook_service.trigger_webhooks("memory.paused", _wh_data, _mem_svc.http_client))
+        except Exception:
+            pass
+
+        return result
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"暂停记忆失败: {e}")
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
+
+
+@router.post("/v1/memories/actions/restore")
+async def restore_memories(request: RestoreMemoriesRequest):
+    """恢复记忆到 active 状态（支持从 archived / paused 恢复，不支持从 deleted 恢复）"""
+    try:
+        collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+        qdrant_client = get_memory().vector_store.client
+        restorable_ids = []
+        rejected = []
+
+        for mid in request.memory_ids:
+            try:
+                points = qdrant_client.retrieve(collection_name=collection_name, ids=[mid], with_payload=True)
+                if not points:
+                    rejected.append({"id": mid, "error": "记忆不存在"})
+                    continue
+                current_state = (points[0].payload or {}).get("metadata", {}).get("state") or "active"
+                if current_state == "deleted":
+                    rejected.append({"id": mid, "error": "已删除的记忆不支持恢复"})
+                elif current_state == "active":
+                    rejected.append({"id": mid, "error": "记忆已经是活跃状态"})
+                else:
+                    restorable_ids.append(mid)
+            except Exception as e:
+                rejected.append({"id": mid, "error": str(e)})
+
+        result = {"total": len(request.memory_ids), "success": 0, "failed": len(rejected), "results": []}
+
+        if restorable_ids:
+            batch_result = await batch_update_memory_state(
+                memory_ids=restorable_ids,
+                new_state="active",
+                operator=request.operator or "user",
+                reason=request.reason or "manual_restore",
+            )
+            result["success"] = batch_result["success"]
+            result["failed"] += batch_result["failed"]
+            result["results"] = batch_result["results"]
+
+        for r in rejected:
+            result["results"].append({"id": r["id"], "success": False, "error": r["error"]})
+
+        # 触发 Webhook
+        try:
+            _wh_data = {
+                "memory": f"恢复 {result['success']} 条记忆",
+                "memory_id": ", ".join(restorable_ids[:5]),
+            }
+            asyncio.ensure_future(webhook_service.trigger_webhooks("memory.restored", _wh_data, _mem_svc.http_client))
+        except Exception:
+            pass
+
+        return result
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"恢复记忆失败: {e}")
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
+
+
+@router.get("/v1/memories/{memory_id}/state-history")
+async def get_memory_state_history(memory_id: str):
+    """获取记忆的状态变更历史"""
+    try:
+        history = get_state_history(memory_id)
+        return {"memory_id": memory_id, "history": history}
+    except Exception as e:
+        logger.error(f"获取状态历史失败: {e}")
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
+
+
+# ============ 数据回填接口 ============
+
+@router.post("/v1/memories/backfill-state/", tags=["系统"])
+async def backfill_memory_state():
+    """回填所有缺 state 的记忆为显式 active（幂等操作）。
+    同时为已有 deleted 状态的记忆补 deleted_at，为 archived 补 archived_at。"""
+    try:
+        collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+        qdrant_client = get_memory().vector_store.client
+
+        total = 0
+        backfilled = 0
+        already_ok = 0
+        errors = 0
+
+        from datetime import datetime as _dt, timezone as _tz
+        now_iso = _dt.now(_tz.utc).isoformat()
+
+        for memory in get_all_memories_raw(order_by="created_at", order_direction="asc"):
+            total += 1
+            mid = memory.get("id", "")
+            if not mid:
+                errors += 1
+                continue
+
+            try:
+                points = qdrant_client.retrieve(collection_name=collection_name, ids=[mid], with_payload=True)
+                if not points:
+                    errors += 1
+                    continue
+
+                metadata = dict((points[0].payload or {}).get("metadata", {}) or {})
+                needs_update = False
+
+                if not metadata.get("state"):
+                    metadata["state"] = "active"
+                    metadata["state_updated_at"] = now_iso
+                    metadata["state_updated_by"] = "system-migration"
+                    needs_update = True
+
+                if metadata.get("state") == "deleted" and not metadata.get("deleted_at"):
+                    metadata["deleted_at"] = now_iso
+                    needs_update = True
+
+                if metadata.get("state") == "archived" and not metadata.get("archived_at"):
+                    metadata["archived_at"] = now_iso
+                    needs_update = True
+
+                if not metadata.get("state_updated_at"):
+                    metadata["state_updated_at"] = now_iso
+                    metadata["state_updated_by"] = "system-migration"
+                    needs_update = True
+
+                if needs_update:
+                    qdrant_client.set_payload(
+                        collection_name=collection_name,
+                        payload={"metadata": metadata},
+                        points=[mid],
+                    )
+                    backfilled += 1
+                else:
+                    already_ok += 1
+            except Exception as e:
+                errors += 1
+                logger.warning(f"回填记忆 {mid} 失败: {e}")
+
+        invalidate_stats_cache()
+
+        return {
+            "message": "回填完成",
+            "total_scanned": total,
+            "backfilled": backfilled,
+            "already_ok": already_ok,
+            "errors": errors,
+        }
+    except Exception as e:
+        logger.error(f"回填失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=_safe_error_detail(e))

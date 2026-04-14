@@ -228,6 +228,22 @@ def init_access_log_db():
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_cat_snap_memory_id ON category_snapshots(memory_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_cat_snap_timestamp ON category_snapshots(timestamp)")
+
+    # 状态变更历史表（对齐 openmemory 的 MemoryStatusHistory）
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS memory_state_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            memory_id TEXT NOT NULL,
+            old_state TEXT,
+            new_state TEXT NOT NULL,
+            changed_by TEXT NOT NULL DEFAULT 'system',
+            reason TEXT NOT NULL DEFAULT '',
+            changed_at TEXT NOT NULL
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_msh_memory_id ON memory_state_history(memory_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_msh_changed_at ON memory_state_history(changed_at)")
+
     conn.commit()
 
 
@@ -520,3 +536,56 @@ def get_request_logs(request_type: str = None, since: str = None, until: str = N
     except Exception as e:
         logger.warning(f"查询请求日志失败: {e}")
         return [], 0
+
+
+# ============ 状态变更历史 ============
+
+def save_state_history(
+    memory_id: str,
+    old_state: str | None,
+    new_state: str,
+    changed_by: str = "system",
+    reason: str = "",
+    changed_at: str = "",
+):
+    """记录一条状态变更历史（同步写入，状态变更是关键路径）"""
+    try:
+        ts = changed_at or datetime.now().isoformat()
+        _flush_log_batch([
+            {
+                "table": "memory_state_history",
+                "sql": """INSERT INTO memory_state_history
+                       (memory_id, old_state, new_state, changed_by, reason, changed_at)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                "params": (memory_id, old_state or "", new_state, changed_by, reason, ts),
+            }
+        ], raise_on_failure=True)
+    except Exception as e:
+        logger.warning(f"记录状态变更历史失败: {e}")
+        raise
+
+
+def get_state_history(memory_id: str) -> list[dict]:
+    """获取某条记忆的状态变更历史（时间正序）"""
+    try:
+        conn = _get_db_conn()
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """SELECT old_state, new_state, changed_by, reason, changed_at
+               FROM memory_state_history WHERE memory_id = ? ORDER BY changed_at ASC""",
+            (memory_id,),
+        ).fetchall()
+        return [
+            {
+                "memory_id": memory_id,
+                "old_state": row["old_state"] or None,
+                "new_state": row["new_state"],
+                "changed_by": row["changed_by"],
+                "reason": row["reason"],
+                "changed_at": row["changed_at"],
+            }
+            for row in rows
+        ]
+    except Exception as e:
+        logger.warning(f"查询状态变更历史失败: {e}")
+        return []
