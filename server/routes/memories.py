@@ -24,6 +24,7 @@ from server.services.log_service import (
     log_access, save_change_log, save_category_snapshot, save_memory_audit_snapshot, get_change_logs,
 )
 from server.services import webhook_service, memory_service as _mem_svc
+from server.services import meta_service
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +141,23 @@ async def add_memory(request: AddMemoryRequest):
                 init_cats = current_meta.get("categories", [])
                 memory_text = item.get("memory", "") if isinstance(item, dict) else ""
                 await asyncio.to_thread(save_memory_audit_snapshot, mid, "ADD", memory_text, init_cats)
+
+                # 双写关系库（对齐 OpenMemory 架构）
+                try:
+                    await asyncio.to_thread(
+                        meta_service.create_memory_meta,
+                        memory_id=mid,
+                        user_id=user_id,
+                        content=memory_text,
+                        hash_value=item.get("hash", "") if isinstance(item, dict) else "",
+                        agent_id=request.agent_id or "",
+                        run_id=request.run_id or "",
+                        state=current_meta.get("state", "active"),
+                        categories=init_cats,
+                        metadata=current_meta,
+                    )
+                except Exception as db_err:
+                    logger.warning(f"关系库双写失败（不影响主流程）: {db_err}")
 
         invalidate_stats_cache()
 
@@ -296,6 +314,21 @@ async def batch_import_memories(request: BatchImportRequest):
                             init_cats = (_pts[0].payload or {}).get("metadata", {}).get("categories", [])
                         memory_text = added_item.get("memory", "") if isinstance(added_item, dict) else ""
                         await asyncio.to_thread(save_memory_audit_snapshot, mid, "ADD", memory_text, init_cats)
+
+                        # 双写关系库（对齐 OpenMemory 架构）
+                        try:
+                            await asyncio.to_thread(
+                                meta_service.create_memory_meta,
+                                memory_id=mid,
+                                user_id=uid,
+                                content=memory_text,
+                                hash_value=added_item.get("hash", "") if isinstance(added_item, dict) else "",
+                                state="active",
+                                categories=init_cats,
+                                metadata=(_pts[0].payload or {}).get("metadata", {}) if _pts else {},
+                            )
+                        except Exception as db_err:
+                            logger.warning(f"批量导入第 {idx+1} 条关系库双写失败（不影响主流程）: {db_err}")
                     except Exception as audit_err:
                         logger.warning(f"批量导入第 {idx+1} 条审计日志写入失败（记忆已成功导入）: {audit_err}")
 
@@ -564,6 +597,21 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
             old_categories,
         )
 
+        # 双写关系库（对齐 OpenMemory 架构）
+        try:
+            await asyncio.to_thread(
+                meta_service.update_memory_meta,
+                memory_id=memory_id,
+                content=new_memory_text if request.text else None,
+                state=request.state if (request.state and request.state in VALID_STATES) else None,
+                categories=new_cats if (request.categories is not None or request.auto_categorize) else None,
+                metadata=current_metadata,
+                changed_by=old_payload.get("user_id", ""),
+                reason="用户更新",
+            )
+        except Exception as db_err:
+            logger.warning(f"关系库双写更新失败（不影响主流程）: {db_err}")
+
         invalidate_stats_cache()
 
         logger.info(f"已更新记忆 {memory_id} 的 metadata: state={current_metadata.get('state')}, categories={new_cats}")
@@ -620,6 +668,16 @@ async def delete_memory_by_id(memory_id: str):
 
             # 记录 DELETE 事件到修改历史
             save_change_log(memory_id, "DELETE", old_memory_text, old_categories)
+
+            # 双写关系库（对齐 OpenMemory 架构）
+            try:
+                await asyncio.to_thread(
+                    meta_service.soft_delete_memory,
+                    memory_id=memory_id,
+                    changed_by=payload.get("user_id", ""),
+                )
+            except Exception as db_err:
+                logger.warning(f"关系库双写删除失败（不影响主流程）: {db_err}")
 
             logger.info(f"已软删除记忆 {memory_id}")
             invalidate_stats_cache()
@@ -902,6 +960,18 @@ async def batch_delete_memories(request: BatchDeleteRequest):
             for idx, item in enumerate(results)
         ]
 
+        if success_count > 0:
+            invalidate_stats_cache()
+
+            # 双写关系库（对齐 OpenMemory 架构）
+            try:
+                await asyncio.to_thread(
+                    meta_service.batch_soft_delete,
+                    memory_ids=deleted_ids,
+                )
+            except Exception as db_err:
+                logger.warning(f"关系库批量双写删除失败（不影响主流程）: {db_err}")
+
         # 触发 Webhook（批量删除汇总通知）
         try:
             # 记忆ID列表截断显示，避免消息过长
@@ -970,4 +1040,124 @@ async def get_memory_history(memory_id: str):
         raise
     except Exception as e:
         logger.error(f"获取记忆历史失败: {e}")
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
+
+
+# ============ 数据迁移 API ============
+
+@router.post("/v1/memories/migrate-to-db/", tags=["系统"])
+async def migrate_qdrant_to_db():
+    """将 Qdrant 中现有记忆的元数据迁移到关系库（幂等操作，可重复执行）"""
+    from server.models.models import MemoryMeta, Category, MemoryStatusHistory, MemoryState, memory_categories as mc_table
+    from server.models.database import get_session_factory
+    from server.config import VALID_CATEGORIES as _VALID_CATS
+
+    try:
+        SessionLocal = get_session_factory()
+        db = SessionLocal()
+
+        try:
+            # 预创建所有合法分类
+            existing_cats = {c.name: c for c in db.query(Category).all()}
+            for cat_name in _VALID_CATS:
+                if cat_name not in existing_cats:
+                    cat = Category(name=cat_name, description=f"预创建分类: {cat_name}")
+                    db.add(cat)
+                    existing_cats[cat_name] = cat
+            db.commit()
+            existing_cats = {c.name: c for c in db.query(Category).all()}
+
+            total = 0
+            migrated = 0
+            skipped = 0
+            errors = 0
+
+            from datetime import datetime, timezone
+            for memory in get_all_memories_raw(order_by="created_at", order_direction="asc"):
+                total += 1
+                mid = memory.get("id", "")
+                if not mid:
+                    errors += 1
+                    continue
+
+                existing = db.query(MemoryMeta.id).filter(MemoryMeta.id == mid).first()
+                if existing:
+                    skipped += 1
+                    continue
+
+                try:
+                    state_str = memory.get("state", "active")
+                    try:
+                        state = MemoryState(state_str)
+                    except ValueError:
+                        state = MemoryState.active
+
+                    created_at = None
+                    if memory.get("created_at"):
+                        try:
+                            created_at = datetime.fromisoformat(str(memory["created_at"]).replace("Z", "+00:00"))
+                            if created_at.tzinfo is None:
+                                created_at = created_at.replace(tzinfo=timezone.utc)
+                        except (ValueError, TypeError):
+                            created_at = datetime.now(timezone.utc)
+
+                    updated_at = None
+                    if memory.get("updated_at"):
+                        try:
+                            updated_at = datetime.fromisoformat(str(memory["updated_at"]).replace("Z", "+00:00"))
+                            if updated_at.tzinfo is None:
+                                updated_at = updated_at.replace(tzinfo=timezone.utc)
+                        except (ValueError, TypeError):
+                            pass
+
+                    record = MemoryMeta(
+                        id=mid,
+                        user_id=memory.get("user_id", ""),
+                        agent_id=memory.get("agent_id", ""),
+                        run_id=memory.get("run_id", ""),
+                        content=memory.get("memory", ""),
+                        hash=memory.get("hash", ""),
+                        metadata_=memory.get("metadata", {}),
+                        state=state,
+                        created_at=created_at or datetime.now(timezone.utc),
+                        updated_at=updated_at,
+                        deleted_at=datetime.now(timezone.utc) if state == MemoryState.deleted else None,
+                    )
+
+                    categories = memory.get("categories", [])
+                    for cat_name in categories:
+                        if cat_name in existing_cats:
+                            record.categories.append(existing_cats[cat_name])
+
+                    db.add(record)
+                    db.add(MemoryStatusHistory(
+                        memory_id=mid,
+                        old_state=MemoryState.active,
+                        new_state=state,
+                        changed_by="migration",
+                        reason="从 Qdrant 迁移",
+                    ))
+
+                    migrated += 1
+                    if migrated % 50 == 0:
+                        db.commit()
+                except Exception as e:
+                    errors += 1
+                    logger.warning(f"迁移记忆 {mid} 失败: {e}")
+                    db.rollback()
+
+            db.commit()
+            invalidate_stats_cache()
+
+            return {
+                "message": "迁移完成",
+                "total_scanned": total,
+                "migrated": migrated,
+                "skipped": skipped,
+                "errors": errors,
+            }
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"迁移失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=_safe_error_detail(e))

@@ -1,5 +1,6 @@
 """
-记忆核心服务 — Mem0 实例管理、数据格式化、多维筛选、AI 自动分类、统计缓存
+记忆核心服务 — Mem0 实例管理、数据格式化、AI 自动分类、Qdrant 向量操作
+对齐 OpenMemory 官方架构：结构化查询走关系库（meta_service），向量搜索走 Qdrant
 """
 
 import copy
@@ -424,7 +425,34 @@ def get_memories_page(
     order_direction: str = "desc",
     exclude_state: str | None = None,
 ) -> dict:
-    """获取分页记忆列表，避免前端为了分页而先拉全量数据。"""
+    """获取分页记忆列表 — 优先从关系库查询，回退到 Qdrant 直接查询。"""
+    from server.services.meta_service import query_memories_page as _db_query
+    try:
+        return _db_query(
+            user_id=user_id, state=state, exclude_state=exclude_state,
+            categories=categories if isinstance(categories, list) else None,
+            date_from=date_from, date_to=date_to, search=search,
+            page=page, page_size=page_size,
+            sort_by=order_by, sort_order=order_direction,
+        )
+    except Exception as e:
+        logger.warning(f"关系库分页查询失败，回退到 Qdrant: {e}")
+        return _qdrant_get_memories_page(
+            user_id=user_id, categories=categories, state=state,
+            date_from=date_from, date_to=date_to, search=search,
+            page=page, page_size=page_size,
+            order_by=order_by, order_direction=order_direction,
+            exclude_state=exclude_state,
+        )
+
+
+def _qdrant_get_memories_page(
+    user_id=None, categories=None, state=None,
+    date_from=None, date_to=None, search=None,
+    page=1, page_size=20, order_by="created_at",
+    order_direction="desc", exclude_state=None,
+) -> dict:
+    """Qdrant 直接分页查询（回退方案，数据迁移前使用）"""
     safe_page = max(1, int(page or 1))
     safe_page_size = max(1, min(int(page_size or 20), _MAX_PAGE_SIZE))
     start = (safe_page - 1) * safe_page_size
@@ -437,31 +465,22 @@ def get_memories_page(
             count_result = qdrant_client.count(
                 collection_name=collection_name,
                 count_filter=build_memory_filter(
-                    user_id=user_id,
-                    categories=categories,
-                    state=state,
-                    date_from=date_from,
-                    date_to=date_to,
-                    exclude_state=exclude_state,
+                    user_id=user_id, categories=categories, state=state,
+                    date_from=date_from, date_to=date_to, exclude_state=exclude_state,
                 ),
                 exact=True,
             )
             total = int(getattr(count_result, "count", 0))
         except Exception as e:
-            logger.warning(f"Qdrant count 查询失败，回退为流式统计: {e}")
+            logger.warning(f"Qdrant count 查询失败: {e}")
             total = None
 
     scanned = 0
     items = []
     for memory in iter_memories_raw(
-        user_id=user_id,
-        categories=categories,
-        state=state,
-        date_from=date_from,
-        date_to=date_to,
-        search=search,
-        order_by=order_by,
-        order_direction=order_direction,
+        user_id=user_id, categories=categories, state=state,
+        date_from=date_from, date_to=date_to, search=search,
+        order_by=order_by, order_direction=order_direction,
         exclude_state=exclude_state,
     ):
         if start <= scanned < end:
@@ -475,16 +494,13 @@ def get_memories_page(
 
     total_pages = (total + safe_page_size - 1) // safe_page_size if total > 0 else 1
     return {
-        "items": items,
-        "total": total,
-        "page": safe_page,
-        "page_size": safe_page_size,
-        "total_pages": total_pages,
+        "items": items, "total": total, "page": safe_page,
+        "page_size": safe_page_size, "total_pages": total_pages,
     }
 
 
 def get_memory_summary(limit_recent: int = 5, limit_top_users: int = 10) -> dict:
-    """获取首页摘要数据，避免 Dashboard 为最近记忆和活跃用户再次拉全量列表。"""
+    """获取首页摘要数据 — 优先从关系库查询，带缓存。"""
     safe_recent_limit = max(1, min(int(limit_recent or 5), 20))
     safe_top_users_limit = max(1, min(int(limit_top_users or 10), 50))
 
@@ -497,129 +513,76 @@ def get_memory_summary(limit_recent: int = 5, limit_top_users: int = 10) -> dict
             "top_users": data.get("top_users", [])[:safe_top_users_limit],
         }
 
-    cached_recent_limit = 20
-    cached_top_users_limit = 50
-    recent_memories = []
-    user_memory_count: Dict[str, int] = {}
-
-    # 注意：不能用 state="active" 过滤，因为部分记忆的 metadata 中没有 state 字段，
-    # Qdrant MatchValue 只匹配有该字段的记录，会漏掉这些默认 active 的记忆。
-    # 改用 exclude_state="deleted" 排除已删除记忆，确保统计完整。
-    for memory in iter_memories_raw(exclude_state="deleted", order_by="created_at", order_direction="desc"):
-        if len(recent_memories) < cached_recent_limit:
-            recent_memories.append(memory)
-        uid = memory.get("user_id")
-        if uid:
-            user_memory_count[uid] = user_memory_count.get(uid, 0) + 1
-
-    top_users = [
-        {"user_id": uid, "memory_count": count}
-        for uid, count in sorted(user_memory_count.items(), key=lambda item: (-item[1], item[0]))[:cached_top_users_limit]
-    ]
-    payload = {
-        "recent_memories": recent_memories,
-        "top_users": top_users,
-    }
-    set_summary_cache(payload)
-    return {
-        "recent_memories": recent_memories[:safe_recent_limit],
-        "top_users": top_users[:safe_top_users_limit],
-    }
+    from server.services.meta_service import get_summary_from_db
+    try:
+        # 缓存最大范围的数据，按需切片返回
+        payload = get_summary_from_db(limit_recent=20, limit_top_users=50)
+        set_summary_cache(payload)
+        return {
+            "recent_memories": payload.get("recent_memories", [])[:safe_recent_limit],
+            "top_users": payload.get("top_users", [])[:safe_top_users_limit],
+        }
+    except Exception as e:
+        logger.warning(f"关系库摘要查询失败: {e}")
+        return {"recent_memories": [], "top_users": []}
 
 
 def get_users_summary() -> list[dict]:
-    """按用户聚合记忆摘要，供用户页、搜索页、导出页和筛选器复用。"""
+    """按用户聚合记忆摘要 — 优先从关系库查询，带缓存。"""
     cache = get_users_cache()
     now_ts = time.time()
     if cache["data"] is not None and now_ts < cache["expire"]:
         return cache["data"]
 
-    user_map: Dict[str, dict] = {}
-
-    # 注意：必须用 created_at 排序，因为大部分记忆没有 updated_at 字段，
-    # Qdrant order_by 只返回有该字段值的记录，会导致遍历不完整。
-    for memory in iter_memories_raw(order_by="created_at", order_direction="desc"):
-        user_id = memory.get("user_id")
-        if not user_id:
-            continue
-
-        current_time = memory.get("updated_at") or memory.get("created_at")
-        current = user_map.get(user_id)
-        if current is None:
-            current = {
-                "user_id": user_id,
-                "memory_count": 0,
-                "last_active": current_time,
-            }
-            user_map[user_id] = current
-
-        if memory.get("state", "active") != "deleted":
-            current["memory_count"] += 1
-
-        if current_time and (not current.get("last_active") or current_time > current["last_active"]):
-            current["last_active"] = current_time
-
-    result = sorted(user_map.values(), key=lambda item: (-item["memory_count"], item["user_id"]))
-    set_users_cache(result)
-    return result
+    from server.services.meta_service import get_users_summary_from_db
+    try:
+        result = get_users_summary_from_db()
+        set_users_cache(result)
+        return result
+    except Exception as e:
+        logger.warning(f"关系库用户汇总查询失败: {e}")
+        return []
 
 
 def compute_memory_stats() -> dict:
-    """流式聚合统计信息，避免 stats 接口对全量列表进行二次 Python 聚合。"""
-    user_set: set = set()
-    category_counter: Dict[str, int] = {cat: 0 for cat in VALID_CATEGORIES}
-    uncategorized_count = 0
-    state_counter: Dict[str, int] = {state: 0 for state in VALID_STATES}
-    daily_counter: Dict[str, int] = {}
-    total_memories = 0
-
-    for memory in iter_memories_raw(order_by="created_at", order_direction="desc"):
-        state = memory.get("state", "active")
-        if state not in state_counter:
-            state_counter[state] = 0
-        state_counter[state] += 1
-
-        if state == "deleted":
-            continue
-
-        total_memories += 1
-        uid = memory.get("user_id")
-        if uid:
-            user_set.add(uid)
-
-        cats = memory.get("categories") or []
-        if not cats:
-            uncategorized_count += 1
-        else:
-            for cat in cats:
-                if cat in VALID_CATEGORIES:
-                    category_counter[cat] = category_counter.get(cat, 0) + 1
-
-        created = memory.get("created_at")
-        if created:
-            try:
-                created_dt = datetime.fromisoformat(str(created).replace("Z", "+00:00"))
-                day_key = created_dt.strftime("%Y-%m-%d")
-                daily_counter[day_key] = daily_counter.get(day_key, 0) + 1
-            except (ValueError, TypeError):
-                pass
-
-    return {
-        "total_memories": total_memories,
-        "total_users": len(user_set),
-        "category_distribution": {cat: category_counter.get(cat, 0) for cat in VALID_CATEGORIES},
-        "uncategorized_count": uncategorized_count,
-        "state_distribution": {state: state_counter.get(state, 0) for state in VALID_STATES},
-        "daily_counter": daily_counter,
-    }
+    """统计信息 — 优先从关系库聚合。"""
+    from server.services.meta_service import compute_stats_from_db
+    try:
+        return compute_stats_from_db()
+    except Exception as e:
+        logger.warning(f"关系库统计查询失败: {e}")
+        return {
+            "total_memories": 0, "total_users": 0,
+            "category_distribution": {}, "uncategorized_count": 0,
+            "state_distribution": {}, "daily_counter": {},
+        }
 
 
 # ============ 查询记忆真实状态 ============
 
 def get_real_states(memory_ids: list) -> dict:
-    """从 Qdrant 直接查询记忆的真实 state（Mem0 search 返回的 metadata 可能不含自定义 state）"""
+    """查询记忆的真实 state — 优先从关系库查询，回退到 Qdrant。"""
     if not memory_ids:
         return {}
+    try:
+        from server.services.meta_service import _get_db
+        from server.models.models import MemoryMeta, MemoryState
+        db = _get_db()
+        try:
+            rows = db.query(MemoryMeta.id, MemoryMeta.state).filter(
+                MemoryMeta.id.in_(memory_ids)
+            ).all()
+            if rows:
+                return {
+                    row.id: row.state.value if isinstance(row.state, MemoryState) else str(row.state)
+                    for row in rows
+                }
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"关系库查询状态失败，回退到 Qdrant: {e}")
+
+    # 回退到 Qdrant
     try:
         m = get_memory()
         collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
@@ -637,7 +600,7 @@ def get_real_states(memory_ids: list) -> dict:
             state_map[pid] = metadata.get("state", "active")
         return state_map
     except Exception as e:
-        logger.warning(f"查询记忆真实状态失败: {e}")
+        logger.warning(f"Qdrant 查询状态也失败: {e}")
         return {}
 
 

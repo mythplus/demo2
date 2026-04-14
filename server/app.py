@@ -18,6 +18,7 @@ from server.config import (
 from server.services import memory_service
 from server.services.log_service import init_access_log_db, start_log_writer, stop_log_writer
 from server.services.graph_service import close_neo4j_driver
+from server.models.database import init_db, close_db
 from server.middleware.auth import ApiKeyAuthMiddleware
 from server.middleware.rate_limit import RateLimitMiddleware
 from server.middleware.request_log import RequestLogMiddleware
@@ -43,6 +44,8 @@ async def lifespan(app: FastAPI):
     memory_service.http_client = httpx.AsyncClient(timeout=30.0)
     # 预初始化 Memory 实例
     memory_service.get_memory()
+    # 初始化记忆元数据库（SQLAlchemy 管理，对齐 OpenMemory 官方架构）
+    init_db()
     # 初始化访问日志数据库
     init_access_log_db()
     logger.info(f"访问日志数据库: {ACCESS_LOG_DB_PATH}")
@@ -54,6 +57,8 @@ async def lifespan(app: FastAPI):
     # 关闭全局异步 HTTP 客户端
     if memory_service.http_client:
         await memory_service.http_client.aclose()
+    # 关闭记忆元数据库
+    close_db()
     # 关闭全局 Neo4j 驱动
     close_neo4j_driver()
     logger.info("Mem0 Dashboard 后端服务已关闭")

@@ -11,12 +11,12 @@ export type Category =
   | "finance" | "shopping" | "legal" | "entertainment" | "messages"
   | "customer_support" | "product_feedback" | "news" | "organization" | "goals";
 
-/** 记忆状态 */
-export type MemoryState = "active" | "paused" | "deleted";
+/** 记忆状态（对齐 OpenMemory 官方架构） */
+export type MemoryState = "active" | "paused" | "archived" | "deleted";
 
 // ============ 记忆相关类型 ============
 
-/** 单条记忆 */
+/** 单条记忆（对齐 OpenMemory 官方架构） */
 export interface Memory {
   id: string;
   memory: string;
@@ -29,6 +29,8 @@ export interface Memory {
   state?: MemoryState;
   created_at?: string;
   updated_at?: string;
+  archived_at?: string | null;
+  deleted_at?: string | null;
 }
 
 /** 添加记忆的消息格式 */

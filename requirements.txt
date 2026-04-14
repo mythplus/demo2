@@ -24,6 +24,9 @@ langchain-neo4j==0.9.0
 ollama==0.6.1
 litellm==1.82.6
 
+# ORM 数据库
+SQLAlchemy==2.0.41
+
 # 配置与工具
 PyYAML==6.0.3
 python-dotenv==1.2.2

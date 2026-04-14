@@ -81,6 +81,9 @@ CONFIG_FILE_PATH = os.path.join(_PROJECT_ROOT, "config.yaml")
 # ============ 访问日志数据库路径 ============
 ACCESS_LOG_DB_PATH = os.path.join(_PROJECT_ROOT, "access_logs.db")
 
+# ============ 记忆元数据库路径（SQLAlchemy 管理，对齐 OpenMemory 官方架构） ============
+MEMORY_DB_PATH = os.path.join(_PROJECT_ROOT, "memory_meta.db")
+
 
 def _safe_error_detail(e: Exception) -> str:
     """安全的异常信息：生产环境返回通用提示，开发环境返回详细错误"""
@@ -214,7 +217,7 @@ VALID_CATEGORIES = {
     "finance", "shopping", "legal", "entertainment", "messages",
     "customer_support", "product_feedback", "news", "organization", "goals",
 }
-VALID_STATES = {"active", "paused", "deleted"}
+VALID_STATES = {"active", "paused", "archived", "deleted"}
 
 # ============ AI 自动分类 Prompt ============
 CATEGORY_DESCRIPTIONS = {
