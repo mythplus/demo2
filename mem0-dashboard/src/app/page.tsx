@@ -88,37 +88,19 @@ function StatsCardSkeleton() {
 export default function DashboardPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const connectionStatus = useUIStore((s) => s.connectionStatus);
-  const { memories, stats, loading, refetch } = useDashboardData(
+  const { summary, stats, loading, refetch } = useDashboardData(
     connectionStatus === "connected"
   );
 
-  const activeMemories = memories.filter((m) => m.state !== "deleted");
-  const totalMemories = stats?.total_memories ?? activeMemories.length;
-  const uniqueUserCount =
-    stats?.total_users ??
-    new Set(activeMemories.map((m) => m.user_id).filter(Boolean)).size;
+  const totalMemories = stats?.total_memories ?? 0;
+  const uniqueUserCount = stats?.total_users ?? summary?.top_users?.length ?? 0;
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayCount =
     stats?.daily_trend?.find((d) => d.date === todayStr)?.count ?? 0;
 
-  const recentMemories = [...activeMemories]
-    .sort((a, b) => {
-      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
-      return timeB - timeA;
-    })
-    .slice(0, 5);
-
-  const userMemoryCount = new Map<string, number>();
-  activeMemories.forEach((m) => {
-    if (m.user_id) {
-      userMemoryCount.set(m.user_id, (userMemoryCount.get(m.user_id) || 0) + 1);
-    }
-  });
-  const topUsers = Array.from(userMemoryCount.entries()).sort(
-    (a, b) => b[1] - a[1]
-  );
+  const recentMemories = summary?.recent_memories ?? [];
+  const topUsers = summary?.top_users ?? [];
 
   return (
     <div className="space-y-4">
@@ -315,20 +297,20 @@ export default function DashboardPage() {
               </div>
             ) : topUsers.length > 0 ? (
               <div className="space-y-0.5">
-                {topUsers.map(([uid, count], index) => (
+                {topUsers.map((user, index) => (
                   <Link
-                    key={uid}
-                    href={`/users/${encodeURIComponent(uid)}`}
+                    key={user.user_id}
+                    href={`/users/${encodeURIComponent(user.user_id)}`}
                     className="flex items-center gap-3 rounded-lg p-2 transition-colors duration-150 hover:bg-muted/50"
                   >
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/8 text-[11px] font-semibold text-primary">
                       {index + 1}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm truncate">{uid}</p>
+                      <p className="text-sm truncate">{user.user_id}</p>
                     </div>
                     <span className="text-xs font-medium text-muted-foreground tabular-nums">
-                      {count}
+                      {user.memory_count}
                     </span>
                   </Link>
                 ))}

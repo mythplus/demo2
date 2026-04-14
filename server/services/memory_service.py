@@ -2,16 +2,21 @@
 记忆核心服务 — Mem0 实例管理、数据格式化、多维筛选、AI 自动分类、统计缓存
 """
 
+import copy
 import json
 import time
 import logging
-from typing import List, Dict, Any
-from datetime import datetime
+from typing import List, Dict, Any, Iterator
+from datetime import datetime, timezone
+from contextlib import contextmanager
 
 import httpx
+from qdrant_client.http.models import (
+    DatetimeRange, Direction, FieldCondition, Filter, MatchAny, MatchValue, OrderBy,
+)
 
 from server.config import (
-    MEM0_CONFIG, QDRANT_DATA_PATH, VALID_CATEGORIES,
+    MEM0_CONFIG, QDRANT_DATA_PATH, VALID_CATEGORIES, VALID_STATES,
     CATEGORY_DESCRIPTIONS, MEMORY_CATEGORIZATION_PROMPT,
 )
 
@@ -35,25 +40,14 @@ def get_memory():
     return memory_instance
 
 
-import threading
-from contextlib import contextmanager
-
-# 保护 graph 属性临时摘除/恢复的锁（防止并发导入时互相干扰）
-_graph_lock = threading.Lock()
-
-
 @contextmanager
 def disable_graph(m):
-    """上下文管理器：临时禁用 Memory 实例的图谱功能。
-    批量导入时使用，避免 Neo4j 关系名不合法导致整条记忆导入失败。
-    退出上下文后自动恢复。"""
-    with _graph_lock:
-        original_enable_graph = getattr(m, 'enable_graph', False)
-        try:
-            m.enable_graph = False
-            yield m
-        finally:
-            m.enable_graph = original_enable_graph
+    """上下文管理器：返回一个共享底层资源但禁用图谱的 Memory 代理实例。
+    批量导入时使用，避免在共享单例上临时切换 enable_graph 导致并发污染。"""
+    graph_disabled_memory = copy.copy(m)
+    graph_disabled_memory.enable_graph = False
+    graph_disabled_memory.graph = None
+    yield graph_disabled_memory
 
 
 # ============ 数据格式化 ============
@@ -208,35 +202,391 @@ async def auto_categorize_memory(memory_text: str) -> List[str]:
         return []
 
 
-# ============ Qdrant 全量查询 ============
+# ============ Qdrant 查询与聚合 ============
 
-def get_all_memories_raw() -> list:
-    """获取所有记忆（完整分页滚动，不再限制 200 条）"""
+_DEFAULT_SCROLL_BATCH_SIZE = 128
+_MAX_PAGE_SIZE = 200
+
+
+def _get_qdrant_collection_and_client():
+    """获取当前 Mem0 绑定的 Qdrant collection 和 client。"""
     m = get_memory()
-    try:
-        collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
-        qdrant_client = m.vector_store.client
-        all_records = []
-        offset = None
-        batch_size = 100
+    collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+    return collection_name, m.vector_store.client
 
-        while True:
-            records, next_offset = qdrant_client.scroll(
+
+def _parse_dt_for_filter(value: str, end_of_day: bool = False):
+    """将日期/时间字符串解析为带 UTC 时区的 datetime，用于 Qdrant 时间过滤。"""
+    value = (value or "").strip()
+    if not value:
+        return None
+
+    if len(value) == 10 and value[4] == "-" and value[7] == "-":
+        suffix = "T23:59:59+00:00" if end_of_day else "T00:00:00+00:00"
+        return datetime.fromisoformat(value + suffix)
+
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def build_memory_filter(
+    user_id: str | None = None,
+    categories: list[str] | None = None,
+    state: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+):
+    """构建 Qdrant 过滤条件，将可下推的筛选尽量下推到存储层。"""
+    must = []
+
+    if user_id:
+        must.append(FieldCondition(key="user_id", match=MatchValue(value=user_id)))
+
+    if state and state in VALID_STATES:
+        must.append(FieldCondition(key="metadata.state", match=MatchValue(value=state)))
+
+    valid_categories = [c for c in (categories or []) if c in VALID_CATEGORIES]
+    if valid_categories:
+        must.append(FieldCondition(key="metadata.categories", match=MatchAny(any=valid_categories)))
+
+    dt_from = _parse_dt_for_filter(date_from, end_of_day=False) if date_from else None
+    dt_to = _parse_dt_for_filter(date_to, end_of_day=True) if date_to else None
+    if dt_from or dt_to:
+        must.append(
+            FieldCondition(
+                key="created_at",
+                range=DatetimeRange(gte=dt_from, lte=dt_to),
+            )
+        )
+
+    if not must:
+        return None
+    return Filter(must=must)
+
+
+def _client_side_matches(memory: dict, search: str | None = None) -> bool:
+    """补充无法完全下推到 Qdrant 的客户端文本搜索。"""
+    if not search:
+        return True
+
+    keyword = search.strip().lower()
+    if not keyword:
+        return True
+
+    return (
+        keyword in (memory.get("memory", "") or "").lower()
+        or keyword in (memory.get("user_id", "") or "").lower()
+        or keyword in (memory.get("id", "") or "").lower()
+    )
+
+
+def iter_memories_raw(
+    user_id: str | None = None,
+    categories: list[str] | None = None,
+    state: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    search: str | None = None,
+    order_by: str = "created_at",
+    order_direction: str = "desc",
+    batch_size: int = _DEFAULT_SCROLL_BATCH_SIZE,
+) -> Iterator[dict]:
+    """按批滚动遍历记忆数据，优先使用 Qdrant 端过滤，减少全量拉取后的本地筛选。
+    如果 order_by 不被支持（如本地文件模式未建 payload index），自动回退到无排序模式。"""
+    try:
+        collection_name, qdrant_client = _get_qdrant_collection_and_client()
+        scroll_filter = build_memory_filter(
+            user_id=user_id,
+            categories=categories,
+            state=state,
+            date_from=date_from,
+            date_to=date_to,
+        )
+        offset = None
+        order_key = order_by if order_by in {"created_at", "updated_at"} else "created_at"
+        direction = Direction.ASC if str(order_direction).lower() == "asc" else Direction.DESC
+
+        # 先尝试带 order_by 的查询；如果 Qdrant 不支持（本地模式无 payload index），回退到无排序
+        use_order_by = True
+        try:
+            test_records, _ = qdrant_client.scroll(
                 collection_name=collection_name,
-                limit=batch_size,
-                offset=offset,
+                scroll_filter=scroll_filter,
+                limit=1,
+                order_by=OrderBy(key=order_key, direction=direction),
                 with_payload=True,
                 with_vectors=False,
             )
-            all_records.extend(records)
-            if next_offset is None or not records:
+            # 如果查询成功但返回空，可能是真的没数据，也可能是 order_by 不兼容
+            # 再用无排序查一次确认
+            if not test_records:
+                fallback_records, _ = qdrant_client.scroll(
+                    collection_name=collection_name,
+                    scroll_filter=scroll_filter,
+                    limit=1,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+                if fallback_records:
+                    # 有数据但 order_by 返回空 → order_by 不兼容
+                    use_order_by = False
+                    logger.info("Qdrant order_by 返回空但无排序有数据，回退到无排序模式")
+                else:
+                    # 真的没数据
+                    return
+        except Exception as order_err:
+            logger.info(f"Qdrant order_by 不支持，回退到无排序模式: {order_err}")
+            use_order_by = False
+
+        while True:
+            scroll_kwargs = {
+                "collection_name": collection_name,
+                "scroll_filter": scroll_filter,
+                "limit": max(1, min(batch_size, _MAX_PAGE_SIZE)),
+                "offset": offset,
+                "with_payload": True,
+                "with_vectors": False,
+            }
+            if use_order_by:
+                scroll_kwargs["order_by"] = OrderBy(key=order_key, direction=direction)
+
+            records, next_offset = qdrant_client.scroll(**scroll_kwargs)
+            if not records:
+                break
+
+            for record in records:
+                formatted = format_record(record)
+                if _client_side_matches(formatted, search=search):
+                    yield formatted
+
+            if next_offset is None:
                 break
             offset = next_offset
-
-        return [format_record(record) for record in all_records]
     except Exception as e:
         logger.warning(f"Qdrant 直接查询失败: {e}")
-        return []
+        return
+
+
+def get_all_memories_raw(
+    user_id: str | None = None,
+    categories: list[str] | None = None,
+    state: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    search: str | None = None,
+    order_by: str = "created_at",
+    order_direction: str = "desc",
+) -> list:
+    """获取记忆列表，优先使用 Qdrant 端过滤和排序，减少全量扫描后的本地处理。"""
+    return list(
+        iter_memories_raw(
+            user_id=user_id,
+            categories=categories,
+            state=state,
+            date_from=date_from,
+            date_to=date_to,
+            search=search,
+            order_by=order_by,
+            order_direction=order_direction,
+        )
+    )
+
+
+def get_memories_page(
+    user_id: str | None = None,
+    categories: list[str] | None = None,
+    state: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    search: str | None = None,
+    page: int = 1,
+    page_size: int = 20,
+    order_by: str = "created_at",
+    order_direction: str = "desc",
+) -> dict:
+    """获取分页记忆列表，避免前端为了分页而先拉全量数据。"""
+    safe_page = max(1, int(page or 1))
+    safe_page_size = max(1, min(int(page_size or 20), _MAX_PAGE_SIZE))
+    start = (safe_page - 1) * safe_page_size
+    end = start + safe_page_size
+
+    total: int | None = None
+    if not search:
+        try:
+            collection_name, qdrant_client = _get_qdrant_collection_and_client()
+            count_result = qdrant_client.count(
+                collection_name=collection_name,
+                count_filter=build_memory_filter(
+                    user_id=user_id,
+                    categories=categories,
+                    state=state,
+                    date_from=date_from,
+                    date_to=date_to,
+                ),
+                exact=True,
+            )
+            total = int(getattr(count_result, "count", 0))
+        except Exception as e:
+            logger.warning(f"Qdrant count 查询失败，回退为流式统计: {e}")
+            total = None
+
+    scanned = 0
+    items = []
+    for memory in iter_memories_raw(
+        user_id=user_id,
+        categories=categories,
+        state=state,
+        date_from=date_from,
+        date_to=date_to,
+        search=search,
+        order_by=order_by,
+        order_direction=order_direction,
+    ):
+        if start <= scanned < end:
+            items.append(memory)
+        scanned += 1
+        if total is not None and not search and scanned >= end:
+            break
+
+    if total is None:
+        total = scanned
+
+    total_pages = (total + safe_page_size - 1) // safe_page_size if total > 0 else 1
+    return {
+        "items": items,
+        "total": total,
+        "page": safe_page,
+        "page_size": safe_page_size,
+        "total_pages": total_pages,
+    }
+
+
+def get_memory_summary(limit_recent: int = 5, limit_top_users: int = 10) -> dict:
+    """获取首页摘要数据，避免 Dashboard 为最近记忆和活跃用户再次拉全量列表。"""
+    safe_recent_limit = max(1, min(int(limit_recent or 5), 20))
+    safe_top_users_limit = max(1, min(int(limit_top_users or 10), 50))
+
+    cache = get_summary_cache()
+    now_ts = time.time()
+    if cache["data"] is not None and now_ts < cache["expire"]:
+        data = cache["data"]
+        return {
+            "recent_memories": data.get("recent_memories", [])[:safe_recent_limit],
+            "top_users": data.get("top_users", [])[:safe_top_users_limit],
+        }
+
+    cached_recent_limit = 20
+    cached_top_users_limit = 50
+    recent_memories = []
+    user_memory_count: Dict[str, int] = {}
+
+    for memory in iter_memories_raw(state="active", order_by="created_at", order_direction="desc"):
+        if len(recent_memories) < cached_recent_limit:
+            recent_memories.append(memory)
+        uid = memory.get("user_id")
+        if uid:
+            user_memory_count[uid] = user_memory_count.get(uid, 0) + 1
+
+    top_users = [
+        {"user_id": uid, "memory_count": count}
+        for uid, count in sorted(user_memory_count.items(), key=lambda item: (-item[1], item[0]))[:cached_top_users_limit]
+    ]
+    payload = {
+        "recent_memories": recent_memories,
+        "top_users": top_users,
+    }
+    set_summary_cache(payload)
+    return {
+        "recent_memories": recent_memories[:safe_recent_limit],
+        "top_users": top_users[:safe_top_users_limit],
+    }
+
+
+def get_users_summary() -> list[dict]:
+    """按用户聚合记忆摘要，供用户页、搜索页、导出页和筛选器复用。"""
+    cache = get_users_cache()
+    now_ts = time.time()
+    if cache["data"] is not None and now_ts < cache["expire"]:
+        return cache["data"]
+
+    user_map: Dict[str, dict] = {}
+
+    for memory in iter_memories_raw(order_by="updated_at", order_direction="desc"):
+        user_id = memory.get("user_id")
+        if not user_id:
+            continue
+
+        current_time = memory.get("updated_at") or memory.get("created_at")
+        current = user_map.get(user_id)
+        if current is None:
+            current = {
+                "user_id": user_id,
+                "memory_count": 0,
+                "last_active": current_time,
+            }
+            user_map[user_id] = current
+
+        if memory.get("state", "active") != "deleted":
+            current["memory_count"] += 1
+
+        if current_time and (not current.get("last_active") or current_time > current["last_active"]):
+            current["last_active"] = current_time
+
+    result = sorted(user_map.values(), key=lambda item: (-item["memory_count"], item["user_id"]))
+    set_users_cache(result)
+    return result
+
+
+def compute_memory_stats() -> dict:
+    """流式聚合统计信息，避免 stats 接口对全量列表进行二次 Python 聚合。"""
+    user_set: set = set()
+    category_counter: Dict[str, int] = {cat: 0 for cat in VALID_CATEGORIES}
+    uncategorized_count = 0
+    state_counter: Dict[str, int] = {state: 0 for state in VALID_STATES}
+    daily_counter: Dict[str, int] = {}
+    total_memories = 0
+
+    for memory in iter_memories_raw(order_by="created_at", order_direction="desc"):
+        state = memory.get("state", "active")
+        if state not in state_counter:
+            state_counter[state] = 0
+        state_counter[state] += 1
+
+        if state == "deleted":
+            continue
+
+        total_memories += 1
+        uid = memory.get("user_id")
+        if uid:
+            user_set.add(uid)
+
+        cats = memory.get("categories") or []
+        if not cats:
+            uncategorized_count += 1
+        else:
+            for cat in cats:
+                if cat in VALID_CATEGORIES:
+                    category_counter[cat] = category_counter.get(cat, 0) + 1
+
+        created = memory.get("created_at")
+        if created:
+            try:
+                created_dt = datetime.fromisoformat(str(created).replace("Z", "+00:00"))
+                day_key = created_dt.strftime("%Y-%m-%d")
+                daily_counter[day_key] = daily_counter.get(day_key, 0) + 1
+            except (ValueError, TypeError):
+                pass
+
+    return {
+        "total_memories": total_memories,
+        "total_users": len(user_set),
+        "category_distribution": {cat: category_counter.get(cat, 0) for cat in VALID_CATEGORIES},
+        "uncategorized_count": uncategorized_count,
+        "state_distribution": {state: state_counter.get(state, 0) for state in VALID_STATES},
+        "daily_counter": daily_counter,
+    }
 
 
 # ============ 查询记忆真实状态 ============
@@ -266,16 +616,21 @@ def get_real_states(memory_ids: list) -> dict:
         return {}
 
 
-# ============ 统计缓存 ============
+# ============ 统计与摘要缓存 ============
 
 _stats_cache: Dict[str, Any] = {"data": None, "expire": 0.0}
+_users_cache: Dict[str, Any] = {"data": None, "expire": 0.0}
+_summary_cache: Dict[str, Any] = {"data": None, "expire": 0.0}
 _STATS_CACHE_TTL = 30  # 统计数据缓存 30 秒
+_USERS_CACHE_TTL = 30  # 用户汇总缓存 30 秒
+_SUMMARY_CACHE_TTL = 30  # 首页摘要缓存 30 秒
 
 
 def invalidate_stats_cache():
-    """使统计缓存失效（在写操作后调用）"""
-    _stats_cache["data"] = None
-    _stats_cache["expire"] = 0.0
+    """使统计与摘要缓存失效（在写操作后调用）"""
+    for cache in (_stats_cache, _users_cache, _summary_cache):
+        cache["data"] = None
+        cache["expire"] = 0.0
 
 
 def get_stats_cache() -> Dict[str, Any]:
@@ -287,3 +642,25 @@ def set_stats_cache(data: Any):
     """设置统计缓存"""
     _stats_cache["data"] = data
     _stats_cache["expire"] = time.time() + _STATS_CACHE_TTL
+
+
+def get_users_cache() -> Dict[str, Any]:
+    """获取用户汇总缓存"""
+    return _users_cache
+
+
+def set_users_cache(data: Any):
+    """设置用户汇总缓存"""
+    _users_cache["data"] = data
+    _users_cache["expire"] = time.time() + _USERS_CACHE_TTL
+
+
+def get_summary_cache() -> Dict[str, Any]:
+    """获取首页摘要缓存"""
+    return _summary_cache
+
+
+def set_summary_cache(data: Any):
+    """设置首页摘要缓存"""
+    _summary_cache["data"] = data
+    _summary_cache["expire"] = time.time() + _SUMMARY_CACHE_TTL

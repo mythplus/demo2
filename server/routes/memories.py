@@ -16,8 +16,9 @@ from server.models.schemas import (
     BatchDeleteRequest, BatchDeleteResponse,
 )
 from server.services.memory_service import (
-    get_memory, disable_graph, get_all_memories_raw, format_record, format_mem0_result,
-    apply_filters, auto_categorize_memory, invalidate_stats_cache,
+    get_memory, disable_graph, get_all_memories_raw, get_memories_page, get_users_summary,
+    get_memory_summary, format_record, format_mem0_result,
+    auto_categorize_memory, invalidate_stats_cache,
 )
 from server.services.log_service import (
     log_access, save_change_log, save_category_snapshot, save_memory_audit_snapshot, get_change_logs,
@@ -27,6 +28,25 @@ from server.services import webhook_service, memory_service as _mem_svc
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["记忆管理"])
+
+
+class PaginatedMemoriesResponse(BaseModel):
+    items: List[Dict[str, Any]]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+class UserSummaryItem(BaseModel):
+    user_id: str
+    memory_count: int
+    last_active: Optional[str] = None
+
+
+class DashboardSummaryResponse(BaseModel):
+    recent_memories: List[Dict[str, Any]]
+    top_users: List[UserSummaryItem]
 
 
 @router.post("/v1/memories/")
@@ -119,7 +139,7 @@ async def add_memory(request: AddMemoryRequest):
 
                 init_cats = current_meta.get("categories", [])
                 memory_text = item.get("memory", "") if isinstance(item, dict) else ""
-                save_memory_audit_snapshot(mid, "ADD", memory_text, init_cats)
+                await asyncio.to_thread(save_memory_audit_snapshot, mid, "ADD", memory_text, init_cats)
 
         invalidate_stats_cache()
 
@@ -181,9 +201,30 @@ async def batch_import_memories(request: BatchImportRequest):
     _BATCH_CONCURRENCY = 15
     _semaphore = asyncio.Semaphore(_BATCH_CONCURRENCY)
 
+    async def _soft_rollback_added_ids(memory_ids: List[str]):
+        """将已新增但补写失败的记忆软回滚为 deleted。"""
+        if not memory_ids:
+            return
+        for mid in memory_ids:
+            points = qdrant_client.retrieve(
+                collection_name=collection_name,
+                ids=[mid],
+                with_payload=True,
+            )
+            if not points:
+                continue
+            metadata = dict((points[0].payload or {}).get("metadata", {}) or {})
+            metadata["state"] = "deleted"
+            qdrant_client.set_payload(
+                collection_name=collection_name,
+                payload={"metadata": metadata},
+                points=[mid],
+            )
+
     async def _process_single_item(idx: int, item: BatchImportItem) -> BatchImportResultItem:
         """处理单条记忆的导入（在信号量控制下并行执行）"""
         async with _semaphore:
+            added_ids_for_rollback: List[str] = []
             try:
                 uid = (request.default_user_id or "").strip() or (item.user_id or "").strip() or "default"
 
@@ -216,43 +257,37 @@ async def batch_import_memories(request: BatchImportRequest):
                         return m.add(messages=messages, infer=request.infer, **kwargs)
                 result = await asyncio.to_thread(_add_without_graph)
 
-                # 补写 metadata 到 Qdrant
-                try:
-                    added_ids = []
-                    if isinstance(result, dict) and "results" in result:
-                        added_ids = [r for r in result["results"] if r.get("id")]
-                    elif isinstance(result, list):
-                        added_ids = [r for r in result if r.get("id")]
+                added_items = []
+                if isinstance(result, dict) and "results" in result:
+                    added_items = [r for r in result["results"] if r.get("id")]
+                elif isinstance(result, list):
+                    added_items = [r for r in result if r.get("id")]
 
-                    if added_ids:
-                        for added_item in added_ids:
-                            mid = added_item.get("id") if isinstance(added_item, dict) else added_item
-                            try:
-                                points = qdrant_client.retrieve(
-                                    collection_name=collection_name,
-                                    ids=[mid],
-                                    with_payload=True,
-                                )
-                                if points:
-                                    current_meta = dict((points[0].payload or {}).get("metadata", {}) or {})
-                                    if "categories" in final_metadata and "categories" not in current_meta:
-                                        current_meta["categories"] = final_metadata["categories"]
-                                    if "state" in final_metadata:
-                                        current_meta["state"] = final_metadata["state"]
-                                    qdrant_client.set_payload(
-                                        collection_name=collection_name,
-                                        payload={"metadata": current_meta},
-                                        points=[mid],
-                                    )
-                                    init_cats = current_meta.get("categories", [])
-                                    if init_cats:
-                                        save_category_snapshot(mid, init_cats)
-                                    memory_text = added_item.get("memory", "") if isinstance(added_item, dict) else ""
-                                    save_change_log(mid, "ADD", memory_text, init_cats)
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
+                added_ids_for_rollback = [str(added_item.get("id")) for added_item in added_items if added_item.get("id")]
+
+                for added_item in added_items:
+                    mid = str(added_item.get("id"))
+                    points = qdrant_client.retrieve(
+                        collection_name=collection_name,
+                        ids=[mid],
+                        with_payload=True,
+                    )
+                    if not points:
+                        raise RuntimeError(f"批量导入新增记忆后未找到对应向量记录: {mid}")
+
+                    current_meta = dict((points[0].payload or {}).get("metadata", {}) or {})
+                    if "categories" in final_metadata and "categories" not in current_meta:
+                        current_meta["categories"] = final_metadata["categories"]
+                    if "state" in final_metadata:
+                        current_meta["state"] = final_metadata["state"]
+                    qdrant_client.set_payload(
+                        collection_name=collection_name,
+                        payload={"metadata": current_meta},
+                        points=[mid],
+                    )
+                    init_cats = current_meta.get("categories", [])
+                    memory_text = added_item.get("memory", "") if isinstance(added_item, dict) else ""
+                    await asyncio.to_thread(save_memory_audit_snapshot, mid, "ADD", memory_text, init_cats)
 
                 first_id = None
                 first_memory = None
@@ -265,19 +300,26 @@ async def batch_import_memories(request: BatchImportRequest):
                 )
             except Exception as e:
                 logger.warning(f"批量导入第 {idx+1} 条失败: {e}")
+                if added_ids_for_rollback:
+                    try:
+                        await _soft_rollback_added_ids(added_ids_for_rollback)
+                        logger.warning(f"批量导入第 {idx+1} 条补写失败，已软回滚 {len(added_ids_for_rollback)} 条记忆")
+                    except Exception as rollback_err:
+                        logger.error(f"批量导入第 {idx+1} 条补写失败后的软回滚也失败: {rollback_err}")
                 return BatchImportResultItem(
-                    index=idx, success=False, error=str(e)
+                    index=idx, success=False, error=_safe_error_detail(e)
                 )
 
     # 并行执行所有导入任务
     tasks = [_process_single_item(idx, item) for idx, item in enumerate(request.items)]
     results = await asyncio.gather(*tasks)
 
-    # 使统计缓存失效
-    invalidate_stats_cache()
-
     success_count = sum(1 for r in results if r.success)
     failed_count = len(results) - success_count
+
+    # 使统计缓存失效
+    if success_count > 0:
+        invalidate_stats_cache()
 
     # Webhook 由前端在所有批次完成后调用 /v1/memories/batch-import-notify 统一触发
 
@@ -323,32 +365,67 @@ async def get_memories(
     date_from: Optional[str] = Query(None, description="起始日期 ISO 格式"),
     date_to: Optional[str] = Query(None, description="截止日期 ISO 格式"),
     search: Optional[str] = Query(None, description="文本搜索关键词"),
+    page: Optional[int] = Query(None, ge=1, description="页码，传入后启用服务端分页"),
+    page_size: Optional[int] = Query(None, ge=1, le=200, description="每页条数，默认 20，最大 200"),
+    sort_by: Optional[str] = Query("created_at", description="排序字段: created_at/updated_at"),
+    sort_order: Optional[str] = Query("desc", description="排序方向: asc/desc"),
 ):
-    """获取所有记忆（支持多维筛选）"""
+    """获取记忆列表（优先使用服务端过滤；传 page/page_size 时启用服务端分页）"""
     try:
-        # 统一使用 Qdrant 直接查询，确保 metadata (categories/state) 始终一致
-        all_memories = get_all_memories_raw()
-
-        # 如果指定了 user_id，先做用户筛选
-        if user_id:
-            all_memories = [m for m in all_memories if m.get("user_id") == user_id]
-
-        # 应用多维筛选
         cat_list = [c.strip() for c in categories.split(",") if c.strip()] if categories else None
-        memories = apply_filters(
-            all_memories,
+
+        if page is not None or page_size is not None:
+            return get_memories_page(
+                user_id=user_id,
+                categories=cat_list,
+                state=state,
+                date_from=date_from,
+                date_to=date_to,
+                search=search,
+                page=page or 1,
+                page_size=page_size or 20,
+                order_by=sort_by or "created_at",
+                order_direction=sort_order or "desc",
+            )
+
+        memories = get_all_memories_raw(
+            user_id=user_id,
             categories=cat_list,
             state=state,
             date_from=date_from,
             date_to=date_to,
             search=search,
+            order_by=sort_by or "created_at",
+            order_direction=sort_order or "desc",
         )
-
         return memories
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"获取记忆失败: {e}")
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
+
+
+@router.get("/v1/memories/users/", response_model=List[UserSummaryItem])
+async def list_memory_users():
+    """获取用户汇总信息（用户列表、筛选器、导出页等复用）。"""
+    try:
+        return get_users_summary()
+    except Exception as e:
+        logger.error(f"获取用户汇总失败: {e}")
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
+
+
+@router.get("/v1/memories/summary/", response_model=DashboardSummaryResponse)
+async def get_dashboard_summary(
+    recent_limit: int = Query(5, ge=1, le=20),
+    top_users_limit: int = Query(10, ge=1, le=50),
+):
+    """获取首页摘要（最近记忆 + 活跃用户），避免首页再次拉全量记忆列表。"""
+    try:
+        return get_memory_summary(limit_recent=recent_limit, limit_top_users=top_users_limit)
+    except Exception as e:
+        logger.error(f"获取首页摘要失败: {e}")
         raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
@@ -399,21 +476,18 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
         qdrant_client = m.vector_store.client
 
         # 先读取旧数据（更新前快照）
-        old_memory_text = ""
-        old_categories: list = []
-        try:
-            old_points = qdrant_client.retrieve(
-                collection_name=collection_name,
-                ids=[memory_id],
-                with_payload=True,
-            )
-            if old_points:
-                old_payload = old_points[0].payload or {}
-                old_memory_text = old_payload.get("data", old_payload.get("memory", ""))
-                old_meta = old_payload.get("metadata", {}) or {}
-                old_categories = old_meta.get("categories", [])
-        except Exception:
-            pass
+        old_points = qdrant_client.retrieve(
+            collection_name=collection_name,
+            ids=[memory_id],
+            with_payload=True,
+        )
+        if not old_points:
+            raise HTTPException(status_code=404, detail="记忆不存在")
+
+        old_payload = old_points[0].payload or {}
+        old_memory_text = old_payload.get("data", old_payload.get("memory", ""))
+        old_meta = old_payload.get("metadata", {}) or {}
+        old_categories = old_meta.get("categories", [])
 
         # 第一步：如果有文本更新，先通过 Mem0 SDK 更新（这会重写 Qdrant payload）
         if request.text:
@@ -423,66 +497,63 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
             result = {"message": "metadata updated"}
 
         # 第二步：在文本更新完成后，再读取最新 payload 并修改 metadata
-        need_metadata_update = (
-            request.categories is not None
-            or request.state is not None
-            or request.metadata is not None
-            or request.auto_categorize
+        points = qdrant_client.retrieve(
+            collection_name=collection_name,
+            ids=[memory_id],
+            with_payload=True,
         )
-        new_cats = old_categories  # 默认不变
-        if need_metadata_update:
-            try:
-                points = qdrant_client.retrieve(
-                    collection_name=collection_name,
-                    ids=[memory_id],
-                    with_payload=True,
-                )
-                if points:
-                    current_payload = points[0].payload or {}
-                    current_metadata = dict(current_payload.get("metadata", {}) or {})
+        if not points:
+            raise RuntimeError(f"更新后未找到记忆对应向量记录: {memory_id}")
 
-                    # AI 自动重新分类
-                    if request.auto_categorize:
-                        memory_text = request.text or current_payload.get("data", "")
-                        if memory_text:
-                            ai_categories = await auto_categorize_memory(memory_text)
-                            current_metadata["categories"] = ai_categories
-                            logger.info(f"AI 重新分类记忆 {memory_id}: {ai_categories}")
+        current_payload = points[0].payload or {}
+        current_metadata = dict(current_payload.get("metadata", {}) or {})
 
-                    # 更新 categories（手动选择优先于 AI 分类）
-                    if request.categories is not None:
-                        valid_cats = [c for c in request.categories if c in VALID_CATEGORIES]
-                        current_metadata["categories"] = valid_cats
+        # AI 自动重新分类
+        if request.auto_categorize:
+            memory_text = request.text or current_payload.get("data", "")
+            if memory_text:
+                ai_categories = await auto_categorize_memory(memory_text)
+                current_metadata["categories"] = ai_categories
+                logger.info(f"AI 重新分类记忆 {memory_id}: {ai_categories}")
 
-                    # 更新 state
-                    if request.state is not None and request.state in VALID_STATES:
-                        current_metadata["state"] = request.state
+        # 更新 categories（手动选择优先于 AI 分类）
+        if request.categories is not None:
+            valid_cats = [c for c in request.categories if c in VALID_CATEGORIES]
+            current_metadata["categories"] = valid_cats
 
-                    # 合并其他 metadata
-                    if request.metadata is not None:
-                        for k, v in request.metadata.items():
-                            if k not in ("categories", "state"):
-                                current_metadata[k] = v
+        # 更新 state
+        if request.state is not None and request.state in VALID_STATES:
+            current_metadata["state"] = request.state
 
-                    # 写回 Qdrant
-                    qdrant_client.set_payload(
-                        collection_name=collection_name,
-                        payload={"metadata": current_metadata},
-                        points=[memory_id],
-                    )
-                    new_cats = current_metadata.get("categories", [])
-                    save_category_snapshot(memory_id, new_cats)
-                    logger.info(f"已更新记忆 {memory_id} 的 metadata: state={current_metadata.get('state')}, categories={new_cats}")
-            except Exception as meta_err:
-                logger.warning(f"更新 metadata 失败: {meta_err}")
+        # 合并其他 metadata
+        if request.metadata is not None:
+            for k, v in request.metadata.items():
+                if k not in ("categories", "state"):
+                    current_metadata[k] = v
 
-        # 记录 UPDATE 事件到自建历史（真实时间 + 旧/新内容 + 当前标签）
-        new_memory_text = request.text or old_memory_text
+        qdrant_client.set_payload(
+            collection_name=collection_name,
+            payload={"metadata": current_metadata},
+            points=[memory_id],
+        )
+
+        new_cats = current_metadata.get("categories", [])
+        new_memory_text = request.text or current_payload.get("data", old_memory_text)
         # 如果内容没有变化（只改了标签/元数据），old_memory 传 None 避免显示相同的旧/新内容
         effective_old_memory = old_memory_text if (request.text and old_memory_text != new_memory_text) else None
-        save_change_log(memory_id, "UPDATE", new_memory_text, new_cats, effective_old_memory, old_categories)
+        await asyncio.to_thread(
+            save_memory_audit_snapshot,
+            memory_id,
+            "UPDATE",
+            new_memory_text,
+            new_cats,
+            effective_old_memory,
+            old_categories,
+        )
 
         invalidate_stats_cache()
+
+        logger.info(f"已更新记忆 {memory_id} 的 metadata: state={current_metadata.get('state')}, categories={new_cats}")
 
         # 触发 Webhook
         try:

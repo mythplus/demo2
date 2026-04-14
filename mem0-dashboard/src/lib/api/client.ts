@@ -14,8 +14,10 @@ import type {
   MemoryHistory,
   FilterParams,
   StatsResponse,
+  PaginatedMemoriesResponse,
   Category,
   MemoryState,
+  MemorySummaryResponse,
   RelatedMemoriesResponse,
   AccessLogsResponse,
   RequestLogsResponse,
@@ -169,10 +171,10 @@ export const mem0Api = {
   },
 
   /**
-   * 获取所有记忆（支持多维筛选）
+   * 获取记忆列表（支持多维筛选；传 page/page_size 时返回分页结果）
    * @param filters 可选的筛选参数
    */
-  async getMemories(filters?: FilterParams | string): Promise<Memory[]> {
+  async getMemories(filters?: FilterParams | string): Promise<Memory[] | PaginatedMemoriesResponse> {
     const params = new URLSearchParams();
 
     if (typeof filters === "string") {
@@ -187,10 +189,33 @@ export const mem0Api = {
       if (filters.date_from) params.set("date_from", filters.date_from);
       if (filters.date_to) params.set("date_to", filters.date_to);
       if (filters.search) params.set("search", filters.search);
+      if (filters.sort_by) params.set("sort_by", filters.sort_by);
+      if (filters.sort_order) params.set("sort_order", filters.sort_order);
+      if (typeof filters.page === "number") params.set("page", String(filters.page));
+      if (typeof filters.page_size === "number") params.set("page_size", String(filters.page_size));
     }
 
     const query = params.toString();
-    return request<Memory[]>(`/v1/memories/${query ? `?${query}` : ""}`);
+    const response = await request<Memory[] | PaginatedMemoriesResponse>(`/v1/memories/${query ? `?${query}` : ""}`);
+    return response;
+  },
+
+  /**
+   * 获取用户汇总列表（供用户页、筛选器、搜索页和导出页复用）
+   */
+  async getMemoryUsers(): Promise<{ user_id: string; memory_count: number; last_active?: string }[]> {
+    return request<{ user_id: string; memory_count: number; last_active?: string }[]>('/v1/memories/users/');
+  },
+
+  /**
+   * 获取首页摘要（最近记忆 + 活跃用户）
+   */
+  async getMemorySummary(params?: { recent_limit?: number; top_users_limit?: number }): Promise<MemorySummaryResponse> {
+    const qs = new URLSearchParams();
+    if (params?.recent_limit) qs.set('recent_limit', String(params.recent_limit));
+    if (params?.top_users_limit) qs.set('top_users_limit', String(params.top_users_limit));
+    const query = qs.toString();
+    return request<MemorySummaryResponse>(`/v1/memories/summary/${query ? `?${query}` : ''}`);
   },
 
   /**

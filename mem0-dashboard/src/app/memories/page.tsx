@@ -56,6 +56,7 @@ export default function MemoriesPage() {
     filteredMemories,
     paginatedMemories,
     uniqueUsers,
+    totalCount,
     // 筛选 & 分页
     searchText,
     filters,
@@ -192,7 +193,7 @@ export default function MemoriesPage() {
                 已选择 <span className="text-primary font-bold text-lg">{selectedIds.size}</span> 条记忆
               </span>
               <Button variant="outline" size="sm" className="text-sm" onClick={() => handleToggleAll(true)}>
-                全选
+                当前页全选
               </Button>
               <Button variant="outline" size="sm" className="text-sm" onClick={handleInvertSelection}>
                 反选
@@ -229,7 +230,7 @@ export default function MemoriesPage() {
             <div className="space-y-1.5">
               <CardTitle>记忆列表</CardTitle>
               <CardDescription>
-                共 <span className="font-semibold text-foreground text-base">{filteredMemories.length}</span> 条记忆
+                共 <span className="font-semibold text-foreground text-base">{totalCount}</span> 条记忆
                 {searchText && `（搜索: "${searchText}"）`}
                 {selectionMode && selectedIds.size > 0 && (
                   <span className="ml-2 text-primary">（已选 {selectedIds.size} 条）</span>

@@ -123,6 +123,17 @@ export interface FilterParams {
   date_to?: string;
   sort_by?: "created_at" | "updated_at";
   sort_order?: "asc" | "desc";
+  page?: number;
+  page_size?: number;
+}
+
+/** 分页记忆列表响应 */
+export interface PaginatedMemoriesResponse {
+  items: Memory[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
 }
 
 // ============ 统计数据 ============
@@ -156,6 +167,12 @@ export interface UserInfo {
   user_id: string;
   memory_count: number;
   last_active?: string;
+}
+
+/** Dashboard 摘要响应 */
+export interface MemorySummaryResponse {
+  recent_memories: Memory[];
+  top_users: UserInfo[];
 }
 
 /** Dashboard 统计数据 */

@@ -26,7 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { DeleteConfirmDialog } from "@/components/memories/delete-confirm-dialog";
 import { toast } from "@/hooks/use-toast";
 import { mem0Api } from "@/lib/api";
-import type { Memory, UserInfo } from "@/lib/api";
+import type { UserInfo } from "@/lib/api";
 
 export default function UsersPage() {
   const [users, setUsers] = useState<UserInfo[]>([]);
@@ -48,43 +48,8 @@ export default function UsersPage() {
     setLoading(true);
     setError("");
     try {
-      const memories = await mem0Api.getMemories();
-      const memoriesArr = Array.isArray(memories) ? memories : [];
-
-      // 从记忆数据中聚合用户信息
-      // 先从所有记忆（含已删除）中提取用户，确保用户不会因记忆全部删除而消失
-      const userMap = new Map<string, UserInfo>();
-
-      memoriesArr.forEach((m: Memory) => {
-        if (!m.user_id) return;
-        const isActive = m.state !== "deleted";
-        const existing = userMap.get(m.user_id);
-        if (existing) {
-          // 只统计活跃记忆的数量
-          if (isActive) {
-            existing.memory_count += 1;
-          }
-          // 更新最后活跃时间（包含已删除记忆的时间，反映用户最后活动）
-          if (m.updated_at || m.created_at) {
-            const time = m.updated_at || m.created_at;
-            if (!existing.last_active || (time && time > existing.last_active)) {
-              existing.last_active = time;
-            }
-          }
-        } else {
-          userMap.set(m.user_id, {
-            user_id: m.user_id,
-            memory_count: isActive ? 1 : 0,
-            last_active: m.updated_at || m.created_at,
-          });
-        }
-      });
-
-      // 按记忆数量排序
-      const userList = Array.from(userMap.values()).sort(
-        (a, b) => b.memory_count - a.memory_count
-      );
-      setUsers(userList);
+      const data = await mem0Api.getMemoryUsers();
+      setUsers(Array.isArray(data) ? (data as UserInfo[]) : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "获取用户列表失败");
     } finally {

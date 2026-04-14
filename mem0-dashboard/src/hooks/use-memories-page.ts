@@ -5,26 +5,29 @@
  */
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { toast } from "@/hooks/use-toast";
 import { mem0Api } from "@/lib/api";
-import type { Memory, FilterParams } from "@/lib/api";
+import type { Memory, FilterParams, PaginatedMemoriesResponse, UserInfo } from "@/lib/api";
 import { usePreferences } from "@/hooks/use-preferences";
 import type { ViewMode } from "@/components/memories/view-toggle";
 
 export function useMemoriesPage() {
   // 用户偏好设置
-  const { preferences } = usePreferences();
+  const { preferences, savePreferences } = usePreferences();
   const sortOrder = preferences.sortOrder;
 
   // ============ 数据状态 ============
   const [memories, setMemories] = useState<Memory[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [uniqueUsers, setUniqueUsers] = useState<string[]>([]);
 
   // ============ 筛选状态 ============
   const [searchText, setSearchText] = useState("");
-  const [filters, setFilters] = useState<FilterParams>({ state: "active" });
+  const [debouncedSearchText, setDebouncedSearchText] = useState("");
+  const [filters, setFilters] = useState<FilterParams>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(preferences.pageSize);
   const [jumpPage, setJumpPage] = useState("");
@@ -51,78 +54,93 @@ export function useMemoriesPage() {
   const [batchDeleteDialogOpen, setBatchDeleteDialogOpen] = useState(false);
   const [batchDeleteLoading, setBatchDeleteLoading] = useState(false);
 
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
   // ============ 数据获取 ============
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      const users = await mem0Api.getMemoryUsers();
+      const ids = Array.isArray(users)
+        ? (users as UserInfo[])
+            .map((u) => u.user_id)
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b, "zh-CN", { numeric: true }))
+        : [];
+      setUniqueUsers(ids);
+    } catch {
+      setUniqueUsers([]);
+    }
+  }, []);
 
   const fetchMemories = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const apiFilters: FilterParams = { ...filters };
+      const apiFilters: FilterParams = {
+        ...filters,
+        search: debouncedSearchText.trim() || undefined,
+        page: currentPage,
+        page_size: pageSize,
+        sort_by: sortOrder === "oldest" ? "created_at" : "created_at",
+        sort_order: sortOrder === "oldest" ? "asc" : "desc",
+      };
       const data = await mem0Api.getMemories(apiFilters);
-      setMemories(Array.isArray(data) ? data : []);
+      const pageData: PaginatedMemoriesResponse = Array.isArray(data)
+        ? {
+            items: data,
+            total: data.length,
+            page: currentPage,
+            page_size: pageSize,
+            total_pages: Math.max(1, Math.ceil(data.length / pageSize)),
+          }
+        : data;
+      setMemories(pageData.items || []);
+      setTotalCount(pageData.total || 0);
+
+      const safeTotalPages = Math.max(1, pageData.total_pages || 1);
+      if (currentPage > safeTotalPages) {
+        setCurrentPage(safeTotalPages);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "获取记忆列表失败");
       setMemories([]);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters, debouncedSearchText, currentPage, pageSize, sortOrder]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchText(searchText);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchText]);
 
   useEffect(() => {
     fetchMemories();
   }, [fetchMemories]);
 
-  // ============ 派生数据（useMemo 优化） ============
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
-  /** 所有唯一用户（按名称排序） */
-  const uniqueUsers = useMemo(
-    () =>
-      (
-        Array.from(
-          new Set(memories.map((m) => m.user_id).filter(Boolean))
-        ) as string[]
-      ).sort((a, b) => a.localeCompare(b, "zh-CN", { numeric: true })),
-    [memories]
-  );
+  useEffect(() => {
+    setPageSize(preferences.pageSize);
+  }, [preferences.pageSize]);
 
-  /** 本地搜索过滤 + 排序后的记忆列表 */
-  const filteredMemories = useMemo(() => {
-    return memories
-      .filter((m) => {
-        if (!searchText.trim()) return true;
-        const keyword = searchText.trim().toLowerCase();
-        const memoryText = (m.memory || "").toLowerCase();
-        const userId = (m.user_id || "").toLowerCase();
-        const id = (m.id || "").toLowerCase();
-        return (
-          memoryText.includes(keyword) ||
-          userId.includes(keyword) ||
-          id.includes(keyword)
-        );
-      })
-      .sort((a, b) => {
-        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return sortOrder === "newest" ? timeB - timeA : timeA - timeB;
-      });
-  }, [memories, searchText, sortOrder]);
+  // ============ 派生数据 ============
 
-  /** 分页 */
-  const totalPages = Math.ceil(filteredMemories.length / pageSize);
-  const paginatedMemories = useMemo(
-    () =>
-      filteredMemories.slice(
-        (currentPage - 1) * pageSize,
-        currentPage * pageSize
-      ),
-    [filteredMemories, currentPage, pageSize]
-  );
+  const filteredMemories = memories;
+  const paginatedMemories = memories;
 
   // ============ 筛选操作 ============
 
   const handleFiltersChange = useCallback((newFilters: FilterParams) => {
     setFilters(newFilters);
     setCurrentPage(1);
+    setSelectedIds(new Set());
   }, []);
 
   const handleSearchChange = useCallback(
@@ -130,6 +148,7 @@ export function useMemoriesPage() {
       setSearchText(value);
       if (!isComposing) {
         setCurrentPage(1);
+        setSelectedIds(new Set());
       }
     },
     [isComposing]
@@ -143,12 +162,15 @@ export function useMemoriesPage() {
     setIsComposing(false);
     setSearchText(value);
     setCurrentPage(1);
+    setSelectedIds(new Set());
   }, []);
 
   const handlePageSizeChange = useCallback((size: number) => {
     setPageSize(size);
+    savePreferences({ pageSize: size });
     setCurrentPage(1);
-  }, []);
+    setSelectedIds(new Set());
+  }, [savePreferences]);
 
   const handleJumpPage = useCallback(() => {
     if (jumpPage) {
@@ -172,7 +194,13 @@ export function useMemoriesPage() {
       });
       setDeleteDialogOpen(false);
       setSelectedMemory(null);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(selectedMemory.id);
+        return next;
+      });
       fetchMemories();
+      fetchUsers();
     } catch (err) {
       console.error("删除失败:", err);
       toast({
@@ -183,7 +211,7 @@ export function useMemoriesPage() {
     } finally {
       setDeleteLoading(false);
     }
-  }, [selectedMemory, fetchMemories]);
+  }, [selectedMemory, fetchMemories, fetchUsers]);
 
   // ============ 多选操作 ============
 
@@ -279,6 +307,7 @@ export function useMemoriesPage() {
       setSelectedIds(new Set());
       setSelectionMode(false);
       fetchMemories();
+      fetchUsers();
     } catch (err) {
       console.error("批量删除失败:", err);
       toast({
@@ -289,7 +318,7 @@ export function useMemoriesPage() {
     } finally {
       setBatchDeleteLoading(false);
     }
-  }, [selectedIds, fetchMemories]);
+  }, [selectedIds, fetchMemories, fetchUsers]);
 
   // ============ 记忆操作（打开弹窗） ============
 
@@ -318,6 +347,7 @@ export function useMemoriesPage() {
     filteredMemories,
     paginatedMemories,
     uniqueUsers,
+    totalCount,
 
     // 筛选 & 分页
     searchText,

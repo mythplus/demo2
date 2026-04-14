@@ -93,6 +93,11 @@ def _flush_log_batch(batch: list, raise_on_failure: bool = False):
             conn.commit()
             return  # 写入成功，直接返回
         except sqlite3.OperationalError as e:
+            try:
+                if conn is not None:
+                    conn.rollback()
+            except Exception:
+                pass
             # 数据库锁定（database is locked）时重试
             if "locked" in str(e).lower() and attempt < _FLUSH_MAX_RETRIES:
                 delay = _FLUSH_RETRY_BASE_DELAY * (2 ** (attempt - 1))
@@ -111,6 +116,11 @@ def _flush_log_batch(batch: list, raise_on_failure: bool = False):
                     raise
                 return
         except Exception as e:
+            try:
+                if conn is not None:
+                    conn.rollback()
+            except Exception:
+                pass
             logger.warning(f"批量写入日志失败 ({len(batch)} 条): {e}")
             if raise_on_failure:
                 raise

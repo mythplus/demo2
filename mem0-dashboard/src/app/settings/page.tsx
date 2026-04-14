@@ -117,9 +117,8 @@ export default function SettingsPage() {
         setTestStatus("success");
         // 尝试获取记忆数量作为额外信息
         try {
-          const memories = await mem0Api.getMemories();
-          const count = Array.isArray(memories) ? memories.length : 0;
-          setApiInfo(`当前共有 ${count} 条记忆数据`);
+          const stats = await mem0Api.getStats();
+          setApiInfo(`当前共有 ${stats.total_memories} 条记忆数据`);
         } catch {
           setApiInfo("连接成功，但无法获取记忆数据");
         }

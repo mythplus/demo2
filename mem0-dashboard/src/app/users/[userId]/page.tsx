@@ -60,16 +60,17 @@ export default function UserDetailPage() {
   const userId = decodeURIComponent(params.userId as string);
 
   // 用户偏好设置
-  const { preferences } = usePreferences();
+  const { preferences, savePreferences } = usePreferences();
   const sortOrder = preferences.sortOrder;
 
   const [memories, setMemories] = useState<Memory[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(preferences.pageSize);
   const [jumpPage, setJumpPage] = useState("");
 
   // 弹窗状态
@@ -84,20 +85,41 @@ export default function UserDetailPage() {
     setLoading(true);
     setError("");
     try {
-      const data = await mem0Api.getMemories(userId);
-      const allMemories = Array.isArray(data) ? data : [];
-      // 过滤掉已删除的记忆，用户管理中不展示已删除记忆
-      setMemories(allMemories.filter((m) => m.state !== "deleted"));
+      const data = await mem0Api.getMemories({
+        user_id: userId,
+        state: "active",
+        page: currentPage,
+        page_size: pageSize,
+        sort_by: "created_at",
+        sort_order: sortOrder === "oldest" ? "asc" : "desc",
+      });
+      if (Array.isArray(data)) {
+        setMemories(data);
+        setTotalCount(data.length);
+      } else {
+        setMemories(data.items || []);
+        setTotalCount(data.total || 0);
+        const safeTotalPages = Math.max(1, data.total_pages || 1);
+        if (currentPage > safeTotalPages) {
+          setCurrentPage(safeTotalPages);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "获取记忆失败");
+      setMemories([]);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, currentPage, pageSize, sortOrder]);
 
   useEffect(() => {
     fetchMemories();
   }, [fetchMemories]);
+
+  useEffect(() => {
+    setPageSize(preferences.pageSize);
+  }, [preferences.pageSize]);
 
   // 删除单条记忆
   const handleDeleteMemory = async () => {
@@ -163,7 +185,7 @@ export default function UserDetailPage() {
               </Tooltip>
             </TooltipProvider>
             <p className="text-muted-foreground">
-              共 {memories.length} 条记忆
+              共 {totalCount} 条记忆
             </p>
           </div>
         </div>
@@ -202,13 +224,14 @@ export default function UserDetailPage() {
             <div className="space-y-1.5">
               <CardTitle>记忆列表</CardTitle>
               <CardDescription className="truncate max-w-[600px]" title={userId}>
-                用户 {truncateId(userId, 32)} 的所有记忆条目，共 <span className="font-semibold text-foreground text-base">{memories.length}</span> 条
+                用户 {truncateId(userId, 32)} 的所有记忆条目，共 <span className="font-semibold text-foreground text-base">{totalCount}</span> 条
               </CardDescription>
             </div>
             <PageSizeSelector
               value={pageSize}
               onChange={(size) => {
                 setPageSize(size);
+                savePreferences({ pageSize: size });
                 setCurrentPage(1);
               }}
             />
@@ -226,16 +249,8 @@ export default function UserDetailPage() {
             </div>
           ) : memories.length > 0 ? (
             (() => {
-              const sortedMemories = [...memories].sort((a, b) => {
-                const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
-                const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
-                return sortOrder === "newest" ? timeB - timeA : timeA - timeB;
-              });
-              const totalPages = Math.ceil(sortedMemories.length / pageSize);
-              const paginatedMemories = sortedMemories.slice(
-                (currentPage - 1) * pageSize,
-                currentPage * pageSize
-              );
+              const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+              const paginatedMemories = memories;
               return (
             <div className="space-y-2">
               {paginatedMemories.map((memory) => (

@@ -35,6 +35,7 @@ import type {
   PlaygroundNewMemory,
   PlaygroundSSEEvent,
   Memory,
+  UserInfo,
 } from "@/lib/api";
 import { UserCombobox } from "@/components/shared/user-combobox";
 import { usePlaygroundChat, type ChatMessage } from "@/hooks/use-playground-chat";
@@ -258,14 +259,13 @@ export default function PlaygroundPage() {
   useEffect(() => {
     const loadUsers = async () => {
       try {
-        const memories = await mem0Api.getMemories();
-        const uniqueUsers = Array.from(
-          new Set(
-            (Array.isArray(memories) ? memories : [])
-              .map((m: Memory) => m.user_id)
+        const data = await mem0Api.getMemoryUsers();
+        const uniqueUsers = Array.isArray(data)
+          ? (data as UserInfo[])
+              .map((u) => u.user_id)
               .filter(Boolean)
-          )
-        ) as string[];
+              .sort((a, b) => a.localeCompare(b, "zh-CN", { numeric: true }))
+          : [];
         setUsers(uniqueUsers);
       } catch {}
     };

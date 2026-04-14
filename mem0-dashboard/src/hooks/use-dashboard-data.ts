@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { mem0Api } from "@/lib/api";
-import type { Memory, StatsResponse } from "@/lib/api";
+import type { MemorySummaryResponse, StatsResponse } from "@/lib/api";
 
 /**
  * 仪表盘数据 React Query Hook
@@ -11,16 +11,19 @@ import type { Memory, StatsResponse } from "@/lib/api";
  * - 每 60 秒自动轮询刷新
  */
 export function useDashboardData(enabled: boolean) {
-  // 记忆列表查询
-  const memoriesQuery = useQuery<Memory[]>({
-    queryKey: ["dashboard", "memories"],
+  // 首页摘要查询（最近记忆 + 活跃用户）
+  const summaryQuery = useQuery<MemorySummaryResponse | null>({
+    queryKey: ["dashboard", "summary"],
     queryFn: async () => {
-      const data = await mem0Api.getMemories();
-      return Array.isArray(data) ? data : [];
+      try {
+        return await mem0Api.getMemorySummary({ recent_limit: 5, top_users_limit: 10 });
+      } catch {
+        return null;
+      }
     },
     enabled,
-    refetchInterval: 60 * 1000, // 每 60 秒自动刷新
-    staleTime: 30 * 1000, // 30 秒内视为新鲜
+    refetchInterval: 60 * 1000,
+    staleTime: 30 * 1000,
   });
 
   // 统计数据查询
@@ -38,16 +41,16 @@ export function useDashboardData(enabled: boolean) {
     staleTime: 30 * 1000,
   });
 
-  const memories = memoriesQuery.data ?? [];
+  const summary = summaryQuery.data ?? null;
   const stats = statsQuery.data ?? null;
-  const loading = memoriesQuery.isLoading || statsQuery.isLoading;
-  const error = memoriesQuery.error?.message || statsQuery.error?.message || "";
+  const loading = summaryQuery.isLoading || statsQuery.isLoading;
+  const error = summaryQuery.error?.message || statsQuery.error?.message || "";
 
   // 手动刷新（使两个查询同时失效并重新获取）
   const refetch = () => {
-    memoriesQuery.refetch();
+    summaryQuery.refetch();
     statsQuery.refetch();
   };
 
-  return { memories, stats, loading, error, refetch };
+  return { summary, stats, loading, error, refetch };
 }

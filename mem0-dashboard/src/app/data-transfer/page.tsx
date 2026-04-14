@@ -141,20 +141,16 @@ export default function DataTransferPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const memories = await mem0Api.getMemories();
-        const allMemories = Array.isArray(memories) ? memories : [];
-        const activeData = allMemories.filter((m) => m.state !== "deleted");
-        setMemoryCount(activeData.length);
-
-        // 从所有记忆（含已删除）中提取用户，确保用户不会因记忆全部删除而消失
-        const users = Array.from(
-          new Set(
-            allMemories
-              .map((m) => m.user_id)
-              .filter((id): id is string => !!id)
-          )
-        ).sort();
-        setUserList(users);
+        const [stats, users] = await Promise.all([
+          mem0Api.getStats().catch(() => null),
+          mem0Api.getMemoryUsers().catch(() => []),
+        ]);
+        setMemoryCount(stats?.total_memories ?? null);
+        setUserList(
+          Array.isArray(users)
+            ? users.map((u) => u.user_id).filter(Boolean).sort()
+            : []
+        );
       } catch {
         setMemoryCount(null);
       } finally {
@@ -167,20 +163,16 @@ export default function DataTransferPage() {
   // 刷新记忆数量
   const refreshCount = async () => {
     try {
-      const memories = await mem0Api.getMemories();
-      const allMemories = Array.isArray(memories) ? memories : [];
-      const activeData = allMemories.filter((m) => m.state !== "deleted");
-      setMemoryCount(activeData.length);
-
-      // 从所有记忆（含已删除）中提取用户，确保用户不会因记忆全部删除而消失
-      const users = Array.from(
-        new Set(
-          allMemories
-            .map((m) => m.user_id)
-            .filter((id): id is string => !!id)
-        )
-      ).sort();
-      setUserList(users);
+      const [stats, users] = await Promise.all([
+        mem0Api.getStats().catch(() => null),
+        mem0Api.getMemoryUsers().catch(() => []),
+      ]);
+      setMemoryCount(stats?.total_memories ?? null);
+      setUserList(
+        Array.isArray(users)
+          ? users.map((u) => u.user_id).filter(Boolean).sort()
+          : []
+      );
     } catch {
       // 忽略
     }
@@ -206,14 +198,21 @@ export default function DataTransferPage() {
     }
     setPreviewing(true);
     try {
-      const data = await getFilteredMemories();
-      setFilteredCount(data.length);
+      const preview = await mem0Api.getMemories({
+        user_id: filterUserId || undefined,
+        date_from: filterDateFrom || undefined,
+        date_to: filterDateTo || undefined,
+        state: "active",
+        page: 1,
+        page_size: 1,
+      });
+      setFilteredCount(Array.isArray(preview) ? preview.length : preview.total);
     } catch {
       setFilteredCount(null);
     } finally {
       setPreviewing(false);
     }
-  }, [hasFilter, getFilteredMemories]);
+  }, [hasFilter, filterUserId, filterDateFrom, filterDateTo]);
 
   // 筛选条件变化时自动预览
   useEffect(() => {

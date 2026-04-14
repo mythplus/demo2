@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { mem0Api } from "@/lib/api";
-import type { SearchResult, Memory } from "@/lib/api";
+import type { SearchResult, Memory, UserInfo } from "@/lib/api";
 import { CategoryBadges } from "@/components/memories/category-badge";
 import { StateBadge } from "@/components/memories/state-badge";
 import { MemoryDetailPanel } from "@/components/memories/memory-detail-panel";
@@ -85,15 +85,13 @@ export default function SearchPage() {
 
   const loadUsers = async () => {
     try {
-      const memories = await mem0Api.getMemories();
-      // 从所有记忆（含已删除）中提取用户，确保用户不会因记忆全部删除而消失
-      const uniqueUsers = Array.from(
-        new Set(
-          (Array.isArray(memories) ? memories : [])
-            .map((m: Memory) => m.user_id)
+      const data = await mem0Api.getMemoryUsers();
+      const uniqueUsers = Array.isArray(data)
+        ? (data as UserInfo[])
+            .map((u) => u.user_id)
             .filter(Boolean)
-        )
-      ) as string[];
+            .sort((a, b) => a.localeCompare(b, "zh-CN", { numeric: true }))
+        : [];
       setUsers(uniqueUsers);
     } catch {}
   };
