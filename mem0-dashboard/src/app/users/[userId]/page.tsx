@@ -87,7 +87,7 @@ export default function UserDetailPage() {
     try {
       const data = await mem0Api.getMemories({
         user_id: userId,
-        state: "active",
+        exclude_state: "deleted",
         page: currentPage,
         page_size: pageSize,
         sort_by: "created_at",

@@ -186,8 +186,9 @@ export default function DataTransferPage() {
       user_id: filterUserId || undefined,
       date_from: filterDateFrom || undefined,
       date_to: filterDateTo || undefined,
+      exclude_state: "deleted",
     });
-    return (Array.isArray(memories) ? memories : []).filter((m) => m.state !== "deleted");
+    return Array.isArray(memories) ? memories : [];
   }, [filterUserId, filterDateFrom, filterDateTo]);
 
   // 预览筛选结果数量
@@ -198,15 +199,17 @@ export default function DataTransferPage() {
     }
     setPreviewing(true);
     try {
+      // 使用 exclude_state 在后端排除 deleted，与导出逻辑口径一致
       const preview = await mem0Api.getMemories({
         user_id: filterUserId || undefined,
         date_from: filterDateFrom || undefined,
         date_to: filterDateTo || undefined,
-        state: "active",
+        exclude_state: "deleted",
         page: 1,
         page_size: 1,
       });
-      setFilteredCount(Array.isArray(preview) ? preview.length : preview.total);
+      const totalFromServer = Array.isArray(preview) ? preview.length : preview.total;
+      setFilteredCount(totalFromServer);
     } catch {
       setFilteredCount(null);
     } finally {
@@ -242,7 +245,7 @@ export default function DataTransferPage() {
       setExportProgress(10);
       const data = hasFilter
         ? await getFilteredMemories()
-        : await mem0Api.getMemories().then((m) => (Array.isArray(m) ? m : []).filter((item) => item.state !== "deleted"));
+        : await mem0Api.getMemories({ exclude_state: "deleted" }).then((m) => (Array.isArray(m) ? m : []));
       setExportProgress(60);
 
       // 阶段 2：转换格式（60% → 85%）

@@ -125,6 +125,7 @@ export interface FilterParams {
   sort_order?: "asc" | "desc";
   page?: number;
   page_size?: number;
+  exclude_state?: MemoryState;
 }
 
 /** 分页记忆列表响应 */

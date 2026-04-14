@@ -285,9 +285,19 @@ async def batch_import_memories(request: BatchImportRequest):
                         payload={"metadata": current_meta},
                         points=[mid],
                     )
-                    init_cats = current_meta.get("categories", [])
-                    memory_text = added_item.get("memory", "") if isinstance(added_item, dict) else ""
-                    await asyncio.to_thread(save_memory_audit_snapshot, mid, "ADD", memory_text, init_cats)
+
+                # 记忆本体和 metadata 已写入成功，审计日志为非关键路径，失败只打 warning
+                for added_item in added_items:
+                    try:
+                        mid = str(added_item.get("id"))
+                        init_cats = []
+                        _pts = qdrant_client.retrieve(collection_name=collection_name, ids=[mid], with_payload=True)
+                        if _pts:
+                            init_cats = (_pts[0].payload or {}).get("metadata", {}).get("categories", [])
+                        memory_text = added_item.get("memory", "") if isinstance(added_item, dict) else ""
+                        await asyncio.to_thread(save_memory_audit_snapshot, mid, "ADD", memory_text, init_cats)
+                    except Exception as audit_err:
+                        logger.warning(f"批量导入第 {idx+1} 条审计日志写入失败（记忆已成功导入）: {audit_err}")
 
                 first_id = None
                 first_memory = None
@@ -369,6 +379,7 @@ async def get_memories(
     page_size: Optional[int] = Query(None, ge=1, le=200, description="每页条数，默认 20，最大 200"),
     sort_by: Optional[str] = Query("created_at", description="排序字段: created_at/updated_at"),
     sort_order: Optional[str] = Query("desc", description="排序方向: asc/desc"),
+    exclude_state: Optional[str] = Query(None, description="排除的记忆状态，如 deleted"),
 ):
     """获取记忆列表（优先使用服务端过滤；传 page/page_size 时启用服务端分页）"""
     try:
@@ -386,6 +397,7 @@ async def get_memories(
                 page_size=page_size or 20,
                 order_by=sort_by or "created_at",
                 order_direction=sort_order or "desc",
+                exclude_state=exclude_state,
             )
 
         memories = get_all_memories_raw(
@@ -397,6 +409,7 @@ async def get_memories(
             search=search,
             order_by=sort_by or "created_at",
             order_direction=sort_order or "desc",
+            exclude_state=exclude_state,
         )
         return memories
     except HTTPException:

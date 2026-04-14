@@ -237,15 +237,28 @@ def build_memory_filter(
     state: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
+    exclude_state: str | None = None,
 ):
     """构建 Qdrant 过滤条件，将可下推的筛选尽量下推到存储层。"""
     must = []
+    must_not = []
 
     if user_id:
         must.append(FieldCondition(key="user_id", match=MatchValue(value=user_id)))
 
     if state and state in VALID_STATES:
-        must.append(FieldCondition(key="metadata.state", match=MatchValue(value=state)))
+        if state == "active":
+            # "active" 不能用精确匹配，因为没有 metadata.state 字段的记忆默认也是 active，
+            # Qdrant MatchValue 只匹配有该字段的记录，会漏掉这些默认 active 的记忆。
+            # 改为排除其他状态（paused / deleted）。
+            for other_state in VALID_STATES:
+                if other_state != "active":
+                    must_not.append(FieldCondition(key="metadata.state", match=MatchValue(value=other_state)))
+        else:
+            must.append(FieldCondition(key="metadata.state", match=MatchValue(value=state)))
+
+    if exclude_state and exclude_state in VALID_STATES:
+        must_not.append(FieldCondition(key="metadata.state", match=MatchValue(value=exclude_state)))
 
     valid_categories = [c for c in (categories or []) if c in VALID_CATEGORIES]
     if valid_categories:
@@ -261,9 +274,9 @@ def build_memory_filter(
             )
         )
 
-    if not must:
+    if not must and not must_not:
         return None
-    return Filter(must=must)
+    return Filter(must=must or None, must_not=must_not or None)
 
 
 def _client_side_matches(memory: dict, search: str | None = None) -> bool:
@@ -292,6 +305,7 @@ def iter_memories_raw(
     order_by: str = "created_at",
     order_direction: str = "desc",
     batch_size: int = _DEFAULT_SCROLL_BATCH_SIZE,
+    exclude_state: str | None = None,
 ) -> Iterator[dict]:
     """按批滚动遍历记忆数据，优先使用 Qdrant 端过滤，减少全量拉取后的本地筛选。
     如果 order_by 不被支持（如本地文件模式未建 payload index），自动回退到无排序模式。"""
@@ -303,6 +317,7 @@ def iter_memories_raw(
             state=state,
             date_from=date_from,
             date_to=date_to,
+            exclude_state=exclude_state,
         )
         offset = None
         order_key = order_by if order_by in {"created_at", "updated_at"} else "created_at"
@@ -378,6 +393,7 @@ def get_all_memories_raw(
     search: str | None = None,
     order_by: str = "created_at",
     order_direction: str = "desc",
+    exclude_state: str | None = None,
 ) -> list:
     """获取记忆列表，优先使用 Qdrant 端过滤和排序，减少全量扫描后的本地处理。"""
     return list(
@@ -390,6 +406,7 @@ def get_all_memories_raw(
             search=search,
             order_by=order_by,
             order_direction=order_direction,
+            exclude_state=exclude_state,
         )
     )
 
@@ -405,6 +422,7 @@ def get_memories_page(
     page_size: int = 20,
     order_by: str = "created_at",
     order_direction: str = "desc",
+    exclude_state: str | None = None,
 ) -> dict:
     """获取分页记忆列表，避免前端为了分页而先拉全量数据。"""
     safe_page = max(1, int(page or 1))
@@ -424,6 +442,7 @@ def get_memories_page(
                     state=state,
                     date_from=date_from,
                     date_to=date_to,
+                    exclude_state=exclude_state,
                 ),
                 exact=True,
             )
@@ -443,6 +462,7 @@ def get_memories_page(
         search=search,
         order_by=order_by,
         order_direction=order_direction,
+        exclude_state=exclude_state,
     ):
         if start <= scanned < end:
             items.append(memory)
@@ -482,7 +502,10 @@ def get_memory_summary(limit_recent: int = 5, limit_top_users: int = 10) -> dict
     recent_memories = []
     user_memory_count: Dict[str, int] = {}
 
-    for memory in iter_memories_raw(state="active", order_by="created_at", order_direction="desc"):
+    # 注意：不能用 state="active" 过滤，因为部分记忆的 metadata 中没有 state 字段，
+    # Qdrant MatchValue 只匹配有该字段的记录，会漏掉这些默认 active 的记忆。
+    # 改用 exclude_state="deleted" 排除已删除记忆，确保统计完整。
+    for memory in iter_memories_raw(exclude_state="deleted", order_by="created_at", order_direction="desc"):
         if len(recent_memories) < cached_recent_limit:
             recent_memories.append(memory)
         uid = memory.get("user_id")
@@ -513,7 +536,9 @@ def get_users_summary() -> list[dict]:
 
     user_map: Dict[str, dict] = {}
 
-    for memory in iter_memories_raw(order_by="updated_at", order_direction="desc"):
+    # 注意：必须用 created_at 排序，因为大部分记忆没有 updated_at 字段，
+    # Qdrant order_by 只返回有该字段值的记录，会导致遍历不完整。
+    for memory in iter_memories_raw(order_by="created_at", order_direction="desc"):
         user_id = memory.get("user_id")
         if not user_id:
             continue

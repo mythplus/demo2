@@ -193,6 +193,7 @@ export const mem0Api = {
       if (filters.sort_order) params.set("sort_order", filters.sort_order);
       if (typeof filters.page === "number") params.set("page", String(filters.page));
       if (typeof filters.page_size === "number") params.set("page_size", String(filters.page_size));
+      if (filters.exclude_state) params.set("exclude_state", filters.exclude_state);
     }
 
     const query = params.toString();
