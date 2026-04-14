@@ -56,32 +56,35 @@ def _get_ollama_config():
 def _write_categories_to_qdrant(m, memory_id: str, categories: list):
     """将自动分类结果写入 Qdrant metadata"""
     try:
-        from qdrant_client.models import PointVectors
         vector_store = getattr(m, "vector_store", None)
-        if not vector_store:
-            return
-        client = getattr(vector_store, "client", None)
-        collection_name = getattr(vector_store, "collection_name", None)
+        client = getattr(vector_store, "client", None) if vector_store else None
+        collection_name = MEM0_CONFIG.get("vector_store", {}).get("config", {}).get("collection_name", "")
         if not client or not collection_name:
+            logger.warning(f"写入 Qdrant 分类跳过 [{memory_id}]：vector_store/client 不可用")
             return
+
         points = client.retrieve(
             collection_name=collection_name,
             ids=[memory_id],
             with_payload=True,
         )
-        if points:
-            current_meta = dict((points[0].payload or {}).get("metadata", {}) or {})
-            current_meta["categories"] = categories
-            if "state" not in current_meta:
-                current_meta["state"] = "active"
-            client.set_payload(
-                collection_name=collection_name,
-                payload={"metadata": current_meta},
-                points=[memory_id],
-            )
-            logger.info(f"Playground 自动分类写入成功 [{memory_id}]: {categories}")
+        if not points:
+            logger.warning(f"写入 Qdrant 分类跳过 [{memory_id}]：未找到对应 point")
+            return
+
+        current_meta = dict((points[0].payload or {}).get("metadata", {}) or {})
+        current_meta["categories"] = categories
+        if "state" not in current_meta:
+            current_meta["state"] = "active"
+        client.set_payload(
+            collection_name=collection_name,
+            payload={"metadata": current_meta},
+            points=[memory_id],
+        )
+        logger.info(f"Playground 自动分类写入成功 [{memory_id}]: {categories}")
     except Exception as e:
         logger.warning(f"写入 Qdrant 分类失败 [{memory_id}]: {e}")
+
 
 
 def _build_system_prompt(memories_str: str) -> str:
@@ -170,14 +173,17 @@ async def playground_chat(request: PlaygroundChatRequest):
         # 第3步：将本轮对话存入记忆（mem0 自动提取关键信息）
         new_memories = []
         try:
-            add_result = m.add(
-                messages=[
-                    {"role": "user", "content": request.message},
-                    {"role": "assistant", "content": ai_reply},
-                ],
-                user_id=user_id,
-                metadata={"state": "active"},
+            add_result = await asyncio.to_thread(
+                lambda: m.add(
+                    messages=[
+                        {"role": "user", "content": request.message},
+                        {"role": "assistant", "content": ai_reply},
+                    ],
+                    user_id=user_id,
+                    metadata={"state": "active"},
+                )
             )
+
             raw_new = add_result.get("results", []) if isinstance(add_result, dict) else add_result
             for item in raw_new:
                 event = item.get("event", "NONE")
@@ -302,10 +308,8 @@ async def playground_chat_stream(request: PlaygroundChatRequest):
             # 第4步：异步存储记忆（不阻塞 SSE 流关闭）
             async def _save_memories_background():
                 try:
-                    # m.add() 是同步阻塞调用，必须放到线程池中执行，否则会阻塞事件循环
-                    loop = asyncio.get_event_loop()
-                    add_result = await loop.run_in_executor(
-                        None,
+                    # m.add() 是同步阻塞调用，放到线程池中执行，避免阻塞事件循环
+                    add_result = await asyncio.to_thread(
                         lambda: m.add(
                             messages=[
                                 {"role": "user", "content": request.message},
@@ -315,6 +319,7 @@ async def playground_chat_stream(request: PlaygroundChatRequest):
                             metadata={"state": "active"},
                         )
                     )
+
                     raw_new = add_result.get("results", []) if isinstance(add_result, dict) else add_result
                     has_new = False
                     for item in raw_new:

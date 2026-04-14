@@ -82,8 +82,9 @@ _FLUSH_MAX_RETRIES = 3       # 写入失败最大重试次数
 _FLUSH_RETRY_BASE_DELAY = 0.5  # 重试基础延迟（秒），指数退避
 
 
-def _flush_log_batch(batch: list):
+def _flush_log_batch(batch: list, raise_on_failure: bool = False):
     """将一批日志写入 SQLite（单次事务，带指数退避重试）"""
+    conn = None
     for attempt in range(1, _FLUSH_MAX_RETRIES + 1):
         try:
             conn = _get_db_conn()
@@ -99,15 +100,20 @@ def _flush_log_batch(batch: list):
                 time.sleep(delay)
                 # 重置连接，避免复用损坏的连接
                 try:
-                    conn.close()
+                    if conn is not None:
+                        conn.close()
                 except Exception:
                     pass
                 _thread_local.db_conn = None
             else:
                 logger.warning(f"批量写入日志失败 ({len(batch)} 条，第 {attempt} 次尝试): {e}")
+                if raise_on_failure:
+                    raise
                 return
         except Exception as e:
             logger.warning(f"批量写入日志失败 ({len(batch)} 条): {e}")
+            if raise_on_failure:
+                raise
             return
 
 
@@ -217,11 +223,21 @@ def init_access_log_db():
 
 # ============ 访问日志 ============
 
-def save_category_snapshot(memory_id: str, categories: list, timestamp: str = ""):
-    """记录一次标签快照（异步队列投递，非阻塞）"""
+def save_category_snapshot(memory_id: str, categories: list, timestamp: str = "", strict: bool = False):
+    """记录一次标签快照（默认异步队列投递；strict=True 时同步写入并抛出异常）"""
     try:
         ts = timestamp or datetime.now().isoformat()
         cats_json = json.dumps(categories, ensure_ascii=False)
+        if strict:
+            _flush_log_batch([
+                {
+                    "table": "category_snapshots",
+                    "sql": "INSERT INTO category_snapshots (memory_id, categories, timestamp) VALUES (?, ?, ?)",
+                    "params": (memory_id, cats_json, ts),
+                }
+            ], raise_on_failure=True)
+            return
+
         _enqueue_log(
             "category_snapshots",
             "INSERT INTO category_snapshots (memory_id, categories, timestamp) VALUES (?, ?, ?)",
@@ -229,25 +245,62 @@ def save_category_snapshot(memory_id: str, categories: list, timestamp: str = ""
         )
     except Exception as e:
         logger.warning(f"记录标签快照失败: {e}")
+        if strict:
+            raise
 
 
 def save_change_log(memory_id: str, event: str, new_memory: str,
                     categories: list, old_memory: str = None,
-                    old_categories: list = None):
-    """记录一条修改历史（异步队列投递，非阻塞）"""
+                    old_categories: list = None, strict: bool = False,
+                    timestamp: str = ""):
+    """记录一条修改历史（默认异步队列投递；strict=True 时同步写入并抛出异常）"""
     try:
-        ts = datetime.now().isoformat()
+        ts = timestamp or datetime.now().isoformat()
         cats_json = json.dumps(categories, ensure_ascii=False)
         old_cats_json = json.dumps(old_categories or [], ensure_ascii=False)
-        _enqueue_log(
-            "memory_change_logs",
-            """INSERT INTO memory_change_logs
+        sql = """INSERT INTO memory_change_logs
                (memory_id, event, old_memory, new_memory, categories, old_categories, timestamp)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (memory_id, event, old_memory or "", new_memory, cats_json, old_cats_json, ts),
-        )
+               VALUES (?, ?, ?, ?, ?, ?, ?)"""
+        params = (memory_id, event, old_memory or "", new_memory, cats_json, old_cats_json, ts)
+
+        if strict:
+            _flush_log_batch([
+                {
+                    "table": "memory_change_logs",
+                    "sql": sql,
+                    "params": params,
+                }
+            ], raise_on_failure=True)
+            return
+
+        _enqueue_log("memory_change_logs", sql, params)
     except Exception as e:
         logger.warning(f"记录修改历史失败: {e}")
+        if strict:
+            raise
+
+
+def save_memory_audit_snapshot(memory_id: str, event: str, new_memory: str,
+                              categories: list, old_memory: str = None,
+                              old_categories: list = None, timestamp: str = ""):
+    """同步记录标签快照和修改历史，任一失败即抛错，保证审计链路原子性。"""
+    ts = timestamp or datetime.now().isoformat()
+    cats_json = json.dumps(categories, ensure_ascii=False)
+    old_cats_json = json.dumps(old_categories or [], ensure_ascii=False)
+    _flush_log_batch([
+        {
+            "table": "category_snapshots",
+            "sql": "INSERT INTO category_snapshots (memory_id, categories, timestamp) VALUES (?, ?, ?)",
+            "params": (memory_id, cats_json, ts),
+        },
+        {
+            "table": "memory_change_logs",
+            "sql": """INSERT INTO memory_change_logs
+               (memory_id, event, old_memory, new_memory, categories, old_categories, timestamp)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            "params": (memory_id, event, old_memory or "", new_memory, cats_json, old_cats_json, ts),
+        },
+    ], raise_on_failure=True)
 
 
 def get_change_logs(memory_id: str) -> list:

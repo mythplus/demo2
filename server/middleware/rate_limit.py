@@ -27,7 +27,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.window = 60  # 窗口大小（秒）
         self._db_path = ACCESS_LOG_DB_PATH
         self._local = threading.local()
+        self._cleanup_lock = threading.Lock()
+        self._last_cleanup_at = 0.0
         self._init_table()
+
 
     def _get_conn(self) -> sqlite3.Connection:
         """获取线程本地的 SQLite 连接"""
@@ -72,14 +75,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return forwarded.split(",")[0].strip()
         return request.client.host if request.client else "unknown"
 
-    def _cleanup_expired(self, conn: sqlite3.Connection):
+    def _cleanup_expired(self, conn: sqlite3.Connection, now: float):
         """清理过期的限流记录（窗口外的旧数据）"""
-        try:
-            cutoff = time.time() - self.window * 2  # 保留 2 倍窗口，减少清理频率
-            conn.execute("DELETE FROM rate_limit_log WHERE timestamp < ?", (cutoff,))
-            conn.commit()
-        except Exception as e:
-            logger.warning(f"清理限流记录失败: {e}")
+        if now - self._last_cleanup_at < self.window:
+            return
+        with self._cleanup_lock:
+            if now - self._last_cleanup_at < self.window:
+                return
+            try:
+                cutoff = now - self.window * 2  # 保留 2 倍窗口，减少清理频率
+                conn.execute("DELETE FROM rate_limit_log WHERE timestamp < ?", (cutoff,))
+                conn.commit()
+                self._last_cleanup_at = now
+            except Exception as e:
+                logger.warning(f"清理限流记录失败: {e}")
+
 
     async def dispatch(self, request: Request, call_next):
         # OPTIONS 预检请求和健康检查跳过限制
@@ -121,9 +131,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             )
             conn.commit()
 
-            # 每 200 次请求清理一次过期记录（概率性清理，减少 IO）
-            if int(now) % 200 == 0:
-                self._cleanup_expired(conn)
+            # 每隔一个窗口周期清理一次过期记录，减少数据库膨胀
+            self._cleanup_expired(conn, now)
+
 
         except Exception as e:
             # 限流组件异常不应阻塞正常请求，降级放行并记录警告

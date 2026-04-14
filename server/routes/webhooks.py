@@ -102,10 +102,20 @@ async def update_webhook(webhook_id: str, request: WebhookUpdateRequest):
         if invalid:
             raise HTTPException(status_code=400, detail=f"无效的事件类型: {invalid}")
 
+    # 如果更新了 URL，先做可达性校验
+    if request.url is not None:
+        validation = await webhook_service.validate_webhook_url(
+            request.url,
+            http_client=memory_service.http_client,
+        )
+        if not validation["valid"]:
+            raise HTTPException(status_code=400, detail=f"Webhook URL 验证失败: {validation['message']}，请检查URL的正确性")
+
     # 合并更新字段
     update_data = {**existing}
     for key, value in request.dict(exclude_unset=True).items():
         update_data[key] = value
+
 
     result = webhook_service.update_webhook(webhook_id, update_data)
     if not result:

@@ -20,7 +20,7 @@ from server.services.memory_service import (
     apply_filters, auto_categorize_memory, invalidate_stats_cache,
 )
 from server.services.log_service import (
-    log_access, save_change_log, save_category_snapshot, get_change_logs,
+    log_access, save_change_log, save_category_snapshot, save_memory_audit_snapshot, get_change_logs,
 )
 from server.services import webhook_service, memory_service as _mem_svc
 
@@ -32,14 +32,17 @@ router = APIRouter(tags=["记忆管理"])
 @router.post("/v1/memories/")
 async def add_memory(request: AddMemoryRequest):
     """添加记忆（支持 categories 和 state）"""
+    user_id = (request.user_id or "").strip()
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id 为必填项")
+
+    added_ids_for_rollback: List[str] = []
+
     try:
         m = get_memory()
         messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
 
-        if not request.user_id or not request.user_id.strip():
-            raise HTTPException(status_code=400, detail="user_id 为必填项")
-
-        kwargs = {"user_id": request.user_id.strip()}
+        kwargs = {"user_id": user_id}
         if request.agent_id:
             kwargs["agent_id"] = request.agent_id
         if request.run_id:
@@ -68,84 +71,99 @@ async def add_memory(request: AddMemoryRequest):
         if final_metadata:
             kwargs["metadata"] = final_metadata
 
-        result = m.add(messages=messages, infer=request.infer, **kwargs)
+        # m.add 是同步的 Mem0 SDK 调用，放到线程池执行避免阻塞事件循环
+        result = await asyncio.to_thread(m.add, messages=messages, infer=request.infer, **kwargs)
 
-        # 确保 categories/state 写入 Qdrant（Mem0 SDK 可能不保留自定义 metadata）
-        # 同时，如果是 AI 提取模式（infer=True），可能拆分为多条记忆，需要对每条单独 AI 分类
-        try:
-            added_ids = []
-            if isinstance(result, dict) and "results" in result:
-                added_ids = [r for r in result["results"] if r.get("id")]
-            elif isinstance(result, list):
-                added_ids = [r for r in result if r.get("id")]
+        added_items = []
+        if isinstance(result, dict) and "results" in result:
+            added_items = [r for r in result["results"] if r.get("id")]
+        elif isinstance(result, list):
+            added_items = [r for r in result if r.get("id")]
 
-            if added_ids:
-                collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
-                qdrant_client = m.vector_store.client
-                for item in added_ids:
-                    mid = item.get("id") if isinstance(item, dict) else item
-                    try:
-                        points = qdrant_client.retrieve(
-                            collection_name=collection_name,
-                            ids=[mid],
-                            with_payload=True,
-                        )
-                        if points:
-                            current_meta = dict((points[0].payload or {}).get("metadata", {}) or {})
+        added_ids_for_rollback = [str(item.get("id")) for item in added_items if item.get("id")]
 
-                            # 如果是 AI 提取模式且未手动选标签，对每条拆分后的记忆单独 AI 分类
-                            if not user_selected_categories and request.auto_categorize and request.infer:
-                                memory_content = item.get("memory", "") if isinstance(item, dict) else ""
-                                if memory_content:
-                                    per_item_cats = await auto_categorize_memory(memory_content)
-                                    if per_item_cats:
-                                        current_meta["categories"] = per_item_cats
+        if added_items:
+            collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+            qdrant_client = m.vector_store.client
+            for item in added_items:
+                mid = str(item.get("id"))
+                points = qdrant_client.retrieve(
+                    collection_name=collection_name,
+                    ids=[mid],
+                    with_payload=True,
+                )
+                if not points:
+                    raise RuntimeError(f"新增记忆后未找到对应向量记录: {mid}")
 
-                            # 补写用户手动选择的分类或预先 AI 分类的结果
-                            if "categories" in final_metadata and "categories" not in current_meta:
-                                current_meta["categories"] = final_metadata["categories"]
-                            if "state" in final_metadata:
-                                current_meta["state"] = final_metadata["state"]
+                current_meta = dict((points[0].payload or {}).get("metadata", {}) or {})
 
-                            qdrant_client.set_payload(
-                                collection_name=collection_name,
-                                payload={"metadata": current_meta},
-                                points=[mid],
-                            )
-                            # 记录初始标签快照
-                            init_cats = current_meta.get("categories", [])
-                            if init_cats:
-                                save_category_snapshot(mid, init_cats)
-                            # 记录 ADD 事件到自建历史
-                            memory_text = item.get("memory", "") if isinstance(item, dict) else ""
-                            save_change_log(mid, "ADD", memory_text, init_cats)
-                    except Exception:
-                        pass
-        except Exception as e2:
-            logger.warning(f"补写 metadata 失败: {e2}")
+                # 如果是 AI 提取模式且未手动选标签，对每条拆分后的记忆单独 AI 分类
+                if not user_selected_categories and request.auto_categorize and request.infer:
+                    memory_content = item.get("memory", "") if isinstance(item, dict) else ""
+                    if memory_content:
+                        per_item_cats = await auto_categorize_memory(memory_content)
+                        if per_item_cats:
+                            current_meta["categories"] = per_item_cats
+
+                # 补写用户手动选择的分类或预先 AI 分类的结果
+                if "categories" in final_metadata and "categories" not in current_meta:
+                    current_meta["categories"] = final_metadata["categories"]
+                if "state" in final_metadata:
+                    current_meta["state"] = final_metadata["state"]
+
+                qdrant_client.set_payload(
+                    collection_name=collection_name,
+                    payload={"metadata": current_meta},
+                    points=[mid],
+                )
+
+                init_cats = current_meta.get("categories", [])
+                memory_text = item.get("memory", "") if isinstance(item, dict) else ""
+                save_memory_audit_snapshot(mid, "ADD", memory_text, init_cats)
 
         invalidate_stats_cache()
 
         # 触发 Webhook（后台异步，不阻塞响应）
         try:
-            # 提取新增记忆的 ID 列表
-            _added_ids = []
-            if isinstance(result, dict) and "results" in result:
-                _added_ids = [r.get("id", "") for r in result["results"] if r.get("id")]
-            elif isinstance(result, list):
-                _added_ids = [r.get("id", "") for r in result if r.get("id")]
             _wh_data = {
-                "user_id": request.user_id or "",
+                "user_id": user_id,
                 "memory": " ".join(msg.content for msg in request.messages)[:200],
-                "memory_id": ", ".join(_added_ids) if _added_ids else "",
+                "memory_id": ", ".join(added_ids_for_rollback) if added_ids_for_rollback else "",
             }
             asyncio.ensure_future(webhook_service.trigger_webhooks("memory.added", _wh_data, _mem_svc.http_client))
         except Exception:
             pass
 
         return result
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"添加记忆失败: {e}")
+        logger.exception("添加记忆失败")
+
+        if added_ids_for_rollback:
+            try:
+                collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+                qdrant_client = get_memory().vector_store.client
+                for mid in added_ids_for_rollback:
+                    points = qdrant_client.retrieve(
+                        collection_name=collection_name,
+                        ids=[mid],
+                        with_payload=True,
+                    )
+                    if not points:
+                        continue
+                    metadata = dict((points[0].payload or {}).get("metadata", {}) or {})
+                    metadata["state"] = "deleted"
+                    qdrant_client.set_payload(
+                        collection_name=collection_name,
+                        payload={"metadata": metadata},
+                        points=[mid],
+                    )
+                invalidate_stats_cache()
+                logger.warning(f"添加记忆补写失败，已软回滚 {len(added_ids_for_rollback)} 条记忆")
+            except Exception as rollback_err:
+                logger.error(f"添加记忆补写失败后的软回滚也失败: {rollback_err}")
+
         raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
@@ -327,6 +345,8 @@ async def get_memories(
         )
 
         return memories
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"获取记忆失败: {e}")
         raise HTTPException(status_code=500, detail=_safe_error_detail(e))
@@ -397,7 +417,8 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
 
         # 第一步：如果有文本更新，先通过 Mem0 SDK 更新（这会重写 Qdrant payload）
         if request.text:
-            result = m.update(memory_id=memory_id, data=request.text)
+            # m.update 是同步的 Mem0 SDK 调用，放到线程池执行避免阻塞事件循环
+            result = await asyncio.to_thread(m.update, memory_id=memory_id, data=request.text)
         else:
             result = {"message": "metadata updated"}
 
@@ -471,6 +492,8 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
             pass
 
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"更新记忆失败: {e}")
         raise HTTPException(status_code=500, detail=_safe_error_detail(e))
@@ -700,6 +723,8 @@ async def hard_delete_user(user_id: str):
         return {
             "message": f"用户 {user_id} 及其所有数据已永久删除（记忆 {total_deleted} 条，图谱实体 {graph_deleted} 个）"
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"硬删除用户失败: {e}")
         raise HTTPException(status_code=500, detail=_safe_error_detail(e))
@@ -713,90 +738,111 @@ async def batch_delete_memories(request: BatchDeleteRequest):
     if not request.memory_ids:
         raise HTTPException(status_code=400, detail="memory_ids 不能为空")
 
-    m = get_memory()
-    collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
-    qdrant_client = m.vector_store.client
-
-    results: List[Dict[str, Any]] = []
-    success_count = 0
-    failed_count = 0
-
-    # 批量获取所有记忆的当前状态
     try:
-        points = qdrant_client.retrieve(
-            collection_name=collection_name,
-            ids=request.memory_ids,
-            with_payload=True,
-        )
-        points_map = {str(p.id): p for p in points}
-    except Exception as e:
-        logger.error(f"批量查询记忆失败: {e}")
-        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
+        m = get_memory()
+        collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+        qdrant_client = m.vector_store.client
 
-    # 收集需要更新的 point IDs 和对应的 payload
-    to_delete_ids = []
-    for mid in request.memory_ids:
-        point = points_map.get(mid)
-        if not point:
-            results.append({"id": mid, "success": False, "error": "记忆不存在"})
-            failed_count += 1
-            continue
+        results: List[Optional[Dict[str, Any]]] = [None] * len(request.memory_ids)
+        success_count = 0
+        failed_count = 0
+        pending_delete_items: List[Dict[str, Any]] = []
+        deleted_ids: List[str] = []
 
-        payload = point.payload or {}
-        metadata = payload.get("metadata", {}) or {}
-
-        if metadata.get("state") == "deleted":
-            results.append({"id": mid, "success": False, "error": "已处于删除状态"})
-            failed_count += 1
-            continue
-
-        to_delete_ids.append(mid)
-        # 记录删除历史
-        old_memory_text = payload.get("data", "")
-        old_categories = metadata.get("categories", [])
-        save_change_log(mid, "DELETE", old_memory_text, old_categories)
-        results.append({"id": mid, "success": True})
-        success_count += 1
-
-    # 批量更新 state 为 deleted
-    if to_delete_ids:
+        # 批量获取所有记忆的当前状态
         try:
-            for mid in to_delete_ids:
-                point = points_map[mid]
-                metadata = dict((point.payload or {}).get("metadata", {}) or {})
+            points = qdrant_client.retrieve(
+                collection_name=collection_name,
+                ids=request.memory_ids,
+                with_payload=True,
+            )
+            points_map = {str(p.id): p for p in points}
+        except Exception as e:
+            logger.error(f"批量查询记忆失败: {e}")
+            raise HTTPException(status_code=500, detail=_safe_error_detail(e))
+
+        # 先校验并收集待删除项，不提前记录成功状态
+        for idx, mid in enumerate(request.memory_ids):
+            point = points_map.get(mid)
+            if not point:
+                results[idx] = {"id": mid, "success": False, "error": "记忆不存在"}
+                failed_count += 1
+                continue
+
+            payload = point.payload or {}
+            metadata = dict(payload.get("metadata", {}) or {})
+
+            if metadata.get("state") == "deleted":
+                results[idx] = {"id": mid, "success": False, "error": "已处于删除状态"}
+                failed_count += 1
+                continue
+
+            pending_delete_items.append({
+                "index": idx,
+                "id": mid,
+                "metadata": metadata,
+                "old_memory_text": payload.get("data", ""),
+                "old_categories": metadata.get("categories", []),
+            })
+
+        # 真正执行软删除；只有落库成功后才记录成功结果
+        for item in pending_delete_items:
+            mid = item["id"]
+            try:
+                metadata = dict(item["metadata"])
                 metadata["state"] = "deleted"
                 qdrant_client.set_payload(
                     collection_name=collection_name,
                     payload={"metadata": metadata},
                     points=[mid],
                 )
-        except Exception as e:
-            logger.error(f"批量软删除失败: {e}")
-            # 部分失败不影响已成功的
+
+                results[item["index"]] = {"id": mid, "success": True}
+                success_count += 1
+                deleted_ids.append(mid)
+
+                try:
+                    save_change_log(mid, "DELETE", item["old_memory_text"], item["old_categories"])
+                except Exception as log_err:
+                    logger.warning(f"记录批量删除历史失败 memory_id={mid}: {log_err}")
+            except Exception as e:
+                logger.error(f"批量软删除单条失败 memory_id={mid}: {e}")
+                results[item["index"]] = {"id": mid, "success": False, "error": "删除失败"}
+                failed_count += 1
+
+        if success_count > 0:
+            invalidate_stats_cache()
+
+        final_results = [
+            item if item is not None else {"id": request.memory_ids[idx], "success": False, "error": "删除结果未知"}
+            for idx, item in enumerate(results)
+        ]
+
+        # 触发 Webhook（批量删除汇总通知）
+        try:
+            # 记忆ID列表截断显示，避免消息过长
+            _id_summary = ", ".join(deleted_ids[:5])
+            if len(deleted_ids) > 5:
+                _id_summary += f" ...等共 {len(deleted_ids)} 条"
+            _wh_data = {
+                "memory": f"批量删除 {len(request.memory_ids)} 条记忆，成功 {success_count} 条，失败 {failed_count} 条",
+                "memory_id": _id_summary,
+            }
+            asyncio.ensure_future(webhook_service.trigger_webhooks("memory.batch_deleted", _wh_data, _mem_svc.http_client))
+        except Exception:
             pass
 
-    invalidate_stats_cache()
-
-    # 触发 Webhook（批量删除汇总通知）
-    try:
-        # 记忆ID列表截断显示，避免消息过长
-        _id_summary = ", ".join(to_delete_ids[:5])
-        if len(to_delete_ids) > 5:
-            _id_summary += f" ...等共 {len(to_delete_ids)} 条"
-        _wh_data = {
-            "memory": f"批量删除 {len(request.memory_ids)} 条记忆，成功 {success_count} 条，失败 {failed_count} 条",
-            "memory_id": _id_summary,
-        }
-        asyncio.ensure_future(webhook_service.trigger_webhooks("memory.batch_deleted", _wh_data, _mem_svc.http_client))
-    except Exception:
-        pass
-
-    return BatchDeleteResponse(
-        total=len(request.memory_ids),
-        success=success_count,
-        failed=failed_count,
-        results=results,
-    )
+        return BatchDeleteResponse(
+            total=len(request.memory_ids),
+            success=success_count,
+            failed=failed_count,
+            results=final_results,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"批量删除记忆失败: {e}")
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 # ============ 历史记录接口 ============
@@ -836,6 +882,8 @@ async def get_memory_history(memory_id: str):
                 item["categories"] = current_categories
 
         return history_list
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"获取记忆历史失败: {e}")
         raise HTTPException(status_code=500, detail=_safe_error_detail(e))
