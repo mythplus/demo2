@@ -13,7 +13,9 @@ from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
 
 # ============ 环境模式 ============
-IS_PRODUCTION = os.environ.get("MEM0_ENV", "development").lower() == "production"
+_ENV_NAME = os.environ.get("MEM0_ENV", "development").lower()
+IS_PRODUCTION = _ENV_NAME == "production"
+IS_TESTING = _ENV_NAME == "test" or "PYTEST_CURRENT_TEST" in os.environ
 
 
 # ============ 结构化日志 ============

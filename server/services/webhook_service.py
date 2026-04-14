@@ -19,6 +19,10 @@ logger = logging.getLogger(__name__)
 # Webhook 配置文件路径（与 access_logs.db 同级）
 WEBHOOK_CONFIG_PATH = Path(__file__).parent.parent.parent / "webhooks.json"
 
+# 文件读写锁（防止并发竞态）
+import threading
+_file_lock = threading.Lock()
+
 
 # ============ 数据模型 ============
 
@@ -56,24 +60,26 @@ class WebhookItem:
 
 def _load_webhooks() -> List[dict]:
     """从 JSON 文件加载 Webhook 配置"""
-    if not WEBHOOK_CONFIG_PATH.exists():
-        return []
-    try:
-        return json.loads(WEBHOOK_CONFIG_PATH.read_text(encoding="utf-8"))
-    except Exception as e:
-        logger.error(f"加载 Webhook 配置失败: {e}")
-        return []
+    with _file_lock:
+        if not WEBHOOK_CONFIG_PATH.exists():
+            return []
+        try:
+            return json.loads(WEBHOOK_CONFIG_PATH.read_text(encoding="utf-8"))
+        except Exception as e:
+            logger.error(f"加载 Webhook 配置失败: {e}")
+            return []
 
 
 def _save_webhooks(webhooks: List[dict]):
     """保存 Webhook 配置到 JSON 文件"""
-    try:
-        WEBHOOK_CONFIG_PATH.write_text(
-            json.dumps(webhooks, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-    except Exception as e:
-        logger.error(f"保存 Webhook 配置失败: {e}")
+    with _file_lock:
+        try:
+            WEBHOOK_CONFIG_PATH.write_text(
+                json.dumps(webhooks, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        except Exception as e:
+            logger.error(f"保存 Webhook 配置失败: {e}")
 
 
 # ============ CRUD ============
@@ -275,24 +281,25 @@ async def trigger_webhooks(
     client = http_client or httpx.AsyncClient(timeout=10.0)
     own_client = http_client is None
 
-    tasks = [_send_webhook(client, wh, event_type, data) for wh in matched]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    try:
+        tasks = [_send_webhook(client, wh, event_type, data) for wh in matched]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    # 更新触发状态
-    all_webhooks = _load_webhooks()
-    for wh, result in zip(matched, results):
-        for i, stored in enumerate(all_webhooks):
-            if stored.get("id") == wh.get("id"):
-                all_webhooks[i]["last_triggered"] = datetime.now().isoformat()
-                all_webhooks[i]["last_status"] = "success" if not isinstance(result, Exception) else "failed"
-                break
-    _save_webhooks(all_webhooks)
+        # 更新触发状态
+        all_webhooks = _load_webhooks()
+        for wh, result in zip(matched, results):
+            for i, stored in enumerate(all_webhooks):
+                if stored.get("id") == wh.get("id"):
+                    all_webhooks[i]["last_triggered"] = datetime.now().isoformat()
+                    all_webhooks[i]["last_status"] = "success" if not isinstance(result, Exception) else "failed"
+                    break
+        _save_webhooks(all_webhooks)
 
-    if own_client:
-        await client.aclose()
-
-    success_count = sum(1 for r in results if not isinstance(r, Exception))
-    logger.info(f"Webhook 触发完成: 事件={event_type}, 匹配={len(matched)}, 成功={success_count}")
+        success_count = sum(1 for r in results if not isinstance(r, Exception))
+        logger.info(f"Webhook 触发完成: 事件={event_type}, 匹配={len(matched)}, 成功={success_count}")
+    finally:
+        if own_client:
+            await client.aclose()
 
 
 async def _send_webhook(
@@ -338,7 +345,7 @@ async def _send_webhook(
                         f"Webhook 企业微信返回错误 [{webhook.get('name')}]: errcode={errcode}, errmsg={errmsg}"
                     )
                     raise Exception(f"企业微信错误: errcode={errcode}, errmsg={errmsg}")
-            except (ValueError, KeyError):
+            except ValueError:
                 pass  # 非 JSON 响应，忽略
 
         logger.info(f"Webhook 推送成功 [{webhook.get('name')}]: {event_type}")

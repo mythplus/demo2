@@ -68,6 +68,10 @@ async def create_webhook(request: WebhookCreateRequest):
     if invalid:
         raise HTTPException(status_code=400, detail=f"无效的事件类型: {invalid}")
 
+    # 检查 ID 重复
+    if webhook_service.get_webhook(request.id):
+        raise HTTPException(status_code=409, detail=f"Webhook ID 已存在: {request.id}")
+
     # 验证 Webhook URL 可用性
     validation = await webhook_service.validate_webhook_url(
         request.url,
@@ -78,6 +82,9 @@ async def create_webhook(request: WebhookCreateRequest):
 
     data = request.dict()
     result = webhook_service.create_webhook(data)
+    # 脱敏 secret
+    if result.get("secret"):
+        result["secret"] = "***"
     return {"message": "创建成功", "webhook": result}
 
 
@@ -88,6 +95,13 @@ async def update_webhook(webhook_id: str, request: WebhookUpdateRequest):
     if not existing:
         raise HTTPException(status_code=404, detail="Webhook 不存在")
 
+    # 校验事件类型
+    if request.events is not None:
+        valid_events = {"memory.added", "memory.updated", "memory.deleted", "memory.searched", "user.hard_deleted", "memory.batch_imported", "memory.batch_deleted"}
+        invalid = [e for e in request.events if e not in valid_events]
+        if invalid:
+            raise HTTPException(status_code=400, detail=f"无效的事件类型: {invalid}")
+
     # 合并更新字段
     update_data = {**existing}
     for key, value in request.dict(exclude_unset=True).items():
@@ -96,6 +110,8 @@ async def update_webhook(webhook_id: str, request: WebhookUpdateRequest):
     result = webhook_service.update_webhook(webhook_id, update_data)
     if not result:
         raise HTTPException(status_code=500, detail="更新失败")
+    if result.get("secret"):
+        result["secret"] = "***"
     return {"message": "更新成功", "webhook": result}
 
 

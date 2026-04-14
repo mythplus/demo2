@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 @pytest.fixture(scope="session", autouse=True)
 def mock_env():
     """设置测试环境变量，避免加载真实配置"""
-    os.environ["MEM0_ENV"] = "development"
+    os.environ["MEM0_ENV"] = "test"
     os.environ["OLLAMA_BASE_URL"] = "http://localhost:11434"
     os.environ["OLLAMA_MODEL"] = "qwen2.5:7b"
     os.environ["EMBED_MODEL"] = "nomic-embed-text"

@@ -2,6 +2,7 @@
 API Key 认证中间件
 """
 
+import hmac
 import logging
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -40,7 +41,7 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
         elif api_key_header:
             provided_key = api_key_header.strip()
 
-        if provided_key != self.api_key:
+        if not provided_key or not hmac.compare_digest(provided_key.encode(), self.api_key.encode()):
             return JSONResponse(
                 status_code=401,
                 content={"detail": "无效的 API Key，请在请求头中提供有效的 Authorization: Bearer <key> 或 X-API-Key: <key>"},

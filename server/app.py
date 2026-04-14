@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 
 from server.config import (
     MEM0_CONFIG, QDRANT_DATA_PATH, ACCESS_LOG_DB_PATH,
-    IS_PRODUCTION, _safe_error_detail, setup_logging,
+    IS_PRODUCTION, IS_TESTING, _safe_error_detail, setup_logging,
 )
 from server.services import memory_service
 from server.services.log_service import init_access_log_db, start_log_writer, stop_log_writer
@@ -116,12 +116,15 @@ else:
 
 # 速率限制中间件
 _rate_limit_rpm = int(MEM0_CONFIG.get("security", {}).get("rate_limit", 60))
-_rate_limit_enabled = _rate_limit_rpm > 0
+_rate_limit_enabled = _rate_limit_rpm > 0 and not IS_TESTING
 if _rate_limit_enabled:
     app.add_middleware(RateLimitMiddleware, rpm=_rate_limit_rpm)
     logger.info(f"速率限制已启用：每分钟最多 {_rate_limit_rpm} 次请求")
 else:
-    logger.info("速率限制未启用（rate_limit 为 0）")
+    if IS_TESTING:
+        logger.info("测试环境：已跳过速率限制中间件")
+    else:
+        logger.info("速率限制未启用（rate_limit 为 0）")
 
 # 请求日志中间件
 app.add_middleware(RequestLogMiddleware)

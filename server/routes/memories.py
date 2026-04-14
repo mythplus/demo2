@@ -261,8 +261,6 @@ async def batch_import_memories(request: BatchImportRequest):
     success_count = sum(1 for r in results if r.success)
     failed_count = len(results) - success_count
 
-    invalidate_stats_cache()
-
     # Webhook 由前端在所有批次完成后调用 /v1/memories/batch-import-notify 统一触发
 
     return BatchImportResponse(
@@ -521,7 +519,7 @@ async def delete_memory_by_id(memory_id: str):
 
             # 触发 Webhook
             try:
-                _wh_data = {"memory_id": memory_id, "memory": old_memory_text[:200] if old_memory_text else ""}
+                _wh_data = {"memory_id": memory_id, "memory": old_memory_text[:200] if old_memory_text else "", "user_id": payload.get("user_id", "")}
                 asyncio.ensure_future(webhook_service.trigger_webhooks("memory.deleted", _wh_data, _mem_svc.http_client))
             except Exception:
                 pass
