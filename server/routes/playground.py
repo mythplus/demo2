@@ -196,6 +196,8 @@ async def generate_reply_node(state: PlaygroundState) -> dict:
 
 async def store_memories_node(state: PlaygroundState) -> dict:
     """节点3：将本轮对话存入 Mem0 记忆"""
+    from server.services import meta_service
+
     m = memory_service.get_memory()
     new_memories = []
 
@@ -222,6 +224,7 @@ async def store_memories_node(state: PlaygroundState) -> dict:
                     "memory": mem_text,
                     "event": event,
                 })
+                cats = []
                 # 自动分类并写入 Qdrant
                 if mem_text and mem_id:
                     try:
@@ -230,6 +233,21 @@ async def store_memories_node(state: PlaygroundState) -> dict:
                             _write_categories_to_qdrant(m, mem_id, cats)
                     except Exception as e:
                         logger.warning(f"[LangGraph] 自动分类失败 [{mem_id}]: {e}")
+
+                # 双写关系库（对齐其他写入路径）
+                if mem_id:
+                    try:
+                        await asyncio.to_thread(
+                            meta_service.create_memory_meta,
+                            memory_id=mem_id,
+                            user_id=state["user_id"],
+                            content=mem_text,
+                            hash_value=item.get("hash", "") if isinstance(item, dict) else "",
+                            categories=cats,
+                            metadata={"categories": cats} if cats else {},
+                        )
+                    except Exception as db_err:
+                        logger.warning(f"[LangGraph] 关系库双写失败（不影响主流程）: {db_err}")
 
         if new_memories:
             memory_service.invalidate_stats_cache()

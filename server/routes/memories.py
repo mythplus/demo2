@@ -150,7 +150,6 @@ async def add_memory(request: AddMemoryRequest):
                         hash_value=item.get("hash", "") if isinstance(item, dict) else "",
                         agent_id=request.agent_id or "",
                         run_id=request.run_id or "",
-                        state=current_meta.get("state", "active"),
                         categories=init_cats,
                         metadata=current_meta,
                     )
@@ -301,7 +300,6 @@ async def batch_import_memories(request: BatchImportRequest):
                                 user_id=uid,
                                 content=memory_text,
                                 hash_value=added_item.get("hash", "") if isinstance(added_item, dict) else "",
-                                state="active",
                                 categories=init_cats,
                                 metadata=(_pts[0].payload or {}).get("metadata", {}) if _pts else {},
                             )
@@ -662,13 +660,25 @@ async def delete_memory_by_id(memory_id: str):
         except Exception as db_err:
             logger.warning(f"关系库物理删除失败（Qdrant 已删除）: {db_err}")
 
-        # 4. 记录 DELETE 事件到修改历史
+        # 4. 清理 Neo4j 中与该记忆相关的孤儿实体（尽力清理，不阻塞主流程）
+        if user_id:
+            try:
+                from server.services.graph_service import neo4j_query
+                # 删除该用户下没有任何关系的孤立实体（记忆删除后可能留下的残留）
+                neo4j_query(
+                    "MATCH (n {user_id: $user_id}) WHERE NOT (n)-[]-() DELETE n",
+                    {"user_id": user_id},
+                )
+            except Exception as graph_err:
+                logger.warning(f"清理 Neo4j 孤儿实体失败（不影响主流程）: {graph_err}")
+
+        # 5. 记录 DELETE 事件到修改历史
         try:
             save_change_log(memory_id, "DELETE", old_memory_text, old_categories)
         except Exception as log_err:
             logger.warning(f"记录删除日志失败（不影响主流程）: {log_err}")
 
-        # 5. 触发 Webhook
+        # 6. 触发 Webhook
         try:
             _wh_data = {"memory_id": memory_id, "memory": old_memory_text[:200] if old_memory_text else "", "user_id": user_id}
             asyncio.ensure_future(webhook_service.trigger_webhooks("memory.deleted", _wh_data, _mem_svc.http_client))
@@ -825,6 +835,25 @@ async def hard_delete_user(user_id: str):
         except Exception as graph_err:
             logger.warning(f"清理用户 {user_id} 的图谱数据失败（不影响记忆删除）: {graph_err}")
 
+        # 3. 清理 memory_meta.db 中该用户的所有记忆元数据
+        meta_deleted = 0
+        try:
+            from server.models.database import get_session_factory
+            from server.models.models import MemoryMeta
+            SessionLocal = get_session_factory()
+            db = SessionLocal()
+            try:
+                metas = db.query(MemoryMeta).filter(MemoryMeta.user_id == user_id).all()
+                meta_deleted = len(metas)
+                for m_record in metas:
+                    db.delete(m_record)
+                db.commit()
+                logger.info(f"已清理用户 {user_id} 的关系库元数据（删除 {meta_deleted} 条）")
+            finally:
+                db.close()
+        except Exception as db_err:
+            logger.warning(f"清理用户 {user_id} 的关系库元数据失败（不影响记忆删除）: {db_err}")
+
         invalidate_stats_cache()
         logger.info(f"已硬删除用户 {user_id} 的所有记忆（共 {total_deleted} 条）")
 
@@ -844,7 +873,7 @@ async def hard_delete_user(user_id: str):
             pass
 
         return {
-            "message": f"用户 {user_id} 及其所有数据已永久删除（记忆 {total_deleted} 条，图谱实体 {graph_deleted} 个）"
+            "message": f"用户 {user_id} 及其所有数据已永久删除（记忆 {total_deleted} 条，图谱实体 {graph_deleted} 个，元数据 {meta_deleted} 条）"
         }
     except HTTPException:
         raise
@@ -933,6 +962,25 @@ async def batch_delete_memories(request: BatchDeleteRequest):
                 )
             except Exception as db_err:
                 logger.warning(f"关系库批量物理删除失败（Qdrant 已删除）: {db_err}")
+
+            # 清理 Neo4j 中的孤儿实体（收集被删除记忆涉及的 user_id）
+            try:
+                deleted_user_ids = set()
+                for mid in deleted_ids:
+                    point = points_map.get(mid)
+                    if point and point.payload:
+                        uid = point.payload.get("user_id", "")
+                        if uid:
+                            deleted_user_ids.add(uid)
+                if deleted_user_ids:
+                    from server.services.graph_service import neo4j_query
+                    for uid in deleted_user_ids:
+                        neo4j_query(
+                            "MATCH (n {user_id: $user_id}) WHERE NOT (n)-[]-() DELETE n",
+                            {"user_id": uid},
+                        )
+            except Exception as graph_err:
+                logger.warning(f"清理 Neo4j 孤儿实体失败（不影响主流程）: {graph_err}")
 
         # 触发 Webhook（批量删除汇总通知）
         try:

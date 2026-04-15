@@ -83,6 +83,7 @@ def create_memory_meta(
             created_at=created_at or datetime.now(timezone.utc),
         )
         db.add(memory)
+        db.flush()  # 先写入 memory，确保外键约束满足
 
         # 记录变更日志
         changelog = MemoryChangeLog(

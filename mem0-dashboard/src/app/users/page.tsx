@@ -180,15 +180,18 @@ export default function UsersPage() {
             placeholder="搜索用户 ID..."
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            className="pl-9"
+            className="pl-9 pr-8"
           />
+          {searchText && (
+            <button
+              type="button"
+              onClick={() => setSearchText("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm border border-red-300 p-0.5 text-red-500 hover:bg-red-50 hover:text-red-600 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30 dark:hover:text-red-300 transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
-        {searchText && (
-          <Button variant="outline" size="sm" onClick={() => setSearchText("")} className="shrink-0">
-            <X className="mr-1 h-4 w-4" />
-            清除
-          </Button>
-        )}
         <Button variant="outline" size="sm" onClick={fetchUsers} className="shrink-0 gap-1.5">
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           刷新
