@@ -34,9 +34,6 @@ interface MemoryTableProps {
   onView: (memory: Memory) => void;
   onEdit: (memory: Memory) => void;
   onDelete: (memory: Memory) => void;
-  onArchive?: (memory: Memory) => void;
-  onPause?: (memory: Memory) => void;
-  onRestore?: (memory: Memory) => void;
   selectionMode?: boolean;
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
@@ -48,9 +45,6 @@ export function MemoryTable({
   onView,
   onEdit,
   onDelete,
-  onArchive,
-  onPause,
-  onRestore,
   selectionMode = false,
   selectedIds = new Set(),
   onToggleSelect,
@@ -175,25 +169,6 @@ export function MemoryTable({
                         <Pencil className="mr-2 h-4 w-4" />
                         编辑
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      {memory.state !== "active" && onRestore && (
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onRestore(memory); }}>
-                          <Play className="mr-2 h-4 w-4" />
-                          恢复为活跃
-                        </DropdownMenuItem>
-                      )}
-                      {memory.state === "active" && onPause && (
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onPause(memory); }}>
-                          <Pause className="mr-2 h-4 w-4" />
-                          暂停
-                        </DropdownMenuItem>
-                      )}
-                      {memory.state !== "archived" && onArchive && (
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onArchive(memory); }}>
-                          <Archive className="mr-2 h-4 w-4" />
-                          归档
-                        </DropdownMenuItem>
-                      )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"

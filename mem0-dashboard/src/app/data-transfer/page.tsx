@@ -376,8 +376,8 @@ export default function DataTransferPage() {
                   selected={userSelected}
                 />
               </div>
+            </div>
 
-            {/* 按时间范围筛选 */}
             {/* 按时间范围筛选 */}
             <div className="space-y-1.5">
               <label className="flex items-center gap-1.5 text-sm text-muted-foreground">

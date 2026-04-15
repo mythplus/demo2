@@ -27,7 +27,6 @@ export function exportToJSON(memories: Memory[], filename?: string): ExportOutpu
       agent_id: m.agent_id || null,
       metadata: m.metadata || {},
       categories: m.categories || [],
-      state: m.state || "active",
       created_at: m.created_at || null,
       updated_at: m.updated_at || null,
     })),
@@ -51,7 +50,6 @@ export function exportToCSV(memories: Memory[], filename?: string): ExportOutput
     "用户ID",
     "AgentID",
     "分类",
-    "状态",
     "创建时间",
     "更新时间",
   ];
@@ -62,7 +60,6 @@ export function exportToCSV(memories: Memory[], filename?: string): ExportOutput
     csvSafe(m.user_id || ""),
     csvSafe(m.agent_id || ""),
     csvSafe((m.categories || []).join(";")),
-    csvSafe(m.state || "active"),
     csvSafe(m.created_at || ""),
     csvSafe(m.updated_at || ""),
   ]);
@@ -96,7 +93,6 @@ export interface ImportItem {
   user_id?: string;
   metadata?: Record<string, unknown>;
   categories?: string[];
-  state?: string;
 }
 
 /**
@@ -115,7 +111,6 @@ export function parseImportJSON(text: string): ImportItem[] {
       user_id: (m.user_id as string) || undefined,
       metadata: (m.metadata as Record<string, unknown>) || undefined,
       categories: Array.isArray(m.categories) ? (m.categories as string[]) : undefined,
-      state: (m.state as string) || undefined,
     }));
   }
 
@@ -130,7 +125,6 @@ export function parseImportJSON(text: string): ImportItem[] {
         user_id: (item.user_id as string) || undefined,
         metadata: (item.metadata as Record<string, unknown>) || undefined,
         categories: Array.isArray(item.categories) ? (item.categories as string[]) : undefined,
-        state: (item.state as string) || undefined,
       };
     });
   }

@@ -161,7 +161,6 @@ export default function SearchPage() {
       agent_id: result.agent_id,
       metadata: result.metadata,
       categories: result.categories,
-      state: result.state,
       created_at: result.created_at,
       updated_at: result.updated_at,
     };

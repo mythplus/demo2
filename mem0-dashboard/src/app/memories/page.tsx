@@ -113,14 +113,6 @@ export default function MemoriesPage() {
     invertLoading,
     handleClearSelection,
     handleBatchDelete,
-
-    // 状态操作
-    handleArchive,
-    handlePause,
-    handleRestore,
-    handleBatchArchive,
-    handleBatchPause,
-    handleBatchRestore,
   } = useMemoriesPage();
 
   return (
@@ -221,33 +213,6 @@ export default function MemoriesPage() {
             </div>
             <div className="flex items-center gap-2">
               <Button
-                variant="outline"
-                size="sm"
-                disabled={selectedIds.size === 0}
-                onClick={handleBatchPause}
-              >
-                <Pause className="mr-1.5 h-3.5 w-3.5" />
-                暂停（{selectedIds.size}）
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={selectedIds.size === 0}
-                onClick={handleBatchArchive}
-              >
-                <Archive className="mr-1.5 h-3.5 w-3.5" />
-                归档（{selectedIds.size}）
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={selectedIds.size === 0}
-                onClick={handleBatchRestore}
-              >
-                <Play className="mr-1.5 h-3.5 w-3.5" />
-                恢复（{selectedIds.size}）
-              </Button>
-              <Button
                 variant="destructive"
                 size="sm"
                 disabled={selectedIds.size === 0}
@@ -294,9 +259,6 @@ export default function MemoriesPage() {
                   onView={handleViewDetail}
                   onEdit={handleEdit}
                   onDelete={handleDeleteClick}
-                  onArchive={handleArchive}
-                  onPause={handlePause}
-                  onRestore={handleRestore}
                   selectionMode={selectionMode}
                   selectedIds={selectedIds}
                   onToggleSelect={handleToggleSelect}
@@ -381,25 +343,6 @@ export default function MemoriesPage() {
                           <Pencil className="mr-2 h-4 w-4" />
                           编辑
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        {memory.state === "active" && (
-                          <DropdownMenuItem onClick={() => handlePause(memory)}>
-                            <Pause className="mr-2 h-4 w-4" />
-                            暂停
-                          </DropdownMenuItem>
-                        )}
-                        {memory.state !== "archived" && (
-                          <DropdownMenuItem onClick={() => handleArchive(memory)}>
-                            <Archive className="mr-2 h-4 w-4" />
-                            归档
-                          </DropdownMenuItem>
-                        )}
-                        {memory.state !== "active" && (
-                          <DropdownMenuItem onClick={() => handleRestore(memory)}>
-                            <Play className="mr-2 h-4 w-4" />
-                            恢复为活跃
-                          </DropdownMenuItem>
-                        )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
