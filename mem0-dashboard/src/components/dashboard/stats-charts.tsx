@@ -28,7 +28,6 @@ import { CATEGORY_LIST, CATEGORY_MAP, STATE_LIST } from "@/lib/constants";
 const STATE_COLORS: Record<string, string> = {
   active: "#22c55e",
   paused: "#eab308",
-  deleted: "#ef4444",
 };
 
 interface StatsChartsProps {

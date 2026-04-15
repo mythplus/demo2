@@ -29,11 +29,10 @@ def _new_uuid():
 # ============ 枚举类型 ============
 
 class MemoryState(str, enum.Enum):
-    """记忆状态枚举（对齐官方 OpenMemory）"""
+    """记忆状态枚举 — 删除为物理删除，不再保留 deleted 状态"""
     active = "active"
     paused = "paused"
     archived = "archived"
-    deleted = "deleted"
 
 
 # ============ 多对多关联表 ============

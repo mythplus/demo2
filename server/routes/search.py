@@ -55,13 +55,6 @@ async def search_memories(request: SearchMemoryRequest):
         memory_ids = [item["id"] for item in formatted if item.get("id")]
         real_states = get_real_states(memory_ids)
 
-        # 用真实 state 替换，并过滤掉已删除的记忆
-        for item in formatted:
-            mid = item.get("id", "")
-            if mid in real_states:
-                item["state"] = real_states[mid]
-        formatted = [item for item in formatted if item.get("state", "active") != "deleted"]
-
         # 触发 Webhook（后台异步，不阻塞响应）
         try:
             _wh_data = {
@@ -122,7 +115,6 @@ async def get_related_memories(memory_id: str, limit: int = Query(5, ge=1, le=20
             mid = item.get("id", "")
             if mid in real_states:
                 item["state"] = real_states[mid]
-        results = [item for item in results if item.get("state", "active") != "deleted"]
 
         # 截取到 limit 条
         results = results[:limit]

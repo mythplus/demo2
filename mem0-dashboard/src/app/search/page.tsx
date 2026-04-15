@@ -128,9 +128,7 @@ export default function SearchPage() {
         limit: parseInt(limit),
       });
 
-      const searchResults = (response.results || []).filter(
-        (r) => r.state !== "deleted"
-      );
+      const searchResults = (response.results || []);
       setResults(searchResults);
 
       // 保存搜索历史

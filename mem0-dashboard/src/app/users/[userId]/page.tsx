@@ -87,7 +87,6 @@ export default function UserDetailPage() {
     try {
       const data = await mem0Api.getMemories({
         user_id: userId,
-        exclude_state: "deleted",
         page: currentPage,
         page_size: pageSize,
         sort_by: "created_at",
@@ -302,7 +301,7 @@ export default function UserDetailPage() {
                           setSelectedMemory(memory);
                           setEditDialogOpen(true);
                         }}
-                        disabled={memory.state === "deleted"}
+                        disabled={false}
                       >
                         <Pencil className="mr-2 h-4 w-4" />
                         编辑
@@ -314,7 +313,6 @@ export default function UserDetailPage() {
                           setSelectedMemory(memory);
                           setDeleteDialogOpen(true);
                         }}
-                        disabled={memory.state === "deleted"}
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
                         删除

@@ -176,13 +176,12 @@ export function MemoryTable({
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={(e) => { e.stopPropagation(); onEdit(memory); }}
-                        disabled={memory.state === "deleted"}
                       >
                         <Pencil className="mr-2 h-4 w-4" />
                         编辑
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      {memory.state !== "active" && memory.state !== "deleted" && onRestore && (
+                      {memory.state !== "active" && onRestore && (
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onRestore(memory); }}>
                           <Play className="mr-2 h-4 w-4" />
                           恢复为活跃
@@ -194,7 +193,7 @@ export function MemoryTable({
                           暂停
                         </DropdownMenuItem>
                       )}
-                      {memory.state !== "archived" && memory.state !== "deleted" && onArchive && (
+                      {memory.state !== "archived" && onArchive && (
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onArchive(memory); }}>
                           <Archive className="mr-2 h-4 w-4" />
                           归档
@@ -204,7 +203,6 @@ export function MemoryTable({
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
                         onClick={(e) => { e.stopPropagation(); onDelete(memory); }}
-                        disabled={memory.state === "deleted"}
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
                         删除

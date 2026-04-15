@@ -64,7 +64,6 @@ export const STATE_LIST: StateInfo[] = [
   { value: "active", label: "活跃", color: "green", dotColor: "bg-green-500", bgColor: "bg-green-100 dark:bg-green-900/30", textColor: "text-green-700 dark:text-green-300", borderColor: "border-green-200 dark:border-green-700/40" },
   { value: "paused", label: "暂停", color: "yellow", dotColor: "bg-yellow-500", bgColor: "bg-yellow-100 dark:bg-yellow-900/30", textColor: "text-yellow-700 dark:text-yellow-300", borderColor: "border-yellow-200 dark:border-yellow-700/40" },
   { value: "archived", label: "已归档", color: "blue", dotColor: "bg-blue-500", bgColor: "bg-blue-100 dark:bg-blue-900/30", textColor: "text-blue-700 dark:text-blue-300", borderColor: "border-blue-200 dark:border-blue-700/40" },
-  { value: "deleted", label: "已删除", color: "red", dotColor: "bg-red-500", bgColor: "bg-red-100 dark:bg-red-900/30", textColor: "text-red-700 dark:text-red-300", borderColor: "border-red-200 dark:border-red-700/40" },
 ];
 
 /** 状态映射（快速查找） */

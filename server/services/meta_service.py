@@ -200,19 +200,26 @@ def update_memory_meta(
         db.close()
 
 
-def soft_delete_memory(memory_id: str, changed_by: str = None) -> bool:
-    """软删除记忆（标记为 deleted 状态）"""
-    result = update_memory_meta(
-        memory_id=memory_id,
-        state="deleted",
-        changed_by=changed_by,
-        reason="用户删除",
-    )
-    return result is not None
+def hard_delete_memory_meta(memory_id: str) -> bool:
+    """物理删除单条记忆的关系库元数据（级联删除关联的分类、状态历史、变更日志）"""
+    db = _get_db()
+    try:
+        memory = db.query(MemoryMeta).filter(MemoryMeta.id == memory_id).first()
+        if not memory:
+            return False
+        db.delete(memory)
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        logger.error(f"物理删除记忆元数据失败: {e}")
+        raise
+    finally:
+        db.close()
 
 
-def batch_soft_delete(memory_ids: List[str], changed_by: str = None) -> Dict[str, Any]:
-    """批量软删除记忆"""
+def batch_hard_delete_memory_meta(memory_ids: List[str]) -> Dict[str, Any]:
+    """批量物理删除记忆的关系库元数据"""
     db = _get_db()
     try:
         results = []
@@ -227,35 +234,7 @@ def batch_soft_delete(memory_ids: List[str], changed_by: str = None) -> Dict[str
                     failed_count += 1
                     continue
 
-                if memory.state == MemoryState.deleted:
-                    results.append({"id": mid, "success": False, "error": "记忆已删除"})
-                    failed_count += 1
-                    continue
-
-                old_state = memory.state
-                memory.state = MemoryState.deleted
-                memory.deleted_at = datetime.now(timezone.utc)
-                memory.updated_at = datetime.now(timezone.utc)
-
-                # 状态变更历史
-                db.add(MemoryStatusHistory(
-                    memory_id=mid,
-                    old_state=old_state,
-                    new_state=MemoryState.deleted,
-                    changed_by=changed_by or memory.user_id,
-                    reason="批量删除",
-                ))
-
-                # 变更日志
-                db.add(MemoryChangeLog(
-                    memory_id=mid,
-                    event="delete",
-                    old_content=memory.content,
-                    new_content=memory.content,
-                    old_categories=[c.name for c in memory.categories],
-                    new_categories=[c.name for c in memory.categories],
-                ))
-
+                db.delete(memory)
                 results.append({"id": mid, "success": True})
                 success_count += 1
             except Exception as e:
@@ -271,7 +250,7 @@ def batch_soft_delete(memory_ids: List[str], changed_by: str = None) -> Dict[str
         }
     except Exception as e:
         db.rollback()
-        logger.error(f"批量软删除失败: {e}")
+        logger.error(f"批量物理删除失败: {e}")
         raise
     finally:
         db.close()
@@ -568,13 +547,12 @@ def compute_stats_from_db() -> dict:
         total_memories = 0
         for state_val, count in state_rows:
             key = state_val.value if isinstance(state_val, MemoryState) else str(state_val)
-            state_distribution[key] = count
-            if key != "deleted":
-                total_memories += count
+            if key in state_distribution:
+                state_distribution[key] = count
+            total_memories += count
 
         # 用户数
         total_users = db.query(func.count(func.distinct(MemoryMeta.user_id))).filter(
-            MemoryMeta.state != MemoryState.deleted,
             MemoryMeta.user_id.isnot(None),
             MemoryMeta.user_id != "",
         ).scalar() or 0
@@ -587,8 +565,6 @@ def compute_stats_from_db() -> dict:
             memory_categories, Category.id == memory_categories.c.category_id
         ).join(
             MemoryMeta, MemoryMeta.id == memory_categories.c.memory_id
-        ).filter(
-            MemoryMeta.state != MemoryState.deleted,
         ).group_by(Category.name).all()
         category_distribution = {cat: 0 for cat in VALID_CATEGORIES}
         for cat_name, count in cat_rows:
@@ -598,7 +574,6 @@ def compute_stats_from_db() -> dict:
         # 未分类数量
         categorized_ids = db.query(memory_categories.c.memory_id).distinct().subquery()
         uncategorized_count = db.query(func.count(MemoryMeta.id)).filter(
-            MemoryMeta.state != MemoryState.deleted,
             ~MemoryMeta.id.in_(db.query(categorized_ids)),
         ).scalar() or 0
 
@@ -606,8 +581,6 @@ def compute_stats_from_db() -> dict:
         daily_rows = db.query(
             func.date(MemoryMeta.created_at).label("day"),
             func.count(MemoryMeta.id),
-        ).filter(
-            MemoryMeta.state != MemoryState.deleted,
         ).group_by("day").order_by("day").all()
         daily_counter = {str(row.day): row[1] for row in daily_rows if row.day}
 
@@ -821,8 +794,6 @@ async def update_memory_state(
 
         if new_state == "archived":
             memory.archived_at = now_utc
-        elif new_state == "deleted":
-            memory.deleted_at = now_utc
 
         # 记录状态变更历史
         history = MemoryStatusHistory(
@@ -856,8 +827,6 @@ async def update_memory_state(
             metadata["state_updated_by"] = operator
             if new_state == "archived":
                 metadata["archived_at"] = now_iso
-            elif new_state == "deleted":
-                metadata["deleted_at"] = now_iso
             qdrant_client.set_payload(
                 collection_name=collection_name,
                 payload={"metadata": metadata},
@@ -944,7 +913,6 @@ def resolve_list_state_filters(
     exclude_list = []
     if not show_archived:
         exclude_list.append("archived")
-    exclude_list.append("deleted")
 
     # 额外的 exclude_state
     if exclude_state and exclude_state not in exclude_list:

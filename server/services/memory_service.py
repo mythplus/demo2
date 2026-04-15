@@ -251,7 +251,7 @@ def build_memory_filter(
         if state == "active":
             # "active" 不能用精确匹配，因为没有 metadata.state 字段的记忆默认也是 active，
             # Qdrant MatchValue 只匹配有该字段的记录，会漏掉这些默认 active 的记忆。
-            # 改为排除其他状态（paused / deleted）。
+            # 改为排除其他状态（paused）。
             for other_state in VALID_STATES:
                 if other_state != "active":
                     must_not.append(FieldCondition(key="metadata.state", match=MatchValue(value=other_state)))

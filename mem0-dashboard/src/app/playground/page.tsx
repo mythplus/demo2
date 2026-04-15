@@ -278,9 +278,7 @@ export default function PlaygroundPage() {
     setLoadingMemories(true);
     try {
       const memories = await mem0Api.getMemories(userId);
-      const active = (Array.isArray(memories) ? memories : []).filter(
-        (m) => m.state !== "deleted"
-      );
+      const active = (Array.isArray(memories) ? memories : []);
       setUserMemories(active);
     } catch {
       setUserMemories([]);

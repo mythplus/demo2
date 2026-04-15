@@ -308,7 +308,7 @@ export default function MemoriesPage() {
                     key={memory.id}
                     className={`group flex items-start justify-between rounded-lg border p-4 transition-colors hover:bg-accent/50 ${selectionMode && selectedIds.has(memory.id) ? "bg-accent/30 border-primary/30" : ""}`}
                     onClick={() => {
-                      if (selectionMode && memory.state !== "deleted") {
+                      if (selectionMode) {
                         handleToggleSelect(memory.id);
                       }
                     }}
@@ -320,7 +320,6 @@ export default function MemoriesPage() {
                           checked={selectedIds.has(memory.id)}
                           onCheckedChange={() => handleToggleSelect(memory.id)}
                           onClick={(e) => e.stopPropagation()}
-                          disabled={memory.state === "deleted"}
                           aria-label={`选择记忆 ${memory.id}`}
                         />
                       </div>
@@ -331,7 +330,7 @@ export default function MemoriesPage() {
                       onClick={(e) => {
                         if (selectionMode) {
                           e.stopPropagation();
-                          if (memory.state !== "deleted") handleToggleSelect(memory.id);
+                          handleToggleSelect(memory.id);
                         } else {
                           handleViewDetail(memory);
                         }
@@ -380,7 +379,7 @@ export default function MemoriesPage() {
                           <Eye className="mr-2 h-4 w-4" />
                           查看详情
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleEdit(memory)} disabled={memory.state === "deleted"}>
+                        <DropdownMenuItem onClick={() => handleEdit(memory)}>
                           <Pencil className="mr-2 h-4 w-4" />
                           编辑
                         </DropdownMenuItem>
@@ -391,13 +390,13 @@ export default function MemoriesPage() {
                             暂停
                           </DropdownMenuItem>
                         )}
-                        {memory.state !== "archived" && memory.state !== "deleted" && (
+                        {memory.state !== "archived" && (
                           <DropdownMenuItem onClick={() => handleArchive(memory)}>
                             <Archive className="mr-2 h-4 w-4" />
                             归档
                           </DropdownMenuItem>
                         )}
-                        {memory.state !== "active" && memory.state !== "deleted" && (
+                        {memory.state !== "active" && (
                           <DropdownMenuItem onClick={() => handleRestore(memory)}>
                             <Play className="mr-2 h-4 w-4" />
                             恢复为活跃
@@ -407,7 +406,6 @@ export default function MemoriesPage() {
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
                           onClick={() => handleDeleteClick(memory)}
-                          disabled={memory.state === "deleted"}
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
                           删除

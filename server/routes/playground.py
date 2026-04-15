@@ -126,17 +126,15 @@ async def playground_chat(request: PlaygroundChatRequest):
                 limit=request.memory_limit,
             )
             raw_results = search_result.get("results", []) if isinstance(search_result, dict) else search_result
-            # 过滤已删除的记忆
+            # 过滤记忆
             for item in raw_results:
                 metadata = item.get("metadata", {}) or {}
-                state = metadata.get("state", "active")
-                if state != "deleted":
-                    retrieved_memories.append({
-                        "id": item.get("id", ""),
-                        "memory": item.get("memory", ""),
-                        "score": item.get("score", 0),
-                        "user_id": item.get("user_id", ""),
-                    })
+                retrieved_memories.append({
+                    "id": item.get("id", ""),
+                    "memory": item.get("memory", ""),
+                    "score": item.get("score", 0),
+                    "user_id": item.get("user_id", ""),
+                })
             if retrieved_memories:
                 memories_str = "\n".join(
                     f"- {mem['memory']}" for mem in retrieved_memories
@@ -242,14 +240,12 @@ async def playground_chat_stream(request: PlaygroundChatRequest):
         raw_results = search_result.get("results", []) if isinstance(search_result, dict) else search_result
         for item in raw_results:
             metadata = item.get("metadata", {}) or {}
-            state = metadata.get("state", "active")
-            if state != "deleted":
-                retrieved_memories.append({
-                    "id": item.get("id", ""),
-                    "memory": item.get("memory", ""),
-                    "score": item.get("score", 0),
-                    "user_id": item.get("user_id", ""),
-                })
+            retrieved_memories.append({
+                "id": item.get("id", ""),
+                "memory": item.get("memory", ""),
+                "score": item.get("score", 0),
+                "user_id": item.get("user_id", ""),
+            })
         if retrieved_memories:
             memories_str = "\n".join(
                 f"- {mem['memory']}" for mem in retrieved_memories

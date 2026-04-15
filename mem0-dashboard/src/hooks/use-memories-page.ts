@@ -274,7 +274,7 @@ export function useMemoriesPage() {
       if (checked) {
         const newIds = new Set(selectedIds);
         paginatedMemories.forEach((m) => {
-          if (m.state !== "deleted") newIds.add(m.id);
+          newIds.add(m.id);
         });
         setSelectedIds(newIds);
       } else {

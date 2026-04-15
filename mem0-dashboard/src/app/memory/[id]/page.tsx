@@ -523,14 +523,13 @@ export default function MemoryDetailPage() {
                 variant="outline"
                 className="w-full justify-start"
                 onClick={() => setEditDialogOpen(true)}
-                disabled={memory.state === "deleted"}
               >
                 <Pencil className="mr-2 h-4 w-4" />
                 编辑记忆
               </Button>
 
               {/* 状态切换按钮 */}
-              {memory.state !== "active" && memory.state !== "deleted" && (
+              {memory.state !== "active" && (
                 <Button
                   variant="outline"
                   className="w-full justify-start"
@@ -566,7 +565,7 @@ export default function MemoryDetailPage() {
                   暂停
                 </Button>
               )}
-              {memory.state !== "archived" && memory.state !== "deleted" && (
+              {memory.state !== "archived" && (
                 <Button
                   variant="outline"
                   className="w-full justify-start"
@@ -591,7 +590,6 @@ export default function MemoryDetailPage() {
                 variant="destructive"
                 className="w-full justify-start"
                 onClick={() => setDeleteDialogOpen(true)}
-                disabled={memory.state === "deleted"}
               >
                 <Trash2 className="mr-2 h-4 w-4" />
                 删除记忆

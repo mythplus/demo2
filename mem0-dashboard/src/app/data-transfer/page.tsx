@@ -188,7 +188,6 @@ export default function DataTransferPage() {
       state: filterState || undefined,
       date_from: filterDateFrom || undefined,
       date_to: filterDateTo || undefined,
-      exclude_state: filterState ? undefined : "deleted",
     });
     return Array.isArray(memories) ? memories : [];
   }, [filterUserId, filterState, filterDateFrom, filterDateTo]);
@@ -201,13 +200,11 @@ export default function DataTransferPage() {
     }
     setPreviewing(true);
     try {
-      // 使用 exclude_state 在后端排除 deleted，与导出逻辑口径一致
       const preview = await mem0Api.getMemories({
         user_id: filterUserId || undefined,
         state: filterState || undefined,
         date_from: filterDateFrom || undefined,
         date_to: filterDateTo || undefined,
-        exclude_state: filterState ? undefined : "deleted",
         page: 1,
         page_size: 1,
       });
@@ -249,7 +246,7 @@ export default function DataTransferPage() {
       setExportProgress(10);
       const data = hasFilter
         ? await getFilteredMemories()
-        : await mem0Api.getMemories({ exclude_state: "deleted" }).then((m) => (Array.isArray(m) ? m : []));
+        : await mem0Api.getMemories({}).then((m) => (Array.isArray(m) ? m : []));
       setExportProgress(60);
 
       // 阶段 2：转换格式（60% → 85%）
@@ -265,7 +262,7 @@ export default function DataTransferPage() {
       setExportStage("下载完成！");
       setExportProgress(100);
 
-      const exportStateLabel = filterState ? ({ active: "活跃", paused: "已暂停", archived: "已归档", deleted: "已删除" }[filterState] || filterState) : "";
+      const exportStateLabel = filterState ? ({ active: "活跃", paused: "已暂停", archived: "已归档" }[filterState] || filterState) : "";
       const exportUserLabel = filterUserId ? `「${filterUserId}」` : "「全部用户」";
       const exportFilterLabel = exportUserLabel + (exportStateLabel ? `（${exportStateLabel}）` : "");
       addRecord({
@@ -396,7 +393,6 @@ export default function DataTransferPage() {
                     { value: "active" as const, label: "活跃" },
                     { value: "paused" as const, label: "已暂停" },
                     { value: "archived" as const, label: "已归档" },
-                    { value: "deleted" as const, label: "已删除" },
                   ].map(({ value, label }) => (
                     <button
                       key={value}

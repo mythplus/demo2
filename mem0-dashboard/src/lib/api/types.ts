@@ -11,8 +11,8 @@ export type Category =
   | "finance" | "shopping" | "legal" | "entertainment" | "messages"
   | "customer_support" | "product_feedback" | "news" | "organization" | "goals";
 
-/** 记忆状态（对齐 OpenMemory 官方架构） */
-export type MemoryState = "active" | "paused" | "archived" | "deleted";
+/** 记忆状态 — 删除为物理删除，不再保留 deleted 状态 */
+export type MemoryState = "active" | "paused" | "archived";
 
 // ============ 记忆相关类型 ============
 
@@ -30,7 +30,6 @@ export interface Memory {
   created_at?: string;
   updated_at?: string;
   archived_at?: string | null;
-  deleted_at?: string | null;
 }
 
 /** 添加记忆的消息格式 */
