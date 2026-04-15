@@ -41,7 +41,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { UserCombobox } from "@/components/shared/user-combobox";
 import { mem0Api } from "@/lib/api";
-import type { Memory } from "@/lib/api";
+import type { Memory, MemoryState } from "@/lib/api";
 import { exportToJSON, exportToCSV, type ExportOutput } from "@/lib/data-transfer";
 import { ImportDialog, type ImportSuccessInfo } from "@/components/memories/import-dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -62,6 +62,7 @@ export default function DataTransferPage() {
   // 筛选条件
   const [filterUserId, setFilterUserId] = useState<string>("");
   const [userSelected, setUserSelected] = useState(false);
+  const [filterState, setFilterState] = useState<MemoryState | "">("");
   const [filterDateFrom, setFilterDateFrom] = useState<string>("");
   const [filterDateTo, setFilterDateTo] = useState<string>("");
 
@@ -135,7 +136,7 @@ export default function DataTransferPage() {
   }, []);
 
   // 是否有筛选条件
-  const hasFilter = userSelected || filterDateFrom || filterDateTo;
+  const hasFilter = userSelected || filterState || filterDateFrom || filterDateTo;
 
   // 页面加载时获取记忆数量和用户列表
   useEffect(() => {
@@ -184,12 +185,13 @@ export default function DataTransferPage() {
   const getFilteredMemories = useCallback(async (): Promise<Memory[]> => {
     const memories = await mem0Api.getMemories({
       user_id: filterUserId || undefined,
+      state: filterState || undefined,
       date_from: filterDateFrom || undefined,
       date_to: filterDateTo || undefined,
-      exclude_state: "deleted",
+      exclude_state: filterState ? undefined : "deleted",
     });
     return Array.isArray(memories) ? memories : [];
-  }, [filterUserId, filterDateFrom, filterDateTo]);
+  }, [filterUserId, filterState, filterDateFrom, filterDateTo]);
 
   // 预览筛选结果数量
   const handlePreview = useCallback(async () => {
@@ -202,9 +204,10 @@ export default function DataTransferPage() {
       // 使用 exclude_state 在后端排除 deleted，与导出逻辑口径一致
       const preview = await mem0Api.getMemories({
         user_id: filterUserId || undefined,
+        state: filterState || undefined,
         date_from: filterDateFrom || undefined,
         date_to: filterDateTo || undefined,
-        exclude_state: "deleted",
+        exclude_state: filterState ? undefined : "deleted",
         page: 1,
         page_size: 1,
       });
@@ -215,7 +218,7 @@ export default function DataTransferPage() {
     } finally {
       setPreviewing(false);
     }
-  }, [hasFilter, filterUserId, filterDateFrom, filterDateTo]);
+  }, [hasFilter, filterUserId, filterState, filterDateFrom, filterDateTo]);
 
   // 筛选条件变化时自动预览
   useEffect(() => {
@@ -230,6 +233,7 @@ export default function DataTransferPage() {
   const handleResetFilter = () => {
     setFilterUserId("");
     setUserSelected(false);
+    setFilterState("");
     setFilterDateFrom("");
     setFilterDateTo("");
     setFilteredCount(null);
@@ -261,17 +265,19 @@ export default function DataTransferPage() {
       setExportStage("下载完成！");
       setExportProgress(100);
 
+      const exportStateLabel = filterState ? ({ active: "活跃", paused: "已暂停", archived: "已归档", deleted: "已删除" }[filterState] || filterState) : "";
       const exportUserLabel = filterUserId ? `「${filterUserId}」` : "「全部用户」";
+      const exportFilterLabel = exportUserLabel + (exportStateLabel ? `（${exportStateLabel}）` : "");
       addRecord({
         type: "导出",
         status: "成功",
         filename: result.filename,
         blob: result.blob,
-        detail: `导出${exportUserLabel}的 ${data.length} 条记忆为 ${format.toUpperCase()}`,
+        detail: `导出${exportFilterLabel}的 ${data.length} 条记忆为 ${format.toUpperCase()}`,
       });
       toast({
         title: "导出成功",
-        description: `已导出${exportUserLabel}的 ${data.length} 条记忆为 ${format.toUpperCase()} 文件`,
+        description: `已导出${exportFilterLabel}的 ${data.length} 条记忆为 ${format.toUpperCase()} 文件`,
         variant: "success",
       });
 
@@ -357,23 +363,56 @@ export default function DataTransferPage() {
               )}
             </div>
 
-            {/* 按用户筛选 */}
-            <div className="space-y-1.5">
-              <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <User className="h-3.5 w-3.5" />
-                按用户
-              </label>
-              <UserCombobox
-                value={filterUserId}
-                users={userList}
-                onChange={(uid) => {
-                  setFilterUserId(uid);
-                  setUserSelected(true);
-                }}
-                placeholder="请选择用户"
-                className="w-full"
-                showAll
-              />
+            {/* 按用户 + 按状态 */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* 按用户筛选 */}
+              <div className="space-y-1.5">
+                <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <User className="h-3.5 w-3.5" />
+                  按用户
+                </label>
+                <UserCombobox
+                  value={filterUserId}
+                  users={userList}
+                  onChange={(uid) => {
+                    setFilterUserId(uid);
+                    setUserSelected(true);
+                  }}
+                  placeholder="请选择用户"
+                  className="w-full"
+                  showAll
+                />
+              </div>
+
+              {/* 按状态筛选 */}
+              <div className="space-y-1.5">
+                <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <Filter className="h-3.5 w-3.5" />
+                  按状态
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {[
+                    { value: "" as const, label: "全部" },
+                    { value: "active" as const, label: "活跃" },
+                    { value: "paused" as const, label: "已暂停" },
+                    { value: "archived" as const, label: "已归档" },
+                    { value: "deleted" as const, label: "已删除" },
+                  ].map(({ value, label }) => (
+                    <button
+                      key={value}
+                      onClick={() => setFilterState(value)}
+                      className={cn(
+                        "inline-flex items-center justify-center rounded-md h-9 px-4 text-sm font-medium transition-all cursor-pointer border whitespace-nowrap",
+                        filterState === value
+                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                          : "bg-background text-foreground border-input hover:bg-accent hover:text-accent-foreground"
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* 按时间范围筛选 */}
@@ -481,7 +520,7 @@ export default function DataTransferPage() {
             <Button
               variant="outline"
               onClick={handleExportJSON}
-              disabled={exporting || !userSelected}
+              disabled={exporting || !hasFilter}
             >
               {exporting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -493,7 +532,7 @@ export default function DataTransferPage() {
             <Button
               variant="outline"
               onClick={handleExportCSV}
-              disabled={exporting || !userSelected}
+              disabled={exporting || !hasFilter}
             >
               {exporting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -504,7 +543,7 @@ export default function DataTransferPage() {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground -mt-1">
-            💡 {!userSelected ? "请先选择用户再导出。" : hasFilter ? "将按筛选条件导出匹配的记忆数据。" : "未设置筛选条件，将导出全部记忆数据。"}JSON 格式包含完整的记忆数据（含分类、状态等），适合备份和迁移；CSV 格式适合在 Excel 中查看和分析。
+            💡 {!hasFilter ? "请先选择用户或状态再导出。" : "将按筛选条件导出匹配的记忆数据。"}JSON 格式包含完整的记忆数据（含分类、状态等），适合备份和迁移；CSV 格式适合在 Excel 中查看和分析。
           </p>
         </CardContent>
       </Card>

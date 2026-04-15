@@ -17,8 +17,8 @@ from server.models.schemas import (
     BatchStateChangeRequest, RestoreMemoriesRequest,
 )
 from server.services.memory_service import (
-    get_memory, disable_graph, get_all_memories_raw, get_memories_page, get_users_summary,
-    get_memory_summary, format_record, format_mem0_result,
+    get_memory, disable_graph, get_all_memories_raw, get_memories_page, get_all_memory_ids,
+    get_users_summary, get_memory_summary, format_record, format_mem0_result,
     auto_categorize_memory, invalidate_stats_cache,
 )
 from server.services.log_service import (
@@ -458,6 +458,40 @@ async def get_memories(
         raise
     except Exception as e:
         logger.error(f"获取记忆失败: {e}")
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
+
+
+@router.get("/v1/memories/ids/")
+async def get_memory_ids(
+    user_id: Optional[str] = Query(None),
+    categories: Optional[str] = Query(None, description="逗号分隔的分类列表"),
+    state: Optional[str] = Query(None, description="记忆状态: active/paused/archived/deleted"),
+    date_from: Optional[str] = Query(None, description="起始日期 ISO 格式"),
+    date_to: Optional[str] = Query(None, description="截止日期 ISO 格式"),
+    search: Optional[str] = Query(None, description="文本搜索关键词"),
+    exclude_state: Optional[str] = Query(None, description="排除的记忆状态"),
+    show_archived: bool = Query(False, description="是否显示已归档记忆"),
+):
+    """获取当前筛选条件下的所有记忆 ID（用于前端全选功能）"""
+    try:
+        cat_list = [c.strip() for c in categories.split(",") if c.strip()] if categories else None
+        resolved_state, exclude_states = resolve_list_state_filters(
+            state=state, exclude_state=exclude_state, show_archived=show_archived,
+        )
+        ids = get_all_memory_ids(
+            user_id=user_id,
+            categories=cat_list,
+            state=resolved_state,
+            date_from=date_from,
+            date_to=date_to,
+            search=search,
+            exclude_states=exclude_states if exclude_states else None,
+        )
+        return {"ids": ids, "total": len(ids)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取记忆 ID 列表失败: {e}")
         raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 

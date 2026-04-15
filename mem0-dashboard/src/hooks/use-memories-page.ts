@@ -234,20 +234,39 @@ export function useMemoriesPage() {
     });
   }, []);
 
+  const [selectAllLoading, setSelectAllLoading] = useState(false);
+
   const handleToggleAll = useCallback(
-    (checked: boolean) => {
+    async (checked: boolean) => {
       if (checked) {
-        const allIds = new Set(
-          filteredMemories
-            .filter((m) => m.state !== "deleted")
-            .map((m) => m.id)
-        );
-        setSelectedIds(allIds);
+        setSelectAllLoading(true);
+        try {
+          // 构建与当前列表一致的筛选参数（不含分页），调用后端获取所有 ID
+          const apiFilters: FilterParams = {
+            ...filters,
+            search: debouncedSearchText.trim() || undefined,
+          };
+          const result = await mem0Api.getAllMemoryIds(apiFilters);
+          setSelectedIds(new Set(result.ids));
+          toast({
+            title: "全选成功",
+            description: `已选中 ${result.total} 条记忆`,
+          });
+        } catch (err) {
+          console.error("全选失败:", err);
+          toast({
+            title: "全选失败",
+            description: err instanceof Error ? err.message : "未知错误",
+            variant: "destructive",
+          });
+        } finally {
+          setSelectAllLoading(false);
+        }
       } else {
         setSelectedIds(new Set());
       }
     },
-    [filteredMemories]
+    [filters, debouncedSearchText]
   );
 
   const handleTogglePageAll = useCallback(
@@ -267,19 +286,114 @@ export function useMemoriesPage() {
     [selectedIds, paginatedMemories]
   );
 
-  const handleInvertSelection = useCallback(() => {
-    const newIds = new Set<string>();
-    filteredMemories.forEach((m) => {
-      if (m.state !== "deleted" && !selectedIds.has(m.id)) {
-        newIds.add(m.id);
-      }
-    });
-    setSelectedIds(newIds);
-  }, [filteredMemories, selectedIds]);
+  const [invertLoading, setInvertLoading] = useState(false);
+
+  const handleInvertSelection = useCallback(async () => {
+    setInvertLoading(true);
+    try {
+      // 从后端获取当前筛选条件下的所有记忆 ID
+      const apiFilters: FilterParams = {
+        ...filters,
+        search: debouncedSearchText.trim() || undefined,
+      };
+      const result = await mem0Api.getAllMemoryIds(apiFilters);
+      const allIds = new Set(result.ids);
+      // 反选：在所有 ID 中，已选的去掉，未选的加上
+      const newIds = new Set<string>();
+      allIds.forEach((id) => {
+        if (!selectedIds.has(id)) {
+          newIds.add(id);
+        }
+      });
+      setSelectedIds(newIds);
+    } catch (err) {
+      console.error("反选失败:", err);
+      toast({
+        title: "反选失败",
+        description: err instanceof Error ? err.message : "未知错误",
+        variant: "destructive",
+      });
+    } finally {
+      setInvertLoading(false);
+    }
+  }, [filters, debouncedSearchText, selectedIds]);
 
   const handleClearSelection = useCallback(() => {
     setSelectedIds(new Set());
   }, []);
+
+  // ============ 单条状态操作（归档/暂停/恢复） ============
+
+  const handleArchive = useCallback(async (memory: Memory) => {
+    try {
+      await mem0Api.archiveMemories([memory.id]);
+      toast({ title: "归档成功", description: "记忆已归档", variant: "success" });
+      fetchMemories();
+    } catch (err) {
+      toast({ title: "归档失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
+    }
+  }, [fetchMemories]);
+
+  const handlePause = useCallback(async (memory: Memory) => {
+    try {
+      await mem0Api.pauseMemories([memory.id]);
+      toast({ title: "暂停成功", description: "记忆已暂停", variant: "success" });
+      fetchMemories();
+    } catch (err) {
+      toast({ title: "暂停失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
+    }
+  }, [fetchMemories]);
+
+  const handleRestore = useCallback(async (memory: Memory) => {
+    try {
+      await mem0Api.restoreMemories([memory.id]);
+      toast({ title: "恢复成功", description: "记忆已恢复为活跃", variant: "success" });
+      fetchMemories();
+    } catch (err) {
+      toast({ title: "恢复失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
+    }
+  }, [fetchMemories]);
+
+  // ============ 批量状态操作 ============
+
+  const handleBatchArchive = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    try {
+      const result = await mem0Api.archiveMemories(Array.from(selectedIds));
+      toast({ title: "批量归档成功", description: `已归档 ${result.success} 条记忆`, variant: "success" });
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      fetchMemories();
+    } catch (err) {
+      toast({ title: "批量归档失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
+    }
+  }, [selectedIds, fetchMemories]);
+
+  const handleBatchPause = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    try {
+      const result = await mem0Api.pauseMemories(Array.from(selectedIds));
+      toast({ title: "批量暂停成功", description: `已暂停 ${result.success} 条记忆`, variant: "success" });
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      fetchMemories();
+    } catch (err) {
+      toast({ title: "批量暂停失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
+    }
+  }, [selectedIds, fetchMemories]);
+
+  const handleBatchRestore = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    try {
+      const result = await mem0Api.restoreMemories(Array.from(selectedIds));
+      toast({ title: "批量恢复成功", description: `已恢复 ${result.success} 条记忆`, variant: "success" });
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      fetchMemories();
+    } catch (err) {
+      toast({ title: "批量恢复失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
+    }
+  }, [selectedIds, fetchMemories]);
 
   // ============ 批量删除 ============
 
@@ -397,12 +511,22 @@ export function useMemoriesPage() {
     // 多选
     selectionMode,
     selectedIds,
+    selectAllLoading,
     handleToggleSelectionMode,
     handleToggleSelect,
     handleToggleAll,
     handleTogglePageAll,
     handleInvertSelection,
+    invertLoading,
     handleClearSelection,
     handleBatchDelete,
+
+    // 状态操作
+    handleArchive,
+    handlePause,
+    handleRestore,
+    handleBatchArchive,
+    handleBatchPause,
+    handleBatchRestore,
   };
 }

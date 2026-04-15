@@ -454,6 +454,32 @@ def query_memories_page(
         db.close()
 
 
+def query_all_memory_ids(
+    user_id: str = None,
+    state: str = None,
+    exclude_state: str = None,
+    exclude_states: List[str] = None,
+    categories: List[str] = None,
+    date_from: str = None,
+    date_to: str = None,
+    search: str = None,
+) -> List[str]:
+    """从关系库查询当前筛选条件下的所有记忆 ID（用于前端全选功能）"""
+    db = _get_db()
+    try:
+        id_query = db.query(MemoryMeta.id)
+        filters = _build_query_filters(
+            db, user_id=user_id, state=state, exclude_state=exclude_state,
+            exclude_states=exclude_states,
+            categories=categories, date_from=date_from, date_to=date_to, search=search,
+        )
+        for f in filters:
+            id_query = id_query.filter(f)
+        return [row[0] for row in id_query.all()]
+    finally:
+        db.close()
+
+
 def query_all_memories(
     user_id: str = None,
     state: str = None,

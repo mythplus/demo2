@@ -29,7 +29,7 @@ export function StateBadge({ state = "active", className, size = "sm" }: StateBa
             className={cn(
               "inline-flex items-center gap-1.5 rounded-full font-medium border transition-colors cursor-default",
               info.textColor,
-              `border-${info.color}-200 dark:border-${info.color}-700/40`,
+              info.borderColor,
               size === "sm" ? "px-2.5 py-0.5 text-xs" : "px-3 py-1 text-sm",
               className
             )}

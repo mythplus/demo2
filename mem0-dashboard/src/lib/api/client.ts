@@ -204,6 +204,28 @@ export const mem0Api = {
   },
 
   /**
+   * 获取当前筛选条件下的所有记忆 ID（用于全选功能）
+   * @param filters 筛选参数（不含分页）
+   */
+  async getAllMemoryIds(filters?: FilterParams): Promise<{ ids: string[]; total: number }> {
+    const params = new URLSearchParams();
+    if (filters) {
+      if (filters.user_id) params.set("user_id", filters.user_id);
+      if (filters.categories && filters.categories.length > 0) {
+        params.set("categories", filters.categories.join(","));
+      }
+      if (filters.state) params.set("state", filters.state);
+      if (filters.date_from) params.set("date_from", filters.date_from);
+      if (filters.date_to) params.set("date_to", filters.date_to);
+      if (filters.search) params.set("search", filters.search);
+      if (filters.exclude_state) params.set("exclude_state", filters.exclude_state);
+      if (filters.show_archived) params.set("show_archived", "true");
+    }
+    const query = params.toString();
+    return request<{ ids: string[]; total: number }>(`/v1/memories/ids/${query ? `?${query}` : ""}`);
+  },
+
+  /**
    * 获取用户汇总列表（供用户页、筛选器、搜索页和导出页复用）
    */
   async getMemoryUsers(): Promise<{ user_id: string; memory_count: number; last_active?: string }[]> {

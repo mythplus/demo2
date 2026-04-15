@@ -385,6 +385,30 @@ def iter_memories_raw(
         return
 
 
+def get_all_memory_ids(
+    user_id: str | None = None,
+    categories: list[str] | None = None,
+    state: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    search: str | None = None,
+    exclude_state: str | None = None,
+    exclude_states: list[str] | None = None,
+) -> list[str]:
+    """获取当前筛选条件下的所有记忆 ID（用于前端全选功能），优先走关系库。"""
+    from server.services.meta_service import query_all_memory_ids as _db_query
+    try:
+        return _db_query(
+            user_id=user_id, state=state, exclude_state=exclude_state,
+            exclude_states=exclude_states,
+            categories=categories if isinstance(categories, list) else None,
+            date_from=date_from, date_to=date_to, search=search,
+        )
+    except Exception as e:
+        logger.warning(f"关系库查询所有 ID 失败: {e}")
+        return []
+
+
 def get_all_memories_raw(
     user_id: str | None = None,
     categories: list[str] | None = None,

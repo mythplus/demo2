@@ -16,6 +16,9 @@ import {
   ExternalLink,
   CheckSquare,
   X,
+  Archive,
+  Pause,
+  Play,
 } from "lucide-react";
 import {
   Card,
@@ -96,16 +99,27 @@ export default function MemoriesPage() {
     handleEdit,
     handleDeleteClick,
     handleViewDetail,
+
     // 多选
     selectionMode,
     selectedIds,
+    selectAllLoading,
     handleToggleSelectionMode,
     handleToggleSelect,
     handleToggleAll,
     handleTogglePageAll,
     handleInvertSelection,
+    invertLoading,
     handleClearSelection,
     handleBatchDelete,
+
+    // 状态操作
+    handleArchive,
+    handlePause,
+    handleRestore,
+    handleBatchArchive,
+    handleBatchPause,
+    handleBatchRestore,
   } = useMemoriesPage();
 
   return (
@@ -192,11 +206,11 @@ export default function MemoriesPage() {
               <span className="text-base font-medium">
                 已选择 <span className="text-primary font-bold text-lg">{selectedIds.size}</span> 条记忆
               </span>
-              <Button variant="outline" size="sm" className="text-sm" onClick={() => handleToggleAll(true)}>
-                当前页全选
+              <Button variant="outline" size="sm" className="text-sm" onClick={() => handleToggleAll(true)} disabled={selectAllLoading}>
+                {selectAllLoading ? "加载中..." : "全选"}
               </Button>
-              <Button variant="outline" size="sm" className="text-sm" onClick={handleInvertSelection}>
-                反选
+              <Button variant="outline" size="sm" className="text-sm" onClick={handleInvertSelection} disabled={invertLoading}>
+                {invertLoading ? "加载中..." : "反选"}
               </Button>
               {selectedIds.size > 0 && (
                 <Button variant="outline" size="sm" className="text-sm" onClick={handleClearSelection}>
@@ -206,13 +220,40 @@ export default function MemoriesPage() {
             </div>
             <div className="flex items-center gap-2">
               <Button
+                variant="outline"
+                size="sm"
+                disabled={selectedIds.size === 0}
+                onClick={handleBatchPause}
+              >
+                <Pause className="mr-1.5 h-3.5 w-3.5" />
+                暂停（{selectedIds.size}）
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={selectedIds.size === 0}
+                onClick={handleBatchArchive}
+              >
+                <Archive className="mr-1.5 h-3.5 w-3.5" />
+                归档（{selectedIds.size}）
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={selectedIds.size === 0}
+                onClick={handleBatchRestore}
+              >
+                <Play className="mr-1.5 h-3.5 w-3.5" />
+                恢复（{selectedIds.size}）
+              </Button>
+              <Button
                 variant="destructive"
                 size="sm"
                 disabled={selectedIds.size === 0}
                 onClick={() => setBatchDeleteDialogOpen(true)}
               >
                 <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                删除选中（{selectedIds.size}）
+                删除（{selectedIds.size}）
               </Button>
               <Button variant="outline" size="sm" onClick={handleToggleSelectionMode}>
                 <X className="mr-1 h-3.5 w-3.5" />
@@ -252,6 +293,9 @@ export default function MemoriesPage() {
                   onView={handleViewDetail}
                   onEdit={handleEdit}
                   onDelete={handleDeleteClick}
+                  onArchive={handleArchive}
+                  onPause={handlePause}
+                  onRestore={handleRestore}
                   selectionMode={selectionMode}
                   selectedIds={selectedIds}
                   onToggleSelect={handleToggleSelect}
@@ -340,6 +384,25 @@ export default function MemoriesPage() {
                           <Pencil className="mr-2 h-4 w-4" />
                           编辑
                         </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        {memory.state === "active" && (
+                          <DropdownMenuItem onClick={() => handlePause(memory)}>
+                            <Pause className="mr-2 h-4 w-4" />
+                            暂停
+                          </DropdownMenuItem>
+                        )}
+                        {memory.state !== "archived" && memory.state !== "deleted" && (
+                          <DropdownMenuItem onClick={() => handleArchive(memory)}>
+                            <Archive className="mr-2 h-4 w-4" />
+                            归档
+                          </DropdownMenuItem>
+                        )}
+                        {memory.state !== "active" && memory.state !== "deleted" && (
+                          <DropdownMenuItem onClick={() => handleRestore(memory)}>
+                            <Play className="mr-2 h-4 w-4" />
+                            恢复为活跃
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
