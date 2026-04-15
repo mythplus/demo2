@@ -394,6 +394,46 @@ async def delete_graph_relation(
         raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
+@router.delete("/v1/graph/user/{user_id}")
+async def delete_user_graph(user_id: str):
+    """删除指定用户的所有图谱数据（实体和关系），不影响记忆数据"""
+    try:
+        # 先统计该用户的实体和关系数量
+        entity_count_result = neo4j_query(
+            "MATCH (n) WHERE n.user_id = $user_id RETURN count(n) as count",
+            {"user_id": user_id},
+        )
+        entity_count = entity_count_result[0]["count"] if entity_count_result else 0
+
+        relation_count_result = neo4j_query(
+            "MATCH (a)-[r]->(b) WHERE a.user_id = $user_id OR b.user_id = $user_id RETURN count(r) as count",
+            {"user_id": user_id},
+        )
+        relation_count = relation_count_result[0]["count"] if relation_count_result else 0
+
+        if entity_count == 0 and relation_count == 0:
+            raise HTTPException(status_code=404, detail=f"用户 {user_id} 没有图谱数据")
+
+        # 删除该用户的所有实体及其关联关系（DETACH DELETE 会同时删除关系）
+        result = neo4j_query(
+            "MATCH (n) WHERE n.user_id = $user_id DETACH DELETE n RETURN count(n) as deleted",
+            {"user_id": user_id},
+        )
+        deleted = result[0]["deleted"] if result else 0
+
+        logger.info(f"已删除用户 {user_id} 的图谱数据（实体 {deleted} 个，关系 {relation_count} 条）")
+        return {
+            "message": f"已删除用户 {user_id} 的所有图谱数据",
+            "deleted_entities": deleted,
+            "deleted_relations": relation_count,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"删除用户图谱数据失败: {e}")
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
+
+
 @router.get("/v1/graph/health")
 async def graph_health_check():
     """检查 Neo4j 图数据库连接状态"""

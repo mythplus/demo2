@@ -494,6 +494,15 @@ export const mem0Api = {
   },
 
   /**
+   * 删除指定用户的所有图谱数据（实体和关系）
+   */
+  async deleteUserGraph(userId: string): Promise<{ message: string; deleted_entities: number; deleted_relations: number }> {
+    return request(`/v1/graph/user/${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+    });
+  },
+
+  /**
    * 检查 Neo4j 图数据库连接状态
    */
   async graphHealthCheck(): Promise<GraphHealthResponse> {

@@ -17,6 +17,7 @@ import {
   MessageSquare,
   PanelRightOpen,
   Square,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -509,6 +510,16 @@ export default function PlaygroundPage() {
                   onChange={handleUserChange}
                   placeholder="选择用户"
                 />
+                {userId && (
+                  <button
+                    type="button"
+                    onClick={() => handleUserChange("")}
+                    className="flex h-6 w-6 items-center justify-center rounded border border-input bg-background text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                    title="取消选择用户"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <Button

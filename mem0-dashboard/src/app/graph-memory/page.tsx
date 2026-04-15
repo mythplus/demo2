@@ -166,6 +166,8 @@ export default function GraphMemoryPage() {
   const [deleteRelationDialogOpen, setDeleteRelationDialogOpen] = useState(false);
   const [deleteRelationInfo, setDeleteRelationInfo] = useState<{ source: string; relation: string; target: string } | null>(null);
   const [deleteRelationLoading, setDeleteRelationLoading] = useState(false);
+  const [deleteUserGraphDialogOpen, setDeleteUserGraphDialogOpen] = useState(false);
+  const [deleteUserGraphLoading, setDeleteUserGraphLoading] = useState(false);
 
   const { toast } = useToast();
 
@@ -364,6 +366,31 @@ export default function GraphMemoryPage() {
     }
   };
 
+  const handleDeleteUserGraphConfirm = async () => {
+    if (!selectedUserId) return;
+    setDeleteUserGraphLoading(true);
+    try {
+      const res = await mem0Api.deleteUserGraph(selectedUserId);
+      setDeleteUserGraphDialogOpen(false);
+      const deletedUser = selectedUserId;
+      setSelectedUserId("");
+      setGraphData(null);
+      setEntities([]);
+      setEntitiesTotalCount(0);
+      setRelations([]);
+      setRelationsTotalCount(0);
+      await fetchStats();
+      toast({
+        title: "删除成功",
+        description: `已删除用户「${deletedUser}」的所有图谱数据（${res.deleted_entities} 个实体，${res.deleted_relations} 条关系）`,
+      });
+    } catch (e: any) {
+      toast({ title: "删除失败", description: e.message, variant: "destructive" });
+    } finally {
+      setDeleteUserGraphLoading(false);
+    }
+  };
+
   // ============ 图谱可视化配置 ============
 
   const graphDataForViz = useMemo(() => {
@@ -533,15 +560,26 @@ export default function GraphMemoryPage() {
               </PopoverContent>
             </Popover>
             {selectedUserId && (
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 shrink-0"
-                onClick={() => setSelectedUserId("")}
-                title="取消选择"
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  onClick={() => setSelectedUserId("")}
+                  title="取消选择"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => setDeleteUserGraphDialogOpen(true)}
+                  title="删除该用户的所有图谱数据"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </>
             )}
           </div>
         </CardHeader>
@@ -875,6 +913,16 @@ export default function GraphMemoryPage() {
         loading={deleteRelationLoading}
         title="删除关系"
         description={deleteRelationInfo ? `确定要删除关系「${deleteRelationInfo.source} → ${deleteRelationInfo.relation} → ${deleteRelationInfo.target}」吗？此操作不可撤销。` : ""}
+      />
+
+      {/* 删除用户图谱确认弹窗 */}
+      <DeleteConfirmDialog
+        open={deleteUserGraphDialogOpen}
+        onOpenChange={setDeleteUserGraphDialogOpen}
+        onConfirm={handleDeleteUserGraphConfirm}
+        loading={deleteUserGraphLoading}
+        title="删除用户图谱"
+        description={`确定要删除用户「${selectedUserId}」的所有图谱数据（包括所有实体和关系）吗？此操作不可撤销，但不会影响该用户的记忆数据。`}
       />
     </div>
   );
