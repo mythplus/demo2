@@ -23,11 +23,10 @@ from server.services.memory_service import (
 )
 from server.services.log_service import (
     log_access, save_change_log, save_category_snapshot, save_memory_audit_snapshot, get_change_logs,
-    get_state_history,
 )
 from server.services import webhook_service, memory_service as _mem_svc
 from server.services import meta_service
-from server.services.memory_state_service import (
+from server.services.meta_service import (
     update_memory_state, batch_update_memory_state, resolve_list_state_filters,
 )
 
@@ -429,13 +428,8 @@ async def get_memories(
             state=state, exclude_state=exclude_state, show_archived=show_archived,
         )
 
-        # 如果有多个排除状态，需要逐个处理（Qdrant 过滤支持多个 must_not）
-        # 当前 build_memory_filter 只支持单个 exclude_state，所以这里用第一个
-        # 如果 resolved_state 有值，exclude_states 为空
-        effective_exclude = exclude_states[0] if exclude_states else None
-
         if page is not None or page_size is not None:
-            result = get_memories_page(
+            return get_memories_page(
                 user_id=user_id,
                 categories=cat_list,
                 state=resolved_state,
@@ -446,15 +440,10 @@ async def get_memories(
                 page_size=page_size or 20,
                 order_by=sort_by or "created_at",
                 order_direction=sort_order or "desc",
-                exclude_state=effective_exclude,
+                exclude_states=exclude_states if exclude_states else None,
             )
-            # 如果有多个排除状态，客户端侧补充过滤
-            if len(exclude_states) > 1:
-                exclude_set = set(exclude_states)
-                result["items"] = [m for m in result["items"] if m.get("state", "active") not in exclude_set]
-            return result
 
-        memories = get_all_memories_raw(
+        return get_all_memories_raw(
             user_id=user_id,
             categories=cat_list,
             state=resolved_state,
@@ -463,13 +452,8 @@ async def get_memories(
             search=search,
             order_by=sort_by or "created_at",
             order_direction=sort_order or "desc",
-            exclude_state=effective_exclude,
+            exclude_states=exclude_states if exclude_states else None,
         )
-        # 如果有多个排除状态，客户端侧补充过滤
-        if len(exclude_states) > 1:
-            exclude_set = set(exclude_states)
-            memories = [m for m in memories if m.get("state", "active") not in exclude_set]
-        return memories
     except HTTPException:
         raise
     except Exception as e:
@@ -1283,7 +1267,7 @@ async def restore_memories(request: RestoreMemoriesRequest):
 async def get_memory_state_history(memory_id: str):
     """获取记忆的状态变更历史"""
     try:
-        history = get_state_history(memory_id)
+        history = meta_service.get_status_history(memory_id)
         return {"memory_id": memory_id, "history": history}
     except Exception as e:
         logger.error(f"获取状态历史失败: {e}")

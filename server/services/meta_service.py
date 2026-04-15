@@ -9,7 +9,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 
 from sqlalchemy import func, and_, or_, case, text
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, subqueryload
 
 from server.models.database import get_session_factory
 from server.models.models import (
@@ -129,7 +129,7 @@ def update_memory_meta(
     """更新记忆元数据"""
     db = _get_db()
     try:
-        memory = db.query(MemoryMeta).options(joinedload(MemoryMeta.categories)).filter(
+        memory = db.query(MemoryMeta).options(subqueryload(MemoryMeta.categories)).filter(
             MemoryMeta.id == memory_id
         ).first()
         if not memory:
@@ -281,7 +281,7 @@ def get_memory_meta(memory_id: str) -> Optional[dict]:
     """获取单条记忆元数据"""
     db = _get_db()
     try:
-        memory = db.query(MemoryMeta).options(joinedload(MemoryMeta.categories)).filter(
+        memory = db.query(MemoryMeta).options(subqueryload(MemoryMeta.categories)).filter(
             MemoryMeta.id == memory_id
         ).first()
         return memory.to_dict() if memory else None
@@ -296,6 +296,7 @@ def _build_query_filters(
     user_id: str = None,
     state: str = None,
     exclude_state: str = None,
+    exclude_states: List[str] = None,
     categories: List[str] = None,
     date_from: str = None,
     date_to: str = None,
@@ -313,7 +314,17 @@ def _build_query_filters(
         except ValueError:
             pass
 
-    if exclude_state:
+    # 支持多个排除状态（优先使用 exclude_states 列表）
+    if exclude_states:
+        valid_excludes = []
+        for es in exclude_states:
+            try:
+                valid_excludes.append(MemoryState(es))
+            except ValueError:
+                pass
+        if valid_excludes:
+            filters.append(MemoryMeta.state.notin_(valid_excludes))
+    elif exclude_state:
         try:
             filters.append(MemoryMeta.state != MemoryState(exclude_state))
         except ValueError:
@@ -375,6 +386,7 @@ def query_memories_page(
     user_id: str = None,
     state: str = None,
     exclude_state: str = None,
+    exclude_states: List[str] = None,
     categories: List[str] = None,
     date_from: str = None,
     date_to: str = None,
@@ -390,13 +402,15 @@ def query_memories_page(
         safe_page = max(1, int(page or 1))
         safe_page_size = max(1, min(int(page_size or 20), 200))
 
-        query = db.query(MemoryMeta).options(joinedload(MemoryMeta.categories))
+        # 第一步：只查主表 ID 进行分页（避免 JOIN 膨胀导致 LIMIT 不准）
+        id_query = db.query(MemoryMeta.id)
         filters = _build_query_filters(
             db, user_id=user_id, state=state, exclude_state=exclude_state,
+            exclude_states=exclude_states,
             categories=categories, date_from=date_from, date_to=date_to, search=search,
         )
         for f in filters:
-            query = query.filter(f)
+            id_query = id_query.filter(f)
 
         # 总数
         count_query = db.query(func.count(MemoryMeta.id))
@@ -407,25 +421,30 @@ def query_memories_page(
         # 排序
         sort_col = getattr(MemoryMeta, sort_by, MemoryMeta.created_at)
         if sort_order == "asc":
-            query = query.order_by(sort_col.asc())
+            id_query = id_query.order_by(sort_col.asc())
         else:
-            query = query.order_by(sort_col.desc())
+            id_query = id_query.order_by(sort_col.desc())
 
-        # 分页
+        # 分页（在主表 ID 上 LIMIT，不受 JOIN 影响）
         offset = (safe_page - 1) * safe_page_size
-        memories = query.offset(offset).limit(safe_page_size).all()
+        page_ids = [row[0] for row in id_query.offset(offset).limit(safe_page_size).all()]
 
-        # 去重（joinedload 可能导致重复）
-        seen = set()
-        unique_memories = []
-        for m in memories:
-            if m.id not in seen:
-                seen.add(m.id)
-                unique_memories.append(m)
+        # 第二步：用 ID 列表加载完整对象 + 关联分类
+        if page_ids:
+            query = db.query(MemoryMeta).options(subqueryload(MemoryMeta.categories)).filter(
+                MemoryMeta.id.in_(page_ids)
+            )
+            if sort_order == "asc":
+                query = query.order_by(sort_col.asc())
+            else:
+                query = query.order_by(sort_col.desc())
+            memories = query.all()
+        else:
+            memories = []
 
         total_pages = max(1, (total + safe_page_size - 1) // safe_page_size)
         return {
-            "items": [m.to_dict() for m in unique_memories],
+            "items": [m.to_dict() for m in memories],
             "total": total,
             "page": safe_page,
             "page_size": safe_page_size,
@@ -439,6 +458,7 @@ def query_all_memories(
     user_id: str = None,
     state: str = None,
     exclude_state: str = None,
+    exclude_states: List[str] = None,
     categories: List[str] = None,
     date_from: str = None,
     date_to: str = None,
@@ -449,9 +469,10 @@ def query_all_memories(
     """从关系库查询全部记忆（用于导出等场景）"""
     db = _get_db()
     try:
-        query = db.query(MemoryMeta).options(joinedload(MemoryMeta.categories))
+        query = db.query(MemoryMeta).options(subqueryload(MemoryMeta.categories))
         filters = _build_query_filters(
             db, user_id=user_id, state=state, exclude_state=exclude_state,
+            exclude_states=exclude_states,
             categories=categories, date_from=date_from, date_to=date_to, search=search,
         )
         for f in filters:
@@ -464,14 +485,7 @@ def query_all_memories(
             query = query.order_by(sort_col.desc())
 
         memories = query.all()
-
-        seen = set()
-        result = []
-        for m in memories:
-            if m.id not in seen:
-                seen.add(m.id)
-                result.append(m.to_dict())
-        return result
+        return [m.to_dict() for m in memories]
     finally:
         db.close()
 
@@ -592,17 +606,18 @@ def get_summary_from_db(limit_recent: int = 5, limit_top_users: int = 10) -> dic
         safe_recent = max(1, min(int(limit_recent or 5), 20))
         safe_top_users = max(1, min(int(limit_top_users or 10), 50))
 
-        # 最近记忆
-        recent = db.query(MemoryMeta).options(joinedload(MemoryMeta.categories)).filter(
+        # 最近记忆（两阶段查询：先查 ID 分页，再加载关联数据）
+        recent_ids = [row[0] for row in db.query(MemoryMeta.id).filter(
             MemoryMeta.state != MemoryState.deleted,
-        ).order_by(MemoryMeta.created_at.desc()).limit(safe_recent).all()
+        ).order_by(MemoryMeta.created_at.desc()).limit(safe_recent).all()]
 
-        seen = set()
-        recent_memories = []
-        for m in recent:
-            if m.id not in seen:
-                seen.add(m.id)
-                recent_memories.append(m.to_dict())
+        if recent_ids:
+            recent = db.query(MemoryMeta).options(subqueryload(MemoryMeta.categories)).filter(
+                MemoryMeta.id.in_(recent_ids)
+            ).order_by(MemoryMeta.created_at.desc()).all()
+            recent_memories = [m.to_dict() for m in recent]
+        else:
+            recent_memories = []
 
         # 活跃用户
         top_users_rows = db.query(
@@ -717,3 +732,196 @@ def count_memories(
         return query.scalar() or 0
     finally:
         db.close()
+
+
+# ============ 统一状态变更入口（关系库为主，同步写 Qdrant） ============
+
+async def update_memory_state(
+    memory_id: str,
+    new_state: str,
+    operator: str = "system",
+    reason: str = "",
+) -> dict:
+    """统一状态变更入口 — 关系库为主存储，同步写 Qdrant metadata。
+
+    逻辑：
+    1. 校验状态合法性
+    2. 从关系库读取当前状态
+    3. 幂等：old_state == new_state 直接返回
+    4. 更新关系库（state + 时间戳 + 状态历史）
+    5. 同步写 Qdrant metadata
+    6. invalidate_stats_cache
+    7. 返回结果
+    """
+    from server.config import VALID_STATES
+    from server.services.memory_service import invalidate_stats_cache, _get_qdrant_collection_and_client
+
+    if new_state not in VALID_STATES:
+        raise ValueError(f"无效的状态: {new_state}，合法值: {VALID_STATES}")
+
+    now_utc = datetime.now(timezone.utc)
+    now_iso = now_utc.isoformat()
+
+    # 1. 关系库操作（主存储）
+    db = _get_db()
+    try:
+        memory = db.query(MemoryMeta).options(subqueryload(MemoryMeta.categories)).filter(
+            MemoryMeta.id == memory_id
+        ).first()
+        if not memory:
+            raise ValueError(f"记忆不存在: {memory_id}")
+
+        old_state_enum = memory.state
+        old_state = old_state_enum.value if isinstance(old_state_enum, MemoryState) else str(old_state_enum or "active")
+
+        # 幂等
+        if old_state == new_state:
+            return {
+                "memory_id": memory_id,
+                "old_state": old_state,
+                "new_state": new_state,
+                "changed": False,
+                "message": f"状态已经是 {new_state}，无需变更",
+            }
+
+        # 更新状态
+        try:
+            new_state_enum = MemoryState(new_state)
+        except ValueError:
+            raise ValueError(f"无效的状态: {new_state}")
+
+        memory.state = new_state_enum
+        memory.updated_at = now_utc
+
+        if new_state == "archived":
+            memory.archived_at = now_utc
+        elif new_state == "deleted":
+            memory.deleted_at = now_utc
+
+        # 记录状态变更历史
+        history = MemoryStatusHistory(
+            memory_id=memory_id,
+            old_state=old_state_enum,
+            new_state=new_state_enum,
+            changed_by=operator,
+            reason=reason or f"状态变更: {old_state} -> {new_state}",
+        )
+        db.add(history)
+
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+    # 2. 同步写 Qdrant metadata（非关键路径，失败只打 warning）
+    try:
+        collection_name, qdrant_client = _get_qdrant_collection_and_client()
+        points = qdrant_client.retrieve(
+            collection_name=collection_name,
+            ids=[memory_id],
+            with_payload=True,
+        )
+        if points:
+            metadata = dict((points[0].payload or {}).get("metadata", {}) or {})
+            metadata["state"] = new_state
+            metadata["state_updated_at"] = now_iso
+            metadata["state_updated_by"] = operator
+            if new_state == "archived":
+                metadata["archived_at"] = now_iso
+            elif new_state == "deleted":
+                metadata["deleted_at"] = now_iso
+            qdrant_client.set_payload(
+                collection_name=collection_name,
+                payload={"metadata": metadata},
+                points=[memory_id],
+            )
+    except Exception as qdrant_err:
+        logger.warning(f"Qdrant metadata 同步失败（关系库已更新）: {qdrant_err}")
+
+    # 3. 缓存失效
+    invalidate_stats_cache()
+
+    logger.info(f"记忆 {memory_id} 状态变更: {old_state} -> {new_state} (by {operator}, reason: {reason})")
+
+    return {
+        "memory_id": memory_id,
+        "old_state": old_state,
+        "new_state": new_state,
+        "changed": True,
+        "state_updated_at": now_iso,
+        "message": f"状态已从 {old_state} 变更为 {new_state}",
+    }
+
+
+async def batch_update_memory_state(
+    memory_ids: list,
+    new_state: str,
+    operator: str = "system",
+    reason: str = "",
+) -> dict:
+    """批量状态变更 — 逐条调用 update_memory_state"""
+    from server.config import VALID_STATES
+
+    if new_state not in VALID_STATES:
+        raise ValueError(f"无效的状态: {new_state}")
+
+    results = []
+    success_count = 0
+    failed_count = 0
+
+    for mid in memory_ids:
+        try:
+            result = await update_memory_state(
+                memory_id=mid,
+                new_state=new_state,
+                operator=operator,
+                reason=reason,
+            )
+            results.append({"id": mid, "success": True, **result})
+            success_count += 1
+        except Exception as e:
+            results.append({"id": mid, "success": False, "error": str(e)})
+            failed_count += 1
+
+    return {
+        "total": len(memory_ids),
+        "success": success_count,
+        "failed": failed_count,
+        "results": results,
+    }
+
+
+# ============ 默认列表状态过滤规则 ============
+
+def resolve_list_state_filters(
+    state: str | None = None,
+    exclude_state: str | None = None,
+    show_archived: bool = False,
+) -> tuple:
+    """解析列表查询的状态过滤参数。
+
+    返回: (state_filter, exclude_states_list)
+
+    规则（对齐 openmemory）：
+    - 如果明确指定了 state，按指定的查
+    - 如果没指定 state：默认排除 deleted 和 archived
+    - 如果 show_archived=True：只排除 deleted
+    - exclude_state 参数仍然生效
+    """
+    if state:
+        # 明确指定了状态，直接用
+        return state, []
+
+    # 没指定 state，应用默认排除规则
+    exclude_list = []
+    if not show_archived:
+        exclude_list.append("archived")
+    exclude_list.append("deleted")
+
+    # 额外的 exclude_state
+    if exclude_state and exclude_state not in exclude_list:
+        exclude_list.append(exclude_state)
+
+    return None, exclude_list

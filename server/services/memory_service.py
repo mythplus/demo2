@@ -395,6 +395,7 @@ def get_all_memories_raw(
     order_by: str = "created_at",
     order_direction: str = "desc",
     exclude_state: str | None = None,
+    exclude_states: list[str] | None = None,
 ) -> list:
     """获取记忆列表，优先使用 Qdrant 端过滤和排序，减少全量扫描后的本地处理。"""
     return list(
@@ -424,12 +425,14 @@ def get_memories_page(
     order_by: str = "created_at",
     order_direction: str = "desc",
     exclude_state: str | None = None,
+    exclude_states: list[str] | None = None,
 ) -> dict:
     """获取分页记忆列表 — 优先从关系库查询，回退到 Qdrant 直接查询。"""
     from server.services.meta_service import query_memories_page as _db_query
     try:
         return _db_query(
             user_id=user_id, state=state, exclude_state=exclude_state,
+            exclude_states=exclude_states,
             categories=categories if isinstance(categories, list) else None,
             date_from=date_from, date_to=date_to, search=search,
             page=page, page_size=page_size,
