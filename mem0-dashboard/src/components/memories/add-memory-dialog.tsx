@@ -40,6 +40,7 @@ export function AddMemoryDialog({
   const [content, setContent] = useState("");
   const [userId, setUserId] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<Category[]>([]);
+  const [infer, setInfer] = useState(false);                  // 存储模式：false=原文存储，true=AI 智能提取
   const [autoCategorize, setAutoCategorize] = useState(true); // 默认开启 AI 自动分类
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

@@ -21,7 +21,6 @@ from server.services.memory_service import (  # noqa: F401
     get_memory, extract_memory_fields, format_record, format_mem0_result,
     apply_filters, auto_categorize_memory as _auto_categorize_memory,
     get_all_memories_raw as _get_all_memories_raw,
-    get_real_states as _get_real_states,
     invalidate_stats_cache as _invalidate_stats_cache,
 )
 from server.services.log_service import (  # noqa: F401
