@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 from server.config import MEM0_CONFIG, _safe_error_detail
 from server.models.schemas import SearchMemoryRequest
 from server.services.memory_service import (
-    get_memory, format_mem0_result, get_real_states,
+    get_memory, format_mem0_result,
 )
 from server.services import webhook_service, memory_service as _mem_svc
 
@@ -50,10 +50,6 @@ async def search_memories(request: SearchMemoryRequest):
                     formatted[i]["score"] = item["score"]
         else:
             return {"results": result}
-
-        # 从 Qdrant 直接查询每条记忆的真实 state（Mem0 search 返回的 metadata 可能不含 state）
-        memory_ids = [item["id"] for item in formatted if item.get("id")]
-        real_states = get_real_states(memory_ids)
 
         # 触发 Webhook（后台异步，不阻塞响应）
         try:
@@ -107,14 +103,6 @@ async def get_related_memories(memory_id: str, limit: int = Query(5, ge=1, le=20
             if "score" in item:
                 formatted["score"] = item["score"]
             results.append(formatted)
-
-        # 从 Qdrant 直接查询每条记忆的真实 state，过滤已删除记忆
-        memory_ids = [item["id"] for item in results if item.get("id")]
-        real_states = get_real_states(memory_ids)
-        for item in results:
-            mid = item.get("id", "")
-            if mid in real_states:
-                item["state"] = real_states[mid]
 
         # 截取到 limit 条
         results = results[:limit]

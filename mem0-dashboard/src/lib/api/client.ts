@@ -12,12 +12,10 @@ import type {
   UpdateMemoryRequest,
   DeleteResponse,
   MemoryHistory,
-  MemoryStateHistoryItem,
   FilterParams,
   StatsResponse,
   PaginatedMemoriesResponse,
   Category,
-  MemoryState,
   MemorySummaryResponse,
   RelatedMemoriesResponse,
   AccessLogsResponse,
@@ -186,7 +184,6 @@ export const mem0Api = {
       if (filters.categories && filters.categories.length > 0) {
         params.set("categories", filters.categories.join(","));
       }
-      if (filters.state) params.set("state", filters.state);
       if (filters.date_from) params.set("date_from", filters.date_from);
       if (filters.date_to) params.set("date_to", filters.date_to);
       if (filters.search) params.set("search", filters.search);
@@ -194,8 +191,6 @@ export const mem0Api = {
       if (filters.sort_order) params.set("sort_order", filters.sort_order);
       if (typeof filters.page === "number") params.set("page", String(filters.page));
       if (typeof filters.page_size === "number") params.set("page_size", String(filters.page_size));
-      if (filters.exclude_state) params.set("exclude_state", filters.exclude_state);
-      if (filters.show_archived) params.set("show_archived", "true");
     }
 
     const query = params.toString();
@@ -214,12 +209,9 @@ export const mem0Api = {
       if (filters.categories && filters.categories.length > 0) {
         params.set("categories", filters.categories.join(","));
       }
-      if (filters.state) params.set("state", filters.state);
       if (filters.date_from) params.set("date_from", filters.date_from);
       if (filters.date_to) params.set("date_to", filters.date_to);
       if (filters.search) params.set("search", filters.search);
-      if (filters.exclude_state) params.set("exclude_state", filters.exclude_state);
-      if (filters.show_archived) params.set("show_archived", "true");
     }
     const query = params.toString();
     return request<{ ids: string[]; total: number }>(`/v1/memories/ids/${query ? `?${query}` : ""}`);
@@ -330,45 +322,6 @@ export const mem0Api = {
    */
   async getMemoryHistory(memoryId: string): Promise<MemoryHistory[]> {
     return request<MemoryHistory[]>(`/v1/memories/history/${encodeURIComponent(memoryId)}/`);
-  },
-
-  // ============ 状态动作（对齐 openmemory） ============
-
-  /**
-   * 归档记忆（单条或批量）
-   */
-  async archiveMemories(memoryIds: string[], operator?: string, reason?: string): Promise<any> {
-    return request<any>("/v1/memories/actions/archive", {
-      method: "POST",
-      body: JSON.stringify({ memory_ids: memoryIds, operator, reason }),
-    });
-  },
-
-  /**
-   * 暂停记忆（单条或批量）
-   */
-  async pauseMemories(memoryIds: string[], operator?: string, reason?: string): Promise<any> {
-    return request<any>("/v1/memories/actions/pause", {
-      method: "POST",
-      body: JSON.stringify({ memory_ids: memoryIds, operator, reason }),
-    });
-  },
-
-  /**
-   * 恢复记忆到 active 状态（从 archived / paused 恢复）
-   */
-  async restoreMemories(memoryIds: string[], operator?: string, reason?: string): Promise<any> {
-    return request<any>("/v1/memories/actions/restore", {
-      method: "POST",
-      body: JSON.stringify({ memory_ids: memoryIds, operator, reason }),
-    });
-  },
-
-  /**
-   * 获取记忆的状态变更历史
-   */
-  async getMemoryStateHistory(memoryId: string): Promise<{ memory_id: string; history: MemoryStateHistoryItem[] }> {
-    return request<{ memory_id: string; history: MemoryStateHistoryItem[] }>(`/v1/memories/${encodeURIComponent(memoryId)}/state-history`);
   },
 
   // ============ 统计 ============

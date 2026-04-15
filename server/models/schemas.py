@@ -18,7 +18,6 @@ class AddMemoryRequest(BaseModel):
     run_id: Optional[str] = Field(None, max_length=100)
     metadata: Optional[Dict[str, Any]] = None
     categories: Optional[List[str]] = None
-    state: Optional[str] = "active"
     infer: Optional[bool] = True  # True: AI 自动提取关键记忆（可能拆分为多条）; False: 原文整条存储
     auto_categorize: Optional[bool] = True  # True: 未手动选择标签时由 AI 自动分类
 
@@ -35,7 +34,6 @@ class UpdateMemoryRequest(BaseModel):
     text: Optional[str] = Field(None, max_length=10000)  # 更新内容最大 10000 字符
     metadata: Optional[Dict[str, Any]] = None
     categories: Optional[List[str]] = Field(None, max_length=20)  # 最多 20 个分类
-    state: Optional[str] = Field(None, max_length=20)
     auto_categorize: Optional[bool] = False  # True: 对当前内容重新 AI 自动分类
 
 
@@ -45,7 +43,6 @@ class BatchImportItem(BaseModel):
     user_id: Optional[str] = Field(None, max_length=100)
     metadata: Optional[Dict[str, Any]] = None
     categories: Optional[List[str]] = Field(None, max_length=20)
-    state: Optional[str] = Field("active", max_length=20)
 
 
 class BatchImportRequest(BaseModel):
@@ -88,17 +85,3 @@ class GraphSearchRequest(BaseModel):
     query: str = Field(..., max_length=500)  # 图谱搜索查询最大 500 字符
     user_id: Optional[str] = Field(None, max_length=100)
     limit: Optional[int] = Field(20, ge=1, le=200)  # 返回数量限制 1-200
-
-
-class BatchStateChangeRequest(BaseModel):
-    """批量状态变更请求（归档/暂停/恢复等）"""
-    memory_ids: List[str] = Field(..., max_length=100, description="要变更状态的记忆 ID 列表，最多 100 条")
-    operator: Optional[str] = Field(None, max_length=100, description="操作者标识")
-    reason: Optional[str] = Field(None, max_length=500, description="变更原因")
-
-
-class RestoreMemoriesRequest(BaseModel):
-    """恢复记忆请求（从 archived/paused 恢复到 active）"""
-    memory_ids: List[str] = Field(..., max_length=100, description="要恢复的记忆 ID 列表，最多 100 条")
-    operator: Optional[str] = Field(None, max_length=100, description="操作者标识")
-    reason: Optional[str] = Field(None, max_length=500, description="恢复原因")

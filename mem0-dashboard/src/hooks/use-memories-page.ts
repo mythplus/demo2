@@ -322,79 +322,6 @@ export function useMemoriesPage() {
     setSelectedIds(new Set());
   }, []);
 
-  // ============ 单条状态操作（归档/暂停/恢复） ============
-
-  const handleArchive = useCallback(async (memory: Memory) => {
-    try {
-      await mem0Api.archiveMemories([memory.id]);
-      toast({ title: "归档成功", description: "记忆已归档", variant: "success" });
-      fetchMemories();
-    } catch (err) {
-      toast({ title: "归档失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
-    }
-  }, [fetchMemories]);
-
-  const handlePause = useCallback(async (memory: Memory) => {
-    try {
-      await mem0Api.pauseMemories([memory.id]);
-      toast({ title: "暂停成功", description: "记忆已暂停", variant: "success" });
-      fetchMemories();
-    } catch (err) {
-      toast({ title: "暂停失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
-    }
-  }, [fetchMemories]);
-
-  const handleRestore = useCallback(async (memory: Memory) => {
-    try {
-      await mem0Api.restoreMemories([memory.id]);
-      toast({ title: "恢复成功", description: "记忆已恢复为活跃", variant: "success" });
-      fetchMemories();
-    } catch (err) {
-      toast({ title: "恢复失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
-    }
-  }, [fetchMemories]);
-
-  // ============ 批量状态操作 ============
-
-  const handleBatchArchive = useCallback(async () => {
-    if (selectedIds.size === 0) return;
-    try {
-      const result = await mem0Api.archiveMemories(Array.from(selectedIds));
-      toast({ title: "批量归档成功", description: `已归档 ${result.success} 条记忆`, variant: "success" });
-      setSelectedIds(new Set());
-      setSelectionMode(false);
-      fetchMemories();
-    } catch (err) {
-      toast({ title: "批量归档失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
-    }
-  }, [selectedIds, fetchMemories]);
-
-  const handleBatchPause = useCallback(async () => {
-    if (selectedIds.size === 0) return;
-    try {
-      const result = await mem0Api.pauseMemories(Array.from(selectedIds));
-      toast({ title: "批量暂停成功", description: `已暂停 ${result.success} 条记忆`, variant: "success" });
-      setSelectedIds(new Set());
-      setSelectionMode(false);
-      fetchMemories();
-    } catch (err) {
-      toast({ title: "批量暂停失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
-    }
-  }, [selectedIds, fetchMemories]);
-
-  const handleBatchRestore = useCallback(async () => {
-    if (selectedIds.size === 0) return;
-    try {
-      const result = await mem0Api.restoreMemories(Array.from(selectedIds));
-      toast({ title: "批量恢复成功", description: `已恢复 ${result.success} 条记忆`, variant: "success" });
-      setSelectedIds(new Set());
-      setSelectionMode(false);
-      fetchMemories();
-    } catch (err) {
-      toast({ title: "批量恢复失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
-    }
-  }, [selectedIds, fetchMemories]);
-
   // ============ 批量删除 ============
 
   const handleBatchDelete = useCallback(async () => {
@@ -520,13 +447,5 @@ export function useMemoriesPage() {
     invertLoading,
     handleClearSelection,
     handleBatchDelete,
-
-    // 状态操作
-    handleArchive,
-    handlePause,
-    handleRestore,
-    handleBatchArchive,
-    handleBatchPause,
-    handleBatchRestore,
   };
 }

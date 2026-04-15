@@ -34,7 +34,6 @@ import {
 import { mem0Api } from "@/lib/api";
 import type { SearchResult, Memory, UserInfo } from "@/lib/api";
 import { CategoryBadges } from "@/components/memories/category-badge";
-import { StateBadge } from "@/components/memories/state-badge";
 import { MemoryDetailPanel } from "@/components/memories/memory-detail-panel";
 import { UserCombobox } from "@/components/shared/user-combobox";
 
@@ -319,7 +318,6 @@ export default function SearchPage() {
                               {result.user_id}
                             </Badge>
                           )}
-                          <StateBadge state={result.state} />
                           {result.created_at && (
                             <span className="text-xs text-muted-foreground">
                               {new Date(result.created_at).toLocaleString(

@@ -17,7 +17,7 @@ from qdrant_client.http.models import (
 )
 
 from server.config import (
-    MEM0_CONFIG, QDRANT_DATA_PATH, VALID_CATEGORIES, VALID_STATES,
+    MEM0_CONFIG, QDRANT_DATA_PATH, VALID_CATEGORIES,
     CATEGORY_DESCRIPTIONS, MEMORY_CATEGORIZATION_PROMPT,
 )
 
@@ -65,7 +65,6 @@ def extract_memory_fields(payload: dict) -> dict:
         "hash": payload.get("hash", ""),
         "metadata": metadata,
         "categories": metadata.get("categories", []),
-        "state": metadata.get("state", "active"),
         "created_at": payload.get("created_at", ""),
         "updated_at": payload.get("updated_at", ""),
     }
@@ -99,15 +98,12 @@ def format_mem0_result(item: dict) -> dict:
 
 # ============ 多维筛选 ============
 
-def apply_filters(memories: list, categories: list = None, state: str = None,
+def apply_filters(memories: list, categories: list = None,
                   date_from: str = None, date_to: str = None, search: str = None) -> list:
     """对记忆列表应用多维筛选"""
     filtered = memories
 
-    # 按状态筛选
-    if state:
-        filtered = [m for m in filtered if m.get("state", "active") == state]
-
+    # 按分类筛选
     # 按分类筛选（包含任一分类即匹配）
     if categories:
         cat_set = set(categories)
@@ -235,10 +231,8 @@ def _parse_dt_for_filter(value: str, end_of_day: bool = False):
 def build_memory_filter(
     user_id: str | None = None,
     categories: list[str] | None = None,
-    state: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
-    exclude_state: str | None = None,
 ):
     """构建 Qdrant 过滤条件，将可下推的筛选尽量下推到存储层。"""
     must = []
@@ -246,20 +240,6 @@ def build_memory_filter(
 
     if user_id:
         must.append(FieldCondition(key="user_id", match=MatchValue(value=user_id)))
-
-    if state and state in VALID_STATES:
-        if state == "active":
-            # "active" 不能用精确匹配，因为没有 metadata.state 字段的记忆默认也是 active，
-            # Qdrant MatchValue 只匹配有该字段的记录，会漏掉这些默认 active 的记忆。
-            # 改为排除其他状态（paused）。
-            for other_state in VALID_STATES:
-                if other_state != "active":
-                    must_not.append(FieldCondition(key="metadata.state", match=MatchValue(value=other_state)))
-        else:
-            must.append(FieldCondition(key="metadata.state", match=MatchValue(value=state)))
-
-    if exclude_state and exclude_state in VALID_STATES:
-        must_not.append(FieldCondition(key="metadata.state", match=MatchValue(value=exclude_state)))
 
     valid_categories = [c for c in (categories or []) if c in VALID_CATEGORIES]
     if valid_categories:
@@ -299,14 +279,12 @@ def _client_side_matches(memory: dict, search: str | None = None) -> bool:
 def iter_memories_raw(
     user_id: str | None = None,
     categories: list[str] | None = None,
-    state: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
     search: str | None = None,
     order_by: str = "created_at",
     order_direction: str = "desc",
     batch_size: int = _DEFAULT_SCROLL_BATCH_SIZE,
-    exclude_state: str | None = None,
 ) -> Iterator[dict]:
     """按批滚动遍历记忆数据，优先使用 Qdrant 端过滤，减少全量拉取后的本地筛选。
     如果 order_by 不被支持（如本地文件模式未建 payload index），自动回退到无排序模式。"""
@@ -315,10 +293,8 @@ def iter_memories_raw(
         scroll_filter = build_memory_filter(
             user_id=user_id,
             categories=categories,
-            state=state,
             date_from=date_from,
             date_to=date_to,
-            exclude_state=exclude_state,
         )
         offset = None
         order_key = order_by if order_by in {"created_at", "updated_at"} else "created_at"
@@ -388,19 +364,15 @@ def iter_memories_raw(
 def get_all_memory_ids(
     user_id: str | None = None,
     categories: list[str] | None = None,
-    state: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
     search: str | None = None,
-    exclude_state: str | None = None,
-    exclude_states: list[str] | None = None,
 ) -> list[str]:
     """获取当前筛选条件下的所有记忆 ID（用于前端全选功能），优先走关系库。"""
     from server.services.meta_service import query_all_memory_ids as _db_query
     try:
         return _db_query(
-            user_id=user_id, state=state, exclude_state=exclude_state,
-            exclude_states=exclude_states,
+            user_id=user_id,
             categories=categories if isinstance(categories, list) else None,
             date_from=date_from, date_to=date_to, search=search,
         )
@@ -412,27 +384,22 @@ def get_all_memory_ids(
 def get_all_memories_raw(
     user_id: str | None = None,
     categories: list[str] | None = None,
-    state: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
     search: str | None = None,
     order_by: str = "created_at",
     order_direction: str = "desc",
-    exclude_state: str | None = None,
-    exclude_states: list[str] | None = None,
 ) -> list:
     """获取记忆列表，优先使用 Qdrant 端过滤和排序，减少全量扫描后的本地处理。"""
     return list(
         iter_memories_raw(
             user_id=user_id,
             categories=categories,
-            state=state,
             date_from=date_from,
             date_to=date_to,
             search=search,
             order_by=order_by,
             order_direction=order_direction,
-            exclude_state=exclude_state,
         )
     )
 
@@ -440,7 +407,6 @@ def get_all_memories_raw(
 def get_memories_page(
     user_id: str | None = None,
     categories: list[str] | None = None,
-    state: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
     search: str | None = None,
@@ -448,15 +414,12 @@ def get_memories_page(
     page_size: int = 20,
     order_by: str = "created_at",
     order_direction: str = "desc",
-    exclude_state: str | None = None,
-    exclude_states: list[str] | None = None,
 ) -> dict:
     """获取分页记忆列表 — 优先从关系库查询，回退到 Qdrant 直接查询。"""
     from server.services.meta_service import query_memories_page as _db_query
     try:
         return _db_query(
-            user_id=user_id, state=state, exclude_state=exclude_state,
-            exclude_states=exclude_states,
+            user_id=user_id,
             categories=categories if isinstance(categories, list) else None,
             date_from=date_from, date_to=date_to, search=search,
             page=page, page_size=page_size,
@@ -465,19 +428,18 @@ def get_memories_page(
     except Exception as e:
         logger.warning(f"关系库分页查询失败，回退到 Qdrant: {e}")
         return _qdrant_get_memories_page(
-            user_id=user_id, categories=categories, state=state,
+            user_id=user_id, categories=categories,
             date_from=date_from, date_to=date_to, search=search,
             page=page, page_size=page_size,
             order_by=order_by, order_direction=order_direction,
-            exclude_state=exclude_state,
         )
 
 
 def _qdrant_get_memories_page(
-    user_id=None, categories=None, state=None,
+    user_id=None, categories=None,
     date_from=None, date_to=None, search=None,
     page=1, page_size=20, order_by="created_at",
-    order_direction="desc", exclude_state=None,
+    order_direction="desc",
 ) -> dict:
     """Qdrant 直接分页查询（回退方案，数据迁移前使用）"""
     safe_page = max(1, int(page or 1))
@@ -491,9 +453,9 @@ def _qdrant_get_memories_page(
             collection_name, qdrant_client = _get_qdrant_collection_and_client()
             count_result = qdrant_client.count(
                 collection_name=collection_name,
-                count_filter=build_memory_filter(
-                    user_id=user_id, categories=categories, state=state,
-                    date_from=date_from, date_to=date_to, exclude_state=exclude_state,
+            count_filter=build_memory_filter(
+                    user_id=user_id, categories=categories,
+                    date_from=date_from, date_to=date_to,
                 ),
                 exact=True,
             )
@@ -505,10 +467,9 @@ def _qdrant_get_memories_page(
     scanned = 0
     items = []
     for memory in iter_memories_raw(
-        user_id=user_id, categories=categories, state=state,
+        user_id=user_id, categories=categories,
         date_from=date_from, date_to=date_to, search=search,
         order_by=order_by, order_direction=order_direction,
-        exclude_state=exclude_state,
     ):
         if start <= scanned < end:
             items.append(memory)
@@ -581,54 +542,8 @@ def compute_memory_stats() -> dict:
         return {
             "total_memories": 0, "total_users": 0,
             "category_distribution": {}, "uncategorized_count": 0,
-            "state_distribution": {}, "daily_counter": {},
+            "daily_counter": {},
         }
-
-
-# ============ 查询记忆真实状态 ============
-
-def get_real_states(memory_ids: list) -> dict:
-    """查询记忆的真实 state — 优先从关系库查询，回退到 Qdrant。"""
-    if not memory_ids:
-        return {}
-    try:
-        from server.services.meta_service import _get_db
-        from server.models.models import MemoryMeta, MemoryState
-        db = _get_db()
-        try:
-            rows = db.query(MemoryMeta.id, MemoryMeta.state).filter(
-                MemoryMeta.id.in_(memory_ids)
-            ).all()
-            if rows:
-                return {
-                    row.id: row.state.value if isinstance(row.state, MemoryState) else str(row.state)
-                    for row in rows
-                }
-        finally:
-            db.close()
-    except Exception as e:
-        logger.warning(f"关系库查询状态失败，回退到 Qdrant: {e}")
-
-    # 回退到 Qdrant
-    try:
-        m = get_memory()
-        collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
-        qdrant_client = m.vector_store.client
-        points = qdrant_client.retrieve(
-            collection_name=collection_name,
-            ids=memory_ids,
-            with_payload=True,
-        )
-        state_map = {}
-        for p in points:
-            pid = str(p.id)
-            payload = p.payload or {}
-            metadata = payload.get("metadata", {}) or {}
-            state_map[pid] = metadata.get("state", "active")
-        return state_map
-    except Exception as e:
-        logger.warning(f"Qdrant 查询状态也失败: {e}")
-        return {}
 
 
 # ============ 统计与摘要缓存 ============

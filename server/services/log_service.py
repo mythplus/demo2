@@ -229,7 +229,7 @@ def init_access_log_db():
     conn.execute("CREATE INDEX IF NOT EXISTS idx_cat_snap_memory_id ON category_snapshots(memory_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_cat_snap_timestamp ON category_snapshots(timestamp)")
 
-    # 状态变更历史表（对齐 openmemory 的 MemoryStatusHistory）
+    # 记忆变更日志表（纳入 SQLAlchemy 统一管理）
     conn.execute("""
         CREATE TABLE IF NOT EXISTS memory_state_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

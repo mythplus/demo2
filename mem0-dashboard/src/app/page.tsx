@@ -21,7 +21,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AddMemoryDialog } from "@/components/memories/add-memory-dialog";
 import { CategoryBadges } from "@/components/memories/category-badge";
-import { StateBadge } from "@/components/memories/state-badge";
 import { useUIStore } from "@/store";
 import { useDashboardData } from "@/hooks/use-dashboard-data";
 import { StatsCharts } from "@/components/dashboard/stats-charts";
@@ -232,7 +231,6 @@ export default function DashboardPage() {
                         {memory.memory}
                       </p>
                       <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                        <StateBadge state={memory.state} />
                         {memory.user_id && (
                           <span className="text-[11px] text-muted-foreground max-w-[160px] truncate" title={memory.user_id}>
                             {memory.user_id}

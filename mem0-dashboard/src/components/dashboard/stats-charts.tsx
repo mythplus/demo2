@@ -23,12 +23,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { StatsResponse } from "@/lib/api";
-import { CATEGORY_LIST, CATEGORY_MAP, STATE_LIST } from "@/lib/constants";
-
-const STATE_COLORS: Record<string, string> = {
-  active: "#22c55e",
-  paused: "#eab308",
-};
+import { CATEGORY_LIST, CATEGORY_MAP } from "@/lib/constants";
 
 interface StatsChartsProps {
   stats: StatsResponse;
@@ -57,15 +52,7 @@ export function StatsCharts({ stats }: StatsChartsProps) {
   // 标签总计（所有分类数字之和，含未分类）
   const tagTotal = categoryData.reduce((sum, d) => sum + d.value, 0);
 
-  // 状态饼图数据
-  const stateData = STATE_LIST
-    .map((s) => ({
-      name: s.label,
-      value: stats.state_distribution[s.value] || 0,
-      color: STATE_COLORS[s.value] || "#94a3b8",
-    }))
-    .filter((d) => d.value > 0);
-
+  // 趋势数据
   // 趋势数据 - 截取最近 14 天并格式化日期
   const trendData = (stats.daily_trend || []).slice(-14).map((d) => ({
     date: d.date.slice(5), // "2026-03-27" → "03-27"
@@ -73,7 +60,6 @@ export function StatsCharts({ stats }: StatsChartsProps) {
   }));
 
   const hasAnyCategoryData = categoryData.length > 0;
-  const hasAnyStateData = stateData.length > 0;
   const hasAnyTrendData = trendData.some((d) => d.count > 0);
 
   return (
@@ -135,66 +121,6 @@ export function StatsCharts({ stats }: StatsChartsProps) {
           ) : (
             <div className="flex items-center justify-center h-[220px] text-sm text-muted-foreground">
               暂无分类数据
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* 状态分布饼图 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">状态分布</CardTitle>
-          <CardDescription>各状态的记忆数量</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {hasAnyStateData ? (
-            <div className="flex items-center gap-4">
-              <div className="w-[180px] shrink-0">
-                <ResponsiveContainer width="100%" height={180}>
-                  <PieChart>
-                    <Pie
-                      data={stateData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={45}
-                      outerRadius={75}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {stateData.map((entry, index) => (
-                        <Cell key={`state-${index}`} fill={entry.color} stroke="none" />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value: any, name: any) => [`${value} 条`, name]}
-                      contentStyle={{
-                        borderRadius: "8px",
-                        border: "1px solid hsl(var(--border))",
-                        background: "hsl(var(--background))",
-                        color: "hsl(var(--foreground))",
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              {/* 右侧图例 */}
-              <div className="space-y-2 flex-1">
-                {stateData.map((entry, index) => (
-                  <div key={`slegend-${index}`} className="flex items-center gap-2">
-                    <span
-                      className="inline-block h-2.5 w-2.5 rounded-sm shrink-0"
-                      style={{ background: entry.color }}
-                    />
-                    <span className="text-sm text-muted-foreground">
-                      {entry.name} ({entry.value})
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-[220px] text-sm text-muted-foreground">
-              暂无状态数据
             </div>
           )}
         </CardContent>

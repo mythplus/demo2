@@ -30,12 +30,10 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { CategoryBadge, CategoryBadges } from "@/components/memories/category-badge";
 import { getCategoryInfo } from "@/lib/constants";
-import { StateBadge } from "@/components/memories/state-badge";
 import { EditMemoryDialog } from "@/components/memories/edit-memory-dialog";
 import { DeleteConfirmDialog } from "@/components/memories/delete-confirm-dialog";
 import { mem0Api } from "@/lib/api";
-import type { Memory, MemoryHistory, MemoryState } from "@/lib/api";
-import { STATE_LIST } from "@/lib/constants";
+import type { Memory, MemoryHistory } from "@/lib/api";
 import { RelatedMemories } from "@/components/shared/related-memories";
 import { AccessLogList } from "@/components/shared/access-log-list";
 import { DetailPageSkeleton } from "@/components/ui/skeleton";
@@ -108,16 +106,6 @@ export default function MemoryDetailPage() {
       toast({ title: "删除失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
     } finally {
       setDeleteLoading(false);
-    }
-  };
-
-  // 更改状态
-  const handleStateChange = async (newState: MemoryState) => {
-    try {
-      await mem0Api.updateMemory(memoryId, { state: newState });
-      fetchMemory();
-    } catch (err) {
-      console.error("更新状态失败:", err);
     }
   };
 
@@ -432,16 +420,6 @@ export default function MemoryDetailPage() {
 
               <Separator />
 
-              {/* 状态 */}
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">
-                  状态
-                </label>
-                <div>
-                  <StateBadge state={memory.state} size="md" />
-                </div>
-              </div>
-
               {/* 用户 */}
               {memory.user_id && (
                 <div className="space-y-1">
@@ -527,62 +505,6 @@ export default function MemoryDetailPage() {
                 <Pencil className="mr-2 h-4 w-4" />
                 编辑记忆
               </Button>
-
-              {/* 状态切换按钮 */}
-              {memory.state !== "active" && (
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  onClick={async () => {
-                    try {
-                      await mem0Api.restoreMemories([memoryId]);
-                      fetchMemory();
-                      fetchHistory();
-                    } catch (err) {
-                      console.error("恢复失败:", err);
-                    }
-                  }}
-                >
-                  <Play className="mr-2 h-4 w-4" />
-                  恢复为活跃
-                </Button>
-              )}
-              {memory.state === "active" && (
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  onClick={async () => {
-                    try {
-                      await mem0Api.pauseMemories([memoryId]);
-                      fetchMemory();
-                      fetchHistory();
-                    } catch (err) {
-                      console.error("暂停失败:", err);
-                    }
-                  }}
-                >
-                  <Pause className="mr-2 h-4 w-4" />
-                  暂停
-                </Button>
-              )}
-              {memory.state !== "archived" && (
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  onClick={async () => {
-                    try {
-                      await mem0Api.archiveMemories([memoryId]);
-                      fetchMemory();
-                      fetchHistory();
-                    } catch (err) {
-                      console.error("归档失败:", err);
-                    }
-                  }}
-                >
-                  <Archive className="mr-2 h-4 w-4" />
-                  归档
-                </Button>
-              )}
 
               <Separator />
 

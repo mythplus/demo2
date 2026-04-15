@@ -31,7 +31,7 @@ import {
   type ImportResult,
 } from "@/lib/data-transfer";
 import { mem0Api } from "@/lib/api";
-import type { Category, MemoryState } from "@/lib/api/types";
+import type { Category } from "@/lib/api/types";
 import { registerImportTask, unregisterImportTask } from "@/lib/import-task-registry";
 
 /** 导入成功回调信息 */
@@ -291,7 +291,6 @@ export function ImportDialog({
               user_id: item.user_id,
               metadata: item.metadata,
               categories: item.categories as Category[] | undefined,
-              state: item.state as MemoryState | undefined,
             })),
             default_user_id: defaultUserId.trim() || undefined,
             infer: false,           // 导入时原文整条存储，不让 AI 拆分

@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 def migrate():
     """从 Qdrant 读取所有记忆，迁移到关系库"""
     from server.models.database import init_db, get_session_factory
-    from server.models.models import MemoryMeta, Category, MemoryStatusHistory, MemoryState, memory_categories
+    from server.models.models import MemoryMeta, Category, memory_categories
     from server.services.memory_service import iter_memories_raw, get_memory
     from server.config import VALID_CATEGORIES
 
@@ -74,13 +74,6 @@ def migrate():
                 continue
 
             try:
-                # 解析状态
-                state_str = memory.get("state", "active")
-                try:
-                    state = MemoryState(state_str)
-                except ValueError:
-                    state = MemoryState.active
-
                 # 解析时间
                 created_at = None
                 if memory.get("created_at"):
@@ -113,10 +106,8 @@ def migrate():
                     content=memory.get("memory", ""),
                     hash=memory.get("hash", ""),
                     metadata_=memory.get("metadata", {}),
-                    state=state,
                     created_at=created_at or datetime.now(timezone.utc),
                     updated_at=updated_at,
-                    deleted_at=datetime.now(timezone.utc) if state == MemoryState.deleted else None,
                 )
 
                 # 关联分类
@@ -126,16 +117,6 @@ def migrate():
                         meta.categories.append(existing_cats[cat_name])
 
                 db.add(meta)
-
-                # 创建初始状态历史
-                history = MemoryStatusHistory(
-                    memory_id=mid,
-                    old_state=MemoryState.active,
-                    new_state=state,
-                    changed_by="migration",
-                    reason="从 Qdrant 迁移",
-                )
-                db.add(history)
 
                 migrated += 1
 

@@ -1,7 +1,7 @@
 /**
- * 分类与状态常量定义
+ * 分类常量定义
  */
-import type { Category, MemoryState } from "@/lib/api/types";
+import type { Category } from "@/lib/api/types";
 
 // ============ 分类常量 ============
 
@@ -46,30 +46,4 @@ export const CATEGORY_MAP = new Map(CATEGORY_LIST.map((c) => [c.value, c]));
 /** 获取分类信息 */
 export function getCategoryInfo(category: Category): CategoryInfo | undefined {
   return CATEGORY_MAP.get(category);
-}
-
-// ============ 状态常量 ============
-
-export interface StateInfo {
-  value: MemoryState;
-  label: string;
-  color: string;
-  dotColor: string;
-  bgColor: string;
-  textColor: string;
-  borderColor: string;
-}
-
-export const STATE_LIST: StateInfo[] = [
-  { value: "active", label: "活跃", color: "green", dotColor: "bg-green-500", bgColor: "bg-green-100 dark:bg-green-900/30", textColor: "text-green-700 dark:text-green-300", borderColor: "border-green-200 dark:border-green-700/40" },
-  { value: "paused", label: "暂停", color: "yellow", dotColor: "bg-yellow-500", bgColor: "bg-yellow-100 dark:bg-yellow-900/30", textColor: "text-yellow-700 dark:text-yellow-300", borderColor: "border-yellow-200 dark:border-yellow-700/40" },
-  { value: "archived", label: "已归档", color: "blue", dotColor: "bg-blue-500", bgColor: "bg-blue-100 dark:bg-blue-900/30", textColor: "text-blue-700 dark:text-blue-300", borderColor: "border-blue-200 dark:border-blue-700/40" },
-];
-
-/** 状态映射（快速查找） */
-export const STATE_MAP = new Map(STATE_LIST.map((s) => [s.value, s]));
-
-/** 获取状态信息 */
-export function getStateInfo(state: MemoryState): StateInfo | undefined {
-  return STATE_MAP.get(state);
 }

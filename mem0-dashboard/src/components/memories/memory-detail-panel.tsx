@@ -12,7 +12,6 @@ import { mem0Api } from "@/lib/api";
 import type { Memory, MemoryHistory } from "@/lib/api";
 import { CategoryBadge, CategoryBadges } from "./category-badge";
 import { getCategoryInfo } from "@/lib/constants";
-import { StateBadge } from "./state-badge";
 
 interface MemoryDetailPanelProps {
   memory: Memory | null;
@@ -99,19 +98,7 @@ export function MemoryDetailPanel({
 
             {/* 基本信息 Tab */}
             <TabsContent value="info" className="p-4 space-y-4">
-              {/* 1. 状态 */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">
-                  状态
-                </label>
-                <div>
-                  <StateBadge state={memory.state} size="md" />
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* 2. 记忆 ID */}
+              {/* 1. 记忆 ID */}
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">
                   记忆 ID

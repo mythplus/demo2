@@ -20,7 +20,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CategoryBadges } from "./category-badge";
-import { StateBadge } from "./state-badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Memory } from "@/lib/api";
 import {
@@ -78,7 +77,6 @@ export function MemoryTable({
               <TableHead className="w-[40%] py-3 font-semibold text-xs uppercase tracking-wider">记忆内容</TableHead>
               <TableHead className="w-[15%] py-3 font-semibold text-xs uppercase tracking-wider">用户</TableHead>
               <TableHead className="w-[15%] py-3 font-semibold text-xs uppercase tracking-wider">分类</TableHead>
-              <TableHead className="w-[8%] py-3 font-semibold text-xs uppercase tracking-wider">状态</TableHead>
               <TableHead className="w-[12%] py-3 font-semibold text-xs uppercase tracking-wider">创建时间</TableHead>
               <TableHead className="w-[5%] py-3 font-semibold text-xs uppercase tracking-wider text-right whitespace-nowrap">操作</TableHead>
             </TableRow>
@@ -134,9 +132,6 @@ export function MemoryTable({
                 </TableCell>
                 <TableCell className="py-3 overflow-hidden">
                   <CategoryBadges categories={memory.categories} max={2} nowrap />
-                </TableCell>
-                <TableCell className="py-3 whitespace-nowrap">
-                  <StateBadge state={memory.state} />
                 </TableCell>
                 <TableCell className="py-3 whitespace-nowrap">
                   {memory.created_at && (

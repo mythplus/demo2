@@ -16,6 +16,8 @@ interface UserComboboxProps {
   className?: string;
   /** 是否显示"全部用户"选项 */
   showAll?: boolean;
+  /** 外部控制：用户是否已做过选择（用于区分初始空值和主动选择"全部用户"） */
+  selected?: boolean;
 }
 
 /**
@@ -29,9 +31,13 @@ export function UserCombobox({
   placeholder = "选择用户",
   className = "w-[200px]",
   showAll = false,
+  selected,
 }: UserComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  // 如果外部传了 selected 则以外部为准，否则用内部状态
+  const [internalSelected, setInternalSelected] = useState(false);
+  const hasSelected = selected !== undefined ? selected : internalSelected;
   const ref = useRef<HTMLDivElement>(null);
 
   // 点击外部关闭
@@ -56,8 +62,8 @@ export function UserCombobox({
         onClick={() => setOpen(!open)}
         className="flex h-8 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm hover:bg-accent/50 transition-colors"
       >
-        <span className={value ? "text-foreground truncate" : "text-muted-foreground"}>
-          {value || placeholder}
+        <span className={value || (showAll && hasSelected) ? "text-foreground truncate" : "text-muted-foreground"}>
+          {value || (showAll && hasSelected ? "全部用户" : placeholder)}
         </span>
         <ChevronDown
           className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
@@ -83,6 +89,7 @@ export function UserCombobox({
               <div
                 onClick={() => {
                   onChange("");
+                  setInternalSelected(true);
                   setOpen(false);
                   setSearch("");
                 }}
@@ -99,6 +106,7 @@ export function UserCombobox({
                 key={u}
                 onClick={() => {
                   onChange(u);
+                  setInternalSelected(true);
                   setOpen(false);
                   setSearch("");
                 }}

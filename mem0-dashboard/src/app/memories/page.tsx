@@ -46,7 +46,8 @@ import { MemoryTable } from "@/components/memories/memory-table";
 import { ViewToggle } from "@/components/memories/view-toggle";
 import { PageSizeSelector } from "@/components/memories/page-size-selector";
 import { CategoryBadges } from "@/components/memories/category-badge";
-import { StateBadge } from "@/components/memories/state-badge";
+
+
 import { Checkbox } from "@/components/ui/checkbox";
 import { MemoryListSkeleton } from "@/components/ui/skeleton";
 import { useMemoriesPage } from "@/hooks/use-memories-page";
@@ -336,9 +337,6 @@ export default function MemoriesPage() {
                         }
                       }}
                     >
-                      <div className="flex items-center gap-2 mb-1">
-                        <StateBadge state={memory.state} />
-                      </div>
                       <p className="text-sm leading-relaxed line-clamp-2 break-all">{memory.memory}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         {memory.user_id && (

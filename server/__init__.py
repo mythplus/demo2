@@ -13,7 +13,7 @@ from server.app import app  # noqa: F401 — FastAPI 应用实例
 # ============ 向后兼容：重新导出测试文件引用的符号 ============
 from server.config import (  # noqa: F401
     MEM0_CONFIG, IS_PRODUCTION, IS_TESTING, QDRANT_DATA_PATH, ACCESS_LOG_DB_PATH,
-    CONFIG_FILE_PATH, VALID_CATEGORIES, VALID_STATES,
+    CONFIG_FILE_PATH, VALID_CATEGORIES,
     CATEGORY_DESCRIPTIONS, MEMORY_CATEGORIZATION_PROMPT,
     _safe_error_detail, load_config_from_yaml, setup_logging,
 )

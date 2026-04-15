@@ -2,7 +2,7 @@
  * Mem0 API TypeScript 类型定义
  */
 
-// ============ 分类与状态类型 ============
+// ============ 分类类型 ============
 
 /** 记忆分类 */
 export type Category =
@@ -11,12 +11,9 @@ export type Category =
   | "finance" | "shopping" | "legal" | "entertainment" | "messages"
   | "customer_support" | "product_feedback" | "news" | "organization" | "goals";
 
-/** 记忆状态 — 删除为物理删除，不再保留 deleted 状态 */
-export type MemoryState = "active" | "paused" | "archived";
-
 // ============ 记忆相关类型 ============
 
-/** 单条记忆（对齐 OpenMemory 官方架构） */
+/** 单条记忆（对齐 mem0 云平台架构） */
 export interface Memory {
   id: string;
   memory: string;
@@ -26,10 +23,8 @@ export interface Memory {
   hash?: string;
   metadata?: Record<string, unknown>;
   categories?: Category[];
-  state?: MemoryState;
   created_at?: string;
   updated_at?: string;
-  archived_at?: string | null;
 }
 
 /** 添加记忆的消息格式 */
@@ -46,7 +41,6 @@ export interface AddMemoryRequest {
   run_id?: string;
   metadata?: Record<string, unknown>;
   categories?: Category[];
-  state?: MemoryState;
   /** true: AI 自动提取关键记忆（可能拆分为多条）; false: 原文整条存储 */
   infer?: boolean;
   /** true: 未手动选择标签时由 AI 自动分类; false: 不自动分类 */
@@ -80,7 +74,6 @@ export interface SearchResult {
   agent_id?: string;
   metadata?: Record<string, unknown>;
   categories?: Category[];
-  state?: MemoryState;
   created_at?: string;
   updated_at?: string;
 }
@@ -90,12 +83,11 @@ export interface SearchMemoryResponse {
   results: SearchResult[];
 }
 
-/** 更新记忆请求（扩展支持 metadata、categories、state） */
+/** 更新记忆请求（扩展支持 metadata、categories） */
 export interface UpdateMemoryRequest {
   text?: string;
   metadata?: Record<string, unknown>;
   categories?: Category[];
-  state?: MemoryState;
   /** true: 对当前内容重新 AI 自动分类 */
   auto_categorize?: boolean;
 }
@@ -112,11 +104,11 @@ export interface MemoryHistory {
   old_categories?: string[];
 }
 
-/** 状态变更历史记录（对齐 openmemory） */
+/** 状态变更历史记录 — 已废弃，保留类型兼容 */
 export interface MemoryStateHistoryItem {
   memory_id: string;
-  old_state?: MemoryState;
-  new_state: MemoryState;
+  old_state?: string;
+  new_state: string;
   changed_by: string;
   reason?: string;
   changed_at: string;
@@ -129,15 +121,12 @@ export interface FilterParams {
   search?: string;
   user_id?: string;
   categories?: Category[];
-  state?: MemoryState;
   date_from?: string;
   date_to?: string;
   sort_by?: "created_at" | "updated_at";
   sort_order?: "asc" | "desc";
   page?: number;
   page_size?: number;
-  exclude_state?: MemoryState;
-  show_archived?: boolean;
 }
 
 /** 分页记忆列表响应 */
@@ -157,7 +146,6 @@ export interface StatsResponse {
   total_users: number;
   category_distribution: Record<Category, number>;
   uncategorized_count?: number;
-  state_distribution: Record<MemoryState, number>;
   daily_trend: Array<{ date: string; count: number }>;
 }
 
@@ -207,7 +195,6 @@ export interface RelatedMemory {
   score: number;
   user_id?: string;
   categories?: Category[];
-  state?: MemoryState;
   created_at?: string;
 }
 
@@ -273,7 +260,6 @@ export interface BatchImportItem {
   user_id?: string;
   metadata?: Record<string, unknown>;
   categories?: Category[];
-  state?: MemoryState;
 }
 
 /** 批量导入请求 */

@@ -13,8 +13,8 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { Category, MemoryState, FilterParams } from "@/lib/api";
-import { CATEGORY_LIST, STATE_LIST, getCategoryInfo } from "@/lib/constants";
+import type { Category, FilterParams } from "@/lib/api";
+import { CATEGORY_LIST, getCategoryInfo } from "@/lib/constants";
 
 interface MemoryFiltersProps {
   filters: FilterParams;
@@ -43,7 +43,6 @@ export function MemoryFilters({
 
   const hasActiveFilters =
     (filters.categories && filters.categories.length > 0) ||
-    filters.state ||
     filters.user_id ||
     filters.date_from ||
     filters.date_to;
@@ -74,34 +73,12 @@ export function MemoryFilters({
           筛选
           {hasActiveFilters && (
             <Badge variant="secondary" className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs">
-              {(filters.categories?.length || 0) + (filters.state ? 1 : 0) + (filters.user_id ? 1 : 0) + (filters.date_from ? 1 : 0)}
+              {(filters.categories?.length || 0) + (filters.user_id ? 1 : 0) + (filters.date_from ? 1 : 0)}
             </Badge>
           )}
         </Button>
 
-        {/* 状态快速筛选 */}
-        <Select
-          value={filters.state || "all"}
-          onValueChange={(v) => updateFilter("state", v === "all" ? undefined : v)}
-        >
-          <SelectTrigger className="h-8 w-[120px]">
-            <SelectValue placeholder="全部状态" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部状态</SelectItem>
-            {STATE_LIST.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                <span className="flex items-center gap-1.5">
-                  <span className={cn("h-1.5 w-1.5 rounded-full", s.dotColor)} />
-                  {s.label}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* 用户筛选（带搜索） */}
-        <UserFilterDropdown
+        {/* 用户筛选（带搜索） */}        <UserFilterDropdown
           value={filters.user_id}
           users={users}
           onChange={(v) => updateFilter("user_id", v)}
@@ -239,12 +216,6 @@ export function MemoryFilters({
                   </Badge>
                 );
               })}
-              {filters.state && (
-                <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => updateFilter("state", undefined)}>
-                  状态: {STATE_LIST.find(s => s.value === filters.state)?.label}
-                  <X className="h-3 w-3" />
-                </Badge>
-              )}
               {filters.user_id && (
                 <Badge variant="secondary" className="gap-1 cursor-pointer max-w-[200px]" onClick={() => updateFilter("user_id", undefined)}>
                   <span className="truncate">用户: {filters.user_id}</span>

@@ -1,16 +1,17 @@
 """
-Playground 对话测试路由 — 记忆增强的 AI 对话
-整合 search → LLM → add 三步流程，让用户直观体验"AI 记住了我"的效果
+Playground 对话测试路由 — 基于 LangGraph StateGraph 的记忆增强 AI 对话
+将对话流程拆分为三个节点：检索记忆 → LLM 生成 → 存储记忆
 """
 
 import asyncio
 import json
 import logging
-from typing import Optional, List
+from typing import Optional, List, TypedDict, Annotated
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from langgraph.graph import StateGraph, START, END
 
 from server.config import MEM0_CONFIG
 from server.services import memory_service
@@ -40,6 +41,24 @@ class PlaygroundChatResponse(BaseModel):
     reply: str = Field(..., description="AI 回复内容")
     retrieved_memories: list = Field(default_factory=list, description="本轮检索到的相关记忆")
     new_memories: list = Field(default_factory=list, description="本轮新增/更新的记忆")
+
+
+# ============ LangGraph 状态定义 ============
+
+class PlaygroundState(TypedDict):
+    """LangGraph 状态图的状态，在节点间流转"""
+    # 输入
+    message: str
+    user_id: str
+    history: list
+    memory_limit: int
+    # 中间产物
+    retrieved_memories: list
+    memories_str: str
+    llm_messages: list
+    # 输出
+    reply: str
+    new_memories: list
 
 
 # ============ 辅助函数 ============
@@ -74,8 +93,6 @@ def _write_categories_to_qdrant(m, memory_id: str, categories: list):
 
         current_meta = dict((points[0].payload or {}).get("metadata", {}) or {})
         current_meta["categories"] = categories
-        if "state" not in current_meta:
-            current_meta["state"] = "active"
         client.set_payload(
             collection_name=collection_name,
             payload={"metadata": current_meta},
@@ -84,7 +101,6 @@ def _write_categories_to_qdrant(m, memory_id: str, categories: list):
         logger.info(f"Playground 自动分类写入成功 [{memory_id}]: {categories}")
     except Exception as e:
         logger.warning(f"写入 Qdrant 分类失败 [{memory_id}]: {e}")
-
 
 
 def _build_system_prompt(memories_str: str) -> str:
@@ -104,142 +120,23 @@ def _build_system_prompt(memories_str: str) -> str:
         )
 
 
-# ============ 路由 ============
+# ============ LangGraph 节点函数 ============
 
-@router.post("/chat", response_model=PlaygroundChatResponse)
-async def playground_chat(request: PlaygroundChatRequest):
-    """
-    Playground 对话接口（非流式）
-    流程：检索相关记忆 → 构建增强 Prompt → 调用 LLM → 存储新记忆
-    """
-    try:
-        m = memory_service.get_memory()
-        user_id = request.user_id or "default_user"
-
-        # 第1步：检索相关记忆
-        retrieved_memories = []
-        memories_str = ""
-        try:
-            search_result = m.search(
-                query=request.message,
-                user_id=user_id,
-                limit=request.memory_limit,
-            )
-            raw_results = search_result.get("results", []) if isinstance(search_result, dict) else search_result
-            # 过滤记忆
-            for item in raw_results:
-                metadata = item.get("metadata", {}) or {}
-                retrieved_memories.append({
-                    "id": item.get("id", ""),
-                    "memory": item.get("memory", ""),
-                    "score": item.get("score", 0),
-                    "user_id": item.get("user_id", ""),
-                })
-            if retrieved_memories:
-                memories_str = "\n".join(
-                    f"- {mem['memory']}" for mem in retrieved_memories
-                )
-        except Exception as e:
-            logger.warning(f"检索记忆失败: {e}")
-
-        # 第2步：构建增强 Prompt 并调用 LLM
-        system_prompt = _build_system_prompt(memories_str)
-        base_url, model, temperature = _get_ollama_config()
-
-        # 构建消息列表
-        messages = [{"role": "system", "content": system_prompt}]
-        # 添加对话历史（最多保留最近 20 轮）
-        history = (request.history or [])[-40:]  # 最多 40 条消息（约 20 轮对话）
-        for msg in history:
-            messages.append({"role": msg.role, "content": msg.content})
-        messages.append({"role": "user", "content": request.message})
-
-        # 调用 Ollama Chat API
-        response = await memory_service.http_client.post(
-            f"{base_url}/api/chat",
-            json={
-                "model": model,
-                "messages": messages,
-                "stream": False,
-                "options": {"temperature": temperature},
-            },
-            timeout=120,
-        )
-        response.raise_for_status()
-        ai_reply = response.json().get("message", {}).get("content", "")
-
-        # 第3步：将本轮对话存入记忆（mem0 自动提取关键信息）
-        new_memories = []
-        try:
-            add_result = await asyncio.to_thread(
-                lambda: m.add(
-                    messages=[
-                        {"role": "user", "content": request.message},
-                        {"role": "assistant", "content": ai_reply},
-                    ],
-                    user_id=user_id,
-                    metadata={"state": "active"},
-                )
-            )
-
-            raw_new = add_result.get("results", []) if isinstance(add_result, dict) else add_result
-            for item in raw_new:
-                event = item.get("event", "NONE")
-                if event in ("ADD", "UPDATE"):
-                    mem_id = item.get("id", "")
-                    mem_text = item.get("memory", "")
-                    new_memories.append({
-                        "id": mem_id,
-                        "memory": mem_text,
-                        "event": event,
-                    })
-                    # 自动分类并写入 Qdrant
-                    if mem_text and mem_id:
-                        try:
-                            cats = await auto_categorize_memory(mem_text)
-                            if cats:
-                                _write_categories_to_qdrant(m, mem_id, cats)
-                        except Exception as e:
-                            logger.warning(f"Playground 自动分类失败 [{mem_id}]: {e}")
-            # 使统计缓存失效
-            if new_memories:
-                memory_service.invalidate_stats_cache()
-        except Exception as e:
-            logger.warning(f"存储记忆失败: {e}")
-
-        return PlaygroundChatResponse(
-            reply=ai_reply,
-            retrieved_memories=retrieved_memories,
-            new_memories=new_memories,
-        )
-
-    except Exception as e:
-        logger.error(f"Playground 对话失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"对话失败: {str(e)}")
-
-
-@router.post("/chat/stream")
-async def playground_chat_stream(request: PlaygroundChatRequest):
-    """
-    Playground 流式对话接口（SSE）
-    流程：检索相关记忆 → 构建增强 Prompt → 流式调用 LLM → 存储新记忆
-    返回 Server-Sent Events 格式的流式响应
-    """
+async def retrieve_memories_node(state: PlaygroundState) -> dict:
+    """节点1：从 Mem0 检索相关记忆"""
     m = memory_service.get_memory()
-    user_id = request.user_id or "default_user"
-
-    # 第1步：检索相关记忆
     retrieved_memories = []
     memories_str = ""
+
     try:
-        search_result = m.search(
-            query=request.message,
-            user_id=user_id,
-            limit=request.memory_limit,
+        search_result = await asyncio.to_thread(
+            m.search,
+            query=state["message"],
+            user_id=state["user_id"],
+            limit=state["memory_limit"],
         )
         raw_results = search_result.get("results", []) if isinstance(search_result, dict) else search_result
         for item in raw_results:
-            metadata = item.get("metadata", {}) or {}
             retrieved_memories.append({
                 "id": item.get("id", ""),
                 "memory": item.get("memory", ""),
@@ -251,17 +148,200 @@ async def playground_chat_stream(request: PlaygroundChatRequest):
                 f"- {mem['memory']}" for mem in retrieved_memories
             )
     except Exception as e:
-        logger.warning(f"检索记忆失败: {e}")
+        logger.warning(f"[LangGraph] 检索记忆失败: {e}")
 
-    # 第2步：构建消息列表
+    # 构建 LLM 消息列表
     system_prompt = _build_system_prompt(memories_str)
     base_url, model, temperature = _get_ollama_config()
 
     messages = [{"role": "system", "content": system_prompt}]
-    history = (request.history or [])[-40:]
+    history = (state.get("history") or [])[-40:]
     for msg in history:
-        messages.append({"role": msg.role, "content": msg.content})
-    messages.append({"role": "user", "content": request.message})
+        if isinstance(msg, dict):
+            messages.append({"role": msg["role"], "content": msg["content"]})
+        else:
+            messages.append({"role": msg.role, "content": msg.content})
+    messages.append({"role": "user", "content": state["message"]})
+
+    return {
+        "retrieved_memories": retrieved_memories,
+        "memories_str": memories_str,
+        "llm_messages": messages,
+    }
+
+
+async def generate_reply_node(state: PlaygroundState) -> dict:
+    """节点2：调用 LLM 生成回复"""
+    base_url, model, temperature = _get_ollama_config()
+
+    try:
+        response = await memory_service.http_client.post(
+            f"{base_url}/api/chat",
+            json={
+                "model": model,
+                "messages": state["llm_messages"],
+                "stream": False,
+                "options": {"temperature": temperature},
+            },
+            timeout=120,
+        )
+        response.raise_for_status()
+        ai_reply = response.json().get("message", {}).get("content", "")
+    except Exception as e:
+        logger.error(f"[LangGraph] LLM 调用失败: {e}")
+        ai_reply = f"抱歉，AI 回复失败: {str(e)}"
+
+    return {"reply": ai_reply}
+
+
+async def store_memories_node(state: PlaygroundState) -> dict:
+    """节点3：将本轮对话存入 Mem0 记忆"""
+    m = memory_service.get_memory()
+    new_memories = []
+
+    try:
+        add_result = await asyncio.to_thread(
+            lambda: m.add(
+                messages=[
+                    {"role": "user", "content": state["message"]},
+                    {"role": "assistant", "content": state["reply"]},
+                ],
+                user_id=state["user_id"],
+                metadata={},
+            )
+        )
+
+        raw_new = add_result.get("results", []) if isinstance(add_result, dict) else add_result
+        for item in raw_new:
+            event = item.get("event", "NONE")
+            if event in ("ADD", "UPDATE"):
+                mem_id = item.get("id", "")
+                mem_text = item.get("memory", "")
+                new_memories.append({
+                    "id": mem_id,
+                    "memory": mem_text,
+                    "event": event,
+                })
+                # 自动分类并写入 Qdrant
+                if mem_text and mem_id:
+                    try:
+                        cats = await auto_categorize_memory(mem_text)
+                        if cats:
+                            _write_categories_to_qdrant(m, mem_id, cats)
+                    except Exception as e:
+                        logger.warning(f"[LangGraph] 自动分类失败 [{mem_id}]: {e}")
+
+        if new_memories:
+            memory_service.invalidate_stats_cache()
+    except Exception as e:
+        logger.warning(f"[LangGraph] 存储记忆失败: {e}")
+
+    return {"new_memories": new_memories}
+
+
+# ============ 构建 LangGraph 状态图 ============
+
+def build_playground_graph() -> StateGraph:
+    """构建 Playground 对话的 LangGraph 状态图
+
+    流程：
+        START → retrieve_memories → generate_reply → store_memories → END
+    """
+    graph = StateGraph(PlaygroundState)
+
+    # 添加节点
+    graph.add_node("retrieve_memories", retrieve_memories_node)
+    graph.add_node("generate_reply", generate_reply_node)
+    graph.add_node("store_memories", store_memories_node)
+
+    # 定义边（线性流程）
+    graph.add_edge(START, "retrieve_memories")
+    graph.add_edge("retrieve_memories", "generate_reply")
+    graph.add_edge("generate_reply", "store_memories")
+    graph.add_edge("store_memories", END)
+
+    return graph.compile()
+
+
+# 编译一次复用
+_playground_graph = None
+
+
+def get_playground_graph():
+    """获取编译后的 Playground 状态图（懒加载单例）"""
+    global _playground_graph
+    if _playground_graph is None:
+        _playground_graph = build_playground_graph()
+    return _playground_graph
+
+
+# ============ 路由 ============
+
+@router.post("/chat", response_model=PlaygroundChatResponse)
+async def playground_chat(request: PlaygroundChatRequest):
+    """
+    Playground 对话接口（非流式）— 基于 LangGraph StateGraph
+    流程：retrieve_memories → generate_reply → store_memories
+    """
+    try:
+        graph = get_playground_graph()
+
+        # 初始化状态
+        initial_state: PlaygroundState = {
+            "message": request.message,
+            "user_id": request.user_id or "default_user",
+            "history": [{"role": msg.role, "content": msg.content} for msg in (request.history or [])],
+            "memory_limit": request.memory_limit or 5,
+            "retrieved_memories": [],
+            "memories_str": "",
+            "llm_messages": [],
+            "reply": "",
+            "new_memories": [],
+        }
+
+        # 执行状态图
+        final_state = await graph.ainvoke(initial_state)
+
+        return PlaygroundChatResponse(
+            reply=final_state["reply"],
+            retrieved_memories=final_state["retrieved_memories"],
+            new_memories=final_state["new_memories"],
+        )
+
+    except Exception as e:
+        logger.error(f"Playground 对话失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"对话失败: {str(e)}")
+
+
+@router.post("/chat/stream")
+async def playground_chat_stream(request: PlaygroundChatRequest):
+    """
+    Playground 流式对话接口（SSE）— 混合 LangGraph + 手动流式
+    流程：LangGraph retrieve_memories → 手动流式 LLM → 后台 store_memories
+    说明：流式场景下 LLM 步骤需要逐 token 推送，无法完全封装在 LangGraph 节点中，
+         因此采用混合模式：检索记忆走 LangGraph 节点，流式 LLM 和记忆存储手动处理。
+    """
+    m = memory_service.get_memory()
+    user_id = request.user_id or "default_user"
+
+    # 第1步：通过 LangGraph 节点检索记忆 + 构建消息
+    retrieve_state: PlaygroundState = {
+        "message": request.message,
+        "user_id": user_id,
+        "history": [{"role": msg.role, "content": msg.content} for msg in (request.history or [])],
+        "memory_limit": request.memory_limit or 5,
+        "retrieved_memories": [],
+        "memories_str": "",
+        "llm_messages": [],
+        "reply": "",
+        "new_memories": [],
+    }
+    retrieve_result = await retrieve_memories_node(retrieve_state)
+    retrieved_memories = retrieve_result["retrieved_memories"]
+    llm_messages = retrieve_result["llm_messages"]
+
+    # 第2步：流式调用 LLM
+    base_url, model, temperature = _get_ollama_config()
 
     async def event_stream():
         full_reply = ""
@@ -276,7 +356,7 @@ async def playground_chat_stream(request: PlaygroundChatRequest):
                 f"{base_url}/api/chat",
                 json={
                     "model": model,
-                    "messages": messages,
+                    "messages": llm_messages,
                     "stream": True,
                     "options": {"temperature": temperature},
                 },
@@ -292,50 +372,28 @@ async def playground_chat_stream(request: PlaygroundChatRequest):
                         if content:
                             full_reply += content
                             yield f"data: {json.dumps({'type': 'content', 'content': content}, ensure_ascii=False)}\n\n"
-                        # 检查是否结束
                         if chunk.get("done", False):
                             break
                     except json.JSONDecodeError:
                         continue
 
-            # 第3步：LLM 输出完毕，先发送 done 事件让前端立即解锁
+            # 先发送 done 事件让前端立即解锁
             yield f"data: {json.dumps({'type': 'done', 'new_memories': []}, ensure_ascii=False)}\n\n"
 
-            # 第4步：异步存储记忆（不阻塞 SSE 流关闭）
+            # 第3步：后台异步存储记忆（复用 LangGraph 节点逻辑）
             async def _save_memories_background():
-                try:
-                    # m.add() 是同步阻塞调用，放到线程池中执行，避免阻塞事件循环
-                    add_result = await asyncio.to_thread(
-                        lambda: m.add(
-                            messages=[
-                                {"role": "user", "content": request.message},
-                                {"role": "assistant", "content": full_reply},
-                            ],
-                            user_id=user_id,
-                            metadata={"state": "active"},
-                        )
-                    )
-
-                    raw_new = add_result.get("results", []) if isinstance(add_result, dict) else add_result
-                    has_new = False
-                    for item in raw_new:
-                        event = item.get("event", "NONE")
-                        if event in ("ADD", "UPDATE"):
-                            has_new = True
-                            mem_id = item.get("id", "")
-                            mem_text = item.get("memory", "")
-                            # 自动分类并写入 Qdrant
-                            if mem_text and mem_id:
-                                try:
-                                    cats = await auto_categorize_memory(mem_text)
-                                    if cats:
-                                        _write_categories_to_qdrant(m, mem_id, cats)
-                                except Exception as e:
-                                    logger.warning(f"Playground 自动分类失败 [{mem_id}]: {e}")
-                    if has_new:
-                        memory_service.invalidate_stats_cache()
-                except Exception as e:
-                    logger.warning(f"后台存储记忆失败: {e}")
+                store_state: PlaygroundState = {
+                    "message": request.message,
+                    "user_id": user_id,
+                    "history": [],
+                    "memory_limit": 5,
+                    "retrieved_memories": [],
+                    "memories_str": "",
+                    "llm_messages": [],
+                    "reply": full_reply,
+                    "new_memories": [],
+                }
+                await store_memories_node(store_state)
 
             asyncio.create_task(_save_memories_background())
 

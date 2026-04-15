@@ -217,8 +217,6 @@ VALID_CATEGORIES = {
     "finance", "shopping", "legal", "entertainment", "messages",
     "customer_support", "product_feedback", "news", "organization", "goals",
 }
-VALID_STATES = {"active", "paused", "archived"}
-
 # ============ AI 自动分类 Prompt ============
 CATEGORY_DESCRIPTIONS = {
     "personal": "个人 — 家庭、朋友、家居、爱好、生活方式",

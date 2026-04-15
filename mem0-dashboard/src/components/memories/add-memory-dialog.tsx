@@ -22,8 +22,8 @@ import {
 import { Loader2, AlertTriangle, Sparkles, Check } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { mem0Api } from "@/lib/api";
-import type { Category, MemoryState, AddMemoryResponse } from "@/lib/api";
-import { CATEGORY_LIST, STATE_LIST, getCategoryInfo } from "@/lib/constants";
+import type { Category, AddMemoryResponse } from "@/lib/api";
+import { CATEGORY_LIST, getCategoryInfo } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 interface AddMemoryDialogProps {
@@ -40,8 +40,6 @@ export function AddMemoryDialog({
   const [content, setContent] = useState("");
   const [userId, setUserId] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<Category[]>([]);
-  const [state, setState] = useState<MemoryState>("active");
-  const [infer, setInfer] = useState(false); // 默认原文存储，AI 提取模式依赖 LLM 可能不稳定
   const [autoCategorize, setAutoCategorize] = useState(true); // 默认开启 AI 自动分类
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -73,7 +71,6 @@ export function AddMemoryDialog({
         messages: [{ role: "user", content: content.trim() }],
         user_id: userId.trim(),
         categories: selectedCategories.length > 0 ? selectedCategories : undefined,
-        state: state,
         infer: infer,
         auto_categorize: autoCategorize,
       });
@@ -93,7 +90,6 @@ export function AddMemoryDialog({
       setContent("");
       setUserId("");
       setSelectedCategories([]);
-      setState("active");
       setInfer(false);
       setAutoCategorize(true);
       setWarning("");
@@ -248,30 +244,6 @@ export function AddMemoryDialog({
                 ? "AI 会自动提取关键信息，可能将内容拆分为多条记忆"
                 : "将输入内容作为一条完整记忆原样存储，不做拆分"}
             </p>
-          </div>
-
-          {/* 状态选择 */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">初始状态</label>
-            <Select
-              value={state}
-              onValueChange={(v) => setState(v as MemoryState)}
-              disabled={loading}
-            >
-              <SelectTrigger className="w-[160px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {STATE_LIST.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>
-                    <span className="flex items-center gap-1.5">
-                      <span className={cn("h-1.5 w-1.5 rounded-full", s.dotColor)} />
-                      {s.label}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           {warning && (
