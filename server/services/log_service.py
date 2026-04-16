@@ -436,6 +436,8 @@ def classify_request(method: str, path: str) -> str:
     """根据 HTTP 方法和路径推断请求类型（只分类前端写操作）"""
     if method == "POST" and "/search" in path:
         return "搜索"
+    if method == "POST" and "/playground" in path:
+        return "对话"
     if method == "POST" and "/memories" in path:
         return "添加"
     if method == "PUT":

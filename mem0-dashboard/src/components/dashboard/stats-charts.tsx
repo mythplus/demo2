@@ -31,6 +31,7 @@ const REQUEST_TYPE_COLORS: Record<string, string> = {
   "获取全部": "#94a3b8",
   "删除": "#ef4444",
   "更新": "#f59e0b",
+  "对话": "#8b5cf6",
 };
 
 // ============ 工具函数 ============

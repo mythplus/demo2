@@ -13,6 +13,7 @@ import {
   Search,
   Trash2,
   Edit3,
+  MessageSquare,
   User,
   ListOrdered,
   Timer,
@@ -60,6 +61,7 @@ const TYPE_HEX: Record<string, string> = {
   "搜索": "#3b82f6",
   "删除": "#ef4444",
   "更新": "#f97316",
+  "对话": "#8b5cf6",
 };
 
 // Tab 类型配置
@@ -69,6 +71,7 @@ const TAB_ITEMS = [
   { value: "搜索", label: "搜索", icon: Search },
   { value: "更新", label: "更新", icon: Edit3 },
   { value: "删除", label: "删除", icon: Trash2 },
+  { value: "对话", label: "对话", icon: MessageSquare },
 ];
 
 // 请求类型 Badge 样式
@@ -76,6 +79,8 @@ const TYPE_BADGE_STYLES: Record<string, string> = {
   "添加": "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
   "搜索": "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
   "删除": "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+  "更新": "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+  "对话": "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300",
   "更新": "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
 };
 
