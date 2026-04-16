@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, subqueryload
 from server.models.database import get_session_factory
 from server.models.models import (
     MemoryMeta, Category, MemoryChangeLog,
-    memory_categories,
+    memory_categories, _ensure_utc_iso,
 )
 from server.config import VALID_CATEGORIES
 
@@ -446,7 +446,7 @@ def get_users_summary_from_db() -> List[dict]:
             {
                 "user_id": row.user_id,
                 "memory_count": row.memory_count,
-                "last_active": row.last_active.isoformat() if row.last_active else "",
+                "last_active": _ensure_utc_iso(row.last_active),
             }
             for row in results
         ]
@@ -574,7 +574,7 @@ def get_memory_change_logs(memory_id: str) -> List[dict]:
                 "new_memory": log.new_content,
                 "categories": log.new_categories or [],
                 "old_categories": log.old_categories or [],
-                "created_at": log.created_at.isoformat() if log.created_at else "",
+                "created_at": _ensure_utc_iso(log.created_at),
             }
             for log in logs
         ]

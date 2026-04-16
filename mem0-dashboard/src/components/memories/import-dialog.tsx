@@ -61,6 +61,8 @@ export interface BackgroundImportInfo {
 export interface BackgroundCompleteInfo {
   successCount: number;
   failedCount: number;
+  /** 导入时填写的默认用户ID（为空表示使用原ID） */
+  defaultUserId?: string;
 }
 
 interface ImportDialogProps {
@@ -404,6 +406,7 @@ export function ImportDialog({
       onBackgroundComplete?.(backgroundRecordIdRef.current, {
         successCount: result.success,
         failedCount: result.failed,
+        defaultUserId: defaultUserId.trim() || undefined,
       });
     }
 

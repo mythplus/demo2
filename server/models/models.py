@@ -20,6 +20,17 @@ def _utcnow():
     return datetime.datetime.now(datetime.timezone.utc)
 
 
+def _ensure_utc_iso(dt) -> str:
+    """将 datetime 序列化为带 UTC 时区的 ISO 格式字符串。
+    SQLite 不原生支持时区，读取后可能丢失 tzinfo，
+    此函数确保输出始终带 +00:00 后缀，前端 new Date() 才能正确识别为 UTC。"""
+    if dt is None:
+        return ""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    return dt.isoformat()
+
+
 def _new_uuid():
     """生成新的 UUID 字符串"""
     return str(uuid.uuid4())
@@ -72,8 +83,8 @@ class MemoryMeta(Base):
             "hash": self.hash or "",
             "metadata": self.metadata_ or {},
             "categories": [c.name for c in self.categories] if self.categories else [],
-            "created_at": self.created_at.isoformat() if self.created_at else "",
-            "updated_at": self.updated_at.isoformat() if self.updated_at else "",
+            "created_at": _ensure_utc_iso(self.created_at),
+            "updated_at": _ensure_utc_iso(self.updated_at),
         }
 
 

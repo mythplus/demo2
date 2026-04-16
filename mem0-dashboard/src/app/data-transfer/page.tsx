@@ -636,9 +636,7 @@ const bgUserLabel = info.defaultUserId ? `「${info.defaultUserId}」` : "原ID"
           // 后台导入完成：更新记录状态
           refreshCount();
           const status = info.failedCount === 0 ? "成功" : info.successCount === 0 ? "失败" : "部分成功";
-          // 从已有记录中提取用户标签（保持与后台开始时一致）
-          const existingRecord = operationRecords.find((r) => r.id === recordId);
-const bgCompleteUserLabel = existingRecord?.detail?.match(/「[^」]+」/)?.[0] || "原ID";
+          const bgCompleteUserLabel = info.defaultUserId ? `「${info.defaultUserId}」` : "原ID";
           updateRecord(recordId, {
             status,
             detail: `导入${bgCompleteUserLabel}的 ${info.successCount} 条记忆${info.failedCount > 0 ? `，失败 ${info.failedCount} 条` : ""}`,
