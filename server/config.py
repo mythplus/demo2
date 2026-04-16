@@ -8,6 +8,13 @@ import json
 import logging
 import yaml
 from datetime import datetime, timezone
+from dotenv import load_dotenv
+
+# 加载项目根目录的 .env 文件（本地开发时自动注入环境变量，生产环境由七彩石等平台注入）
+_PROJECT_ROOT_FOR_ENV = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_dotenv_path = os.path.join(_PROJECT_ROOT_FOR_ENV, ".env")
+if os.path.exists(_dotenv_path):
+    load_dotenv(_dotenv_path, override=False)
 
 # 配置日志
 logger = logging.getLogger(__name__)
