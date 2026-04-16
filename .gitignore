@@ -53,3 +53,27 @@ docker-data/
 # SQLite WAL 文件
 access_logs.db-shm
 access_logs.db-wal
+
+# memory_meta 数据库文件
+memory_meta.db
+memory_meta.db-shm
+memory_meta.db-wal
+
+# 测试/种子数据临时文件
+seed_*.py
+seed_*.txt
+seed_*.log
+
+# Webhook 运行时数据
+webhooks.json
+
+# pytest 缓存
+.pytest_cache/
+
+# Node.js 依赖与构建缓存
+node_modules/
+.next/
+tsconfig.tsbuildinfo
+
+# Next.js 开发日志
+nextjs-dev.log
