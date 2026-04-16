@@ -278,18 +278,27 @@ async def store_memories_node(state: PlaygroundState) -> dict:
                     except Exception as e:
                         logger.warning(f"[LangGraph] 自动分类失败 [{mem_id}]: {e}")
 
-                # 双写关系库（对齐其他写入路径）
+                # 双写关系库（对齐其他写入路径，区分 ADD/UPDATE）
                 if mem_id:
                     try:
-                        await asyncio.to_thread(
-                            meta_service.create_memory_meta,
-                            memory_id=mem_id,
-                            user_id=state["user_id"],
-                            content=mem_text,
-                            hash_value=item.get("hash", "") if isinstance(item, dict) else "",
-                            categories=cats,
-                            metadata={"categories": cats} if cats else {},
-                        )
+                        if event == "ADD":
+                            await asyncio.to_thread(
+                                meta_service.create_memory_meta,
+                                memory_id=mem_id,
+                                user_id=state["user_id"],
+                                content=mem_text,
+                                hash_value=item.get("hash", "") if isinstance(item, dict) else "",
+                                categories=cats,
+                                metadata={"categories": cats} if cats else {},
+                            )
+                        elif event == "UPDATE":
+                            await asyncio.to_thread(
+                                meta_service.update_memory_meta,
+                                memory_id=mem_id,
+                                content=mem_text,
+                                categories=cats if cats else None,
+                                metadata={"categories": cats} if cats else None,
+                            )
                     except Exception as db_err:
                         logger.warning(f"[LangGraph] 关系库双写失败（不影响主流程）: {db_err}")
 

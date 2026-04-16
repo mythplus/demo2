@@ -15,6 +15,15 @@ _PROJECT_ROOT_FOR_ENV = os.path.dirname(os.path.dirname(os.path.abspath(__file__
 _dotenv_path = os.path.join(_PROJECT_ROOT_FOR_ENV, ".env")
 if os.path.exists(_dotenv_path):
     load_dotenv(_dotenv_path, override=False)
+else:
+    # .env 文件不存在时输出警告（生产环境由平台注入环境变量，可忽略此警告）
+    import sys
+    print(
+        f"[WARNING] .env 文件不存在: {_dotenv_path}，"
+        "config.yaml 中的 ${{ENV_VAR}} 占位符可能被替换为空值。"
+        "如果是本地开发，请复制 .env.example 为 .env 并填入实际值。",
+        file=sys.stderr,
+    )
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -107,7 +116,11 @@ def _resolve_env_vars(value):
     if isinstance(value, str):
         def _replace(match):
             env_name = match.group(1)
-            return os.environ.get(env_name, "")
+            env_value = os.environ.get(env_name)
+            if env_value is None:
+                logger.warning(f"环境变量 {env_name} 未设置，将被替换为空字符串（请检查 .env 文件或环境变量配置）")
+                return ""
+            return env_value
         return re.sub(r'\$\{(\w+)\}', _replace, value)
     elif isinstance(value, dict):
         return {k: _resolve_env_vars(v) for k, v in value.items()}
@@ -159,10 +172,15 @@ def load_config_from_yaml() -> dict:
 
         # 图数据库配置
         if "graph_store" in yaml_config:
-            config["graph_store"] = {
+            graph_store_entry = {
                 "provider": yaml_config["graph_store"].get("provider", "neo4j"),
                 "config": yaml_config["graph_store"].get("config", {}),
             }
+            # 保留与 config 同级的额外字段（如 threshold）
+            for key in yaml_config["graph_store"]:
+                if key not in ("provider", "config"):
+                    graph_store_entry[key] = yaml_config["graph_store"][key]
+            config["graph_store"] = graph_store_entry
 
         # 版本号
         if "version" in yaml_config:

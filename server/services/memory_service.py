@@ -96,65 +96,6 @@ def format_mem0_result(item: dict) -> dict:
     return extract_memory_fields(payload)
 
 
-# ============ 多维筛选 ============
-
-def apply_filters(memories: list, categories: list = None,
-                  date_from: str = None, date_to: str = None, search: str = None) -> list:
-    """对记忆列表应用多维筛选"""
-    filtered = memories
-
-    # 按分类筛选
-    # 按分类筛选（包含任一分类即匹配）
-    if categories:
-        cat_set = set(categories)
-        filtered = [m for m in filtered if set(m.get("categories", [])) & cat_set]
-
-    # 按时间范围筛选
-    # 辅助函数：将日期字符串统一解析为 offset-aware datetime（UTC）
-    def _parse_dt(s: str) -> datetime:
-        """解析日期/时间字符串，统一返回带 UTC 时区的 datetime"""
-        from datetime import timezone
-        s = s.strip()
-        # 纯日期格式 YYYY-MM-DD，补充时间部分
-        if len(s) == 10 and s[4] == '-' and s[7] == '-':
-            return datetime.fromisoformat(s + "T00:00:00+00:00")
-        # 带 Z 后缀的 ISO 格式
-        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
-        # 如果解析结果无时区信息，默认当作 UTC
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt
-
-    if date_from:
-        try:
-            from_dt = _parse_dt(date_from)
-            filtered = [m for m in filtered if m.get("created_at") and
-                        _parse_dt(str(m["created_at"])) >= from_dt]
-        except (ValueError, TypeError):
-            pass
-
-    if date_to:
-        try:
-            to_dt = _parse_dt(date_to)
-            # 如果是纯日期（无时间部分），将截止时间设为当天 23:59:59
-            if len(date_to.strip()) == 10:
-                to_dt = to_dt.replace(hour=23, minute=59, second=59)
-            filtered = [m for m in filtered if m.get("created_at") and
-                        _parse_dt(str(m["created_at"])) <= to_dt]
-        except (ValueError, TypeError):
-            pass
-
-    # 文本搜索
-    if search:
-        keyword = search.lower()
-        filtered = [m for m in filtered if
-                    keyword in (m.get("memory", "") or "").lower() or
-                    keyword in (m.get("user_id", "") or "").lower() or
-                    keyword in (m.get("id", "") or "").lower()]
-
-    return filtered
-
-
 # ============ AI 自动分类 ============
 
 async def auto_categorize_memory(memory_text: str) -> List[str]:

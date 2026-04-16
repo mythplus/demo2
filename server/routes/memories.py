@@ -266,8 +266,8 @@ async def batch_import_memories(request: BatchImportRequest):
                 # m.add 是同步的 Mem0 SDK 调用，放到线程池执行避免阻塞事件循环
                 # 使用 disable_graph 临时禁用图谱，避免 Neo4j 关系名不合法导致导入失败
                 def _add_without_graph():
-                    with disable_graph(m):
-                        return m.add(messages=messages, infer=request.infer, **kwargs)
+                    with disable_graph(m) as m_no_graph:
+                        return m_no_graph.add(messages=messages, infer=request.infer, **kwargs)
                 result = await asyncio.to_thread(_add_without_graph)
 
                 added_items = []
@@ -620,7 +620,7 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
 
         # 触发 Webhook
         try:
-            _wh_data = {"memory_id": memory_id, "memory": new_memory_text[:200], "user_id": result.get("user_id", "")}
+            _wh_data = {"memory_id": memory_id, "memory": new_memory_text[:200], "user_id": old_payload.get("user_id", "")}
             asyncio.ensure_future(webhook_service.trigger_webhooks("memory.updated", _wh_data, _mem_svc.http_client))
         except Exception:
             pass

@@ -51,7 +51,7 @@ async def get_config_info():
     graph_config = live_config.get("graph_store", {})
 
     # 是否为生产环境（生产环境对 URL 做脱敏处理）
-    is_prod = os.environ.get("ENV", "development") == "production"
+    is_prod = os.environ.get("MEM0_ENV", "development") == "production"
 
     llm_base_url = llm_config.get("config", {}).get("ollama_base_url", llm_config.get("config", {}).get("openai_base_url", ""))
     embedder_base_url = embedder_config.get("config", {}).get("ollama_base_url", embedder_config.get("config", {}).get("openai_base_url", ""))

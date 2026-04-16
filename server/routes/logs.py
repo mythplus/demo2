@@ -129,9 +129,10 @@ async def get_request_logs_stats(
             slot_start = since_dt.replace(hour=0, minute=0, second=0, microsecond=0)
             slot_end = slot_start.replace(hour=23, minute=0)
             while slot_start <= slot_end:
-                slot_key = slot_start.strftime("%Y-%m-%d %H:%M")
+                # 格式与 SQL STRFTIME('%Y-%m-%d %H:00') 保持一致
+                slot_key = slot_start.strftime("%Y-%m-%d %H:00")
                 entry: Dict[str, Any] = {"date": slot_key}
-                type_counts = slot_map.get(slot_key.replace(":00", ":00"), {})
+                type_counts = slot_map.get(slot_key, {})
                 for t in all_types:
                     entry[t] = type_counts.get(t, 0)
                 daily_trend.append(entry)
