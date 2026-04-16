@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { mem0Api } from "@/lib/api";
-import type { MemorySummaryResponse, StatsResponse } from "@/lib/api";
+import type { MemorySummaryResponse, StatsResponse, RequestLogsStats } from "@/lib/api";
 
 /**
  * 仪表盘数据 React Query Hook
@@ -41,16 +41,33 @@ export function useDashboardData(enabled: boolean) {
     staleTime: 30 * 1000,
   });
 
+  // 请求日志统计查询（用于仪表盘请求趋势图）
+  const requestStatsQuery = useQuery<RequestLogsStats | null>({
+    queryKey: ["dashboard", "requestStats"],
+    queryFn: async () => {
+      try {
+        return await mem0Api.getRequestLogsStats();
+      } catch {
+        return null;
+      }
+    },
+    enabled,
+    refetchInterval: 60 * 1000,
+    staleTime: 30 * 1000,
+  });
+
   const summary = summaryQuery.data ?? null;
   const stats = statsQuery.data ?? null;
+  const requestStats = requestStatsQuery.data ?? null;
   const loading = summaryQuery.isLoading || statsQuery.isLoading;
   const error = summaryQuery.error?.message || statsQuery.error?.message || "";
 
-  // 手动刷新（使两个查询同时失效并重新获取）
+  // 手动刷新（使所有查询同时失效并重新获取）
   const refetch = () => {
     summaryQuery.refetch();
     statsQuery.refetch();
+    requestStatsQuery.refetch();
   };
 
-  return { summary, stats, loading, error, refetch };
+  return { summary, stats, requestStats, loading, error, refetch };
 }

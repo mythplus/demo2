@@ -1,10 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import {
-  PieChart,
-  Pie,
-  Cell,
   LineChart,
   Line,
   XAxis,
@@ -18,150 +17,113 @@ import {
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { StatsResponse } from "@/lib/api";
-import { CATEGORY_LIST, CATEGORY_MAP } from "@/lib/constants";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import type { StatsResponse, RequestLogsStats } from "@/lib/api";
 
-interface StatsChartsProps {
-  stats: StatsResponse;
+// ============ 请求类型颜色 ============
+const REQUEST_TYPE_COLORS: Record<string, string> = {
+  "添加": "#22c55e",
+  "搜索": "#3b82f6",
+  "获取全部": "#94a3b8",
+  "删除": "#ef4444",
+  "更新": "#f59e0b",
+};
+
+// ============ 工具函数 ============
+function formatDate(dateStr: string): string {
+  if (!dateStr) return "";
+  // "2026-04-15" → "04/15"  or  "2026-04-15T10:30" → "04/15 10:30"
+  const d = dateStr.slice(5, 10).replace("-", "/");
+  return d;
 }
 
-export function StatsCharts({ stats }: StatsChartsProps) {
-  // 分类饼图数据
-  const categoryData: Array<{ name: string; value: number; color: string }> = CATEGORY_LIST
-    .map((cat) => ({
-      name: cat.label,
-      value: stats.category_distribution[cat.value] || 0,
-      color: CATEGORY_MAP.get(cat.value)?.color || "#94a3b8",
-    }))
-    .filter((d) => d.value > 0);
+// ============ 通用 Tooltip 样式 ============
+const tooltipStyle = {
+  borderRadius: "8px",
+  border: "1px solid hsl(var(--border))",
+  background: "hsl(var(--background))",
+  color: "hsl(var(--foreground))",
+  fontSize: "12px",
+};
 
-  // 增加"未分类"项
-  const uncategorizedCount = stats.uncategorized_count || 0;
-  if (uncategorizedCount > 0) {
-    categoryData.push({
-      name: "未分类",
-      value: uncategorizedCount,
-      color: "#d1d5db",
-    });
-  }
+// ============ 接口 ============
+interface StatsChartsProps {
+  stats: StatsResponse;
+  requestStats?: RequestLogsStats | null;
+}
 
-  // 标签总计（所有分类数字之和，含未分类）
-  const tagTotal = categoryData.reduce((sum, d) => sum + d.value, 0);
+export function StatsCharts({ stats, requestStats }: StatsChartsProps) {
+  const [showRequestDetail, setShowRequestDetail] = useState(false);
 
-  // 趋势数据
-  // 趋势数据 - 截取最近 14 天并格式化日期
-  const trendData = (stats.daily_trend || []).slice(-14).map((d) => ({
-    date: d.date.slice(5), // "2026-03-27" → "03-27"
+  // ============ 请求趋势数据 ============
+  const requestTotal = requestStats?.total ?? 0;
+  const requestTypes = requestStats?.types ?? [];
+  const requestTrend = (requestStats?.daily_trend ?? []).map((d: any) => {
+    const row: any = { ...d, date: formatDate(d.date || d.time || "") };
+    // 计算 total：所有类型字段求和
+    if (!row.total) {
+      let sum = 0;
+      for (const t of requestTypes) {
+        sum += Number(row[t] || 0);
+      }
+      row.total = sum;
+    }
+    return row;
+  });
+
+  // ============ 新增记忆趋势数据 ============
+  const memoryTrend = (stats.daily_trend || []).slice(-30).map((d) => ({
+    date: formatDate(d.date),
     count: d.count,
   }));
-
-  const hasAnyCategoryData = categoryData.length > 0;
-  const hasAnyTrendData = trendData.some((d) => d.count > 0);
+  const memoryTotal = memoryTrend.reduce((sum, d) => sum + d.count, 0);
 
   return (
-    <div className="grid gap-6 md:grid-cols-2">
-      {/* 分类分布饼图 */}
+    <div className="grid gap-4 md:grid-cols-2">
+      {/* 左：新增记忆趋势 */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">分类分布</CardTitle>
-          <CardDescription>
-            各分类的记忆占比
-          </CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div>
+            <CardTitle className="text-base">新增记忆</CardTitle>
+            <p className="text-2xl font-semibold mt-1">{memoryTotal}</p>
+          </div>
+          <Link href="/memories">
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+              查看记忆
+              <ArrowRight className="h-3 w-3" />
+            </Button>
+          </Link>
         </CardHeader>
         <CardContent>
-          {hasAnyCategoryData ? (
-            <div className="flex items-center gap-4">
-              <div className="w-[180px] shrink-0">
-                <ResponsiveContainer width="100%" height={180}>
-                  <PieChart>
-                    <Pie
-                      data={categoryData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={45}
-                      outerRadius={75}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {categoryData.map((entry, index) => (
-                        <Cell key={`cat-${index}`} fill={entry.color} stroke="none" />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value: any, name: any) => [`${value} 条`, name]}
-                      contentStyle={{
-                        borderRadius: "8px",
-                        border: "1px solid hsl(var(--border))",
-                        background: "hsl(var(--background))",
-                        color: "hsl(var(--foreground))",
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              {/* 右侧两列图例 */}
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 flex-1 min-w-0">
-                {categoryData.map((entry, index) => (
-                  <div key={`legend-${index}`} className="flex items-center gap-1.5">
-                    <span
-                      className="inline-block h-2 w-2 rounded-sm shrink-0"
-                      style={{ background: entry.color }}
-                    />
-                    <span className="text-xs text-muted-foreground truncate">
-                      {entry.name} ({entry.value})
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-[220px] text-sm text-muted-foreground">
-              暂无分类数据
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* 记忆增长趋势折线图 */}
-      <Card className="md:col-span-2">
-        <CardHeader>
-          <CardTitle className="text-base">增长趋势</CardTitle>
-          <CardDescription>近 14 天每日新增记忆</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {hasAnyTrendData ? (
+          {memoryTrend.some((d) => d.count > 0) ? (
             <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={trendData} margin={{ top: 5, right: 10, bottom: 0, left: -20 }}>
+              <LineChart data={memoryTrend} margin={{ top: 5, right: 10, bottom: 0, left: -20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis
                   dataKey="date"
-                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
                   tickLine={false}
                   axisLine={{ stroke: "hsl(var(--border))" }}
                 />
                 <YAxis
                   allowDecimals={false}
-                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
                   tickLine={false}
                   axisLine={{ stroke: "hsl(var(--border))" }}
                 />
                 <Tooltip
                   formatter={(value: any) => [`${value} 条`, "新增"]}
                   labelFormatter={(label: any) => `日期: ${label}`}
-                  contentStyle={{
-                    borderRadius: "8px",
-                    border: "1px solid hsl(var(--border))",
-                    background: "hsl(var(--background))",
-                    color: "hsl(var(--foreground))",
-                  }}
+                  contentStyle={tooltipStyle}
                 />
                 <Line
                   type="monotone"
                   dataKey="count"
+                  name="新增记忆"
                   stroke="hsl(var(--primary))"
                   strokeWidth={2}
                   dot={{ fill: "hsl(var(--primary))", strokeWidth: 0, r: 3 }}
@@ -174,6 +136,100 @@ export function StatsCharts({ stats }: StatsChartsProps) {
               暂无趋势数据
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* 右：请求趋势 */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div>
+            <CardTitle className="text-base">请求</CardTitle>
+            <p className="text-2xl font-semibold mt-1">{requestTotal}</p>
+          </div>
+          <Link href="/requests">
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+              查看请求
+              <ArrowRight className="h-3 w-3" />
+            </Button>
+          </Link>
+        </CardHeader>
+        <CardContent>
+          {requestTrend.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={requestTrend} margin={{ top: 5, right: 10, bottom: 0, left: -20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                  tickLine={false}
+                  axisLine={{ stroke: "hsl(var(--border))" }}
+                />
+                <YAxis
+                  allowDecimals={false}
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                  tickLine={false}
+                  axisLine={{ stroke: "hsl(var(--border))" }}
+                />
+                <Tooltip contentStyle={tooltipStyle} />
+                {!showRequestDetail ? (
+                  <Line
+                    type="monotone"
+                    dataKey="total"
+                    name="总请求数"
+                    stroke="#22c55e"
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 4, strokeWidth: 0 }}
+                  />
+                ) : (
+                  requestTypes.map((type) => (
+                    <Line
+                      key={type}
+                      type="monotone"
+                      dataKey={type}
+                      name={type}
+                      stroke={REQUEST_TYPE_COLORS[type] || "#94a3b8"}
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 4, strokeWidth: 0 }}
+                    />
+                  ))
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[220px] text-sm text-muted-foreground">
+              暂无请求数据
+            </div>
+          )}
+          {/* 底部：类型标签 + 查看细分开关 */}
+          <div className="flex items-center justify-between mt-2 pt-2 border-t">
+            <div className="flex items-center gap-3 flex-wrap">
+              {showRequestDetail && requestTypes.map((type) => (
+                <div key={type} className="flex items-center gap-1">
+                  <span
+                    className="inline-block h-2 w-2 rounded-full"
+                    style={{ background: REQUEST_TYPE_COLORS[type] || "#94a3b8" }}
+                  />
+                  <span className="text-xs text-muted-foreground">{type}</span>
+                </div>
+              ))}
+              {!showRequestDetail && (
+                <div className="flex items-center gap-1">
+                  <span className="inline-block h-2 w-2 rounded-full" style={{ background: "#22c55e" }} />
+                  <span className="text-xs text-muted-foreground">总请求数</span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs text-muted-foreground">查看细分</span>
+              <Switch
+                checked={showRequestDetail}
+                onCheckedChange={setShowRequestDetail}
+                className="scale-75"
+              />
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

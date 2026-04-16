@@ -87,7 +87,7 @@ function StatsCardSkeleton() {
 export default function DashboardPage() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const connectionStatus = useUIStore((s) => s.connectionStatus);
-  const { summary, stats, loading, refetch } = useDashboardData(
+  const { summary, stats, requestStats, loading, refetch } = useDashboardData(
     connectionStatus === "connected"
   );
 
@@ -188,7 +188,7 @@ export default function DashboardPage() {
       </div>
 
       {/* 统计图表 */}
-      {stats && <StatsCharts stats={stats} />}
+      {stats && <StatsCharts stats={stats} requestStats={requestStats} />}
 
       {/* 最近记忆 + 用户排行 */}
       <div className="grid gap-4 lg:grid-cols-3">
