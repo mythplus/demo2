@@ -37,6 +37,13 @@ import type {
   PlaygroundChatRequest,
   PlaygroundChatResponse,
   PlaygroundSSEEvent,
+  WebhookConfig,
+  WebhookCreateRequest,
+  WebhookUpdateRequest,
+  WebhookListResponse,
+  WebhookMutationResponse,
+  WebhookToggleResponse,
+  WebhookTestResponse,
 } from "./types";
 
 // API 基础地址
@@ -607,33 +614,33 @@ export const mem0Api = {
 
   // ============ Webhooks ============
 
-  async getWebhooks(): Promise<{ webhooks: any[]; total: number }> {
-    return request<{ webhooks: any[]; total: number }>("/v1/webhooks/");
+  async getWebhooks(): Promise<WebhookListResponse> {
+    return request<WebhookListResponse>("/v1/webhooks/");
   },
 
-  async createWebhook(data: any): Promise<any> {
-    return request<any>("/v1/webhooks/", {
+  async createWebhook(data: WebhookCreateRequest): Promise<WebhookMutationResponse> {
+    return request<WebhookMutationResponse>("/v1/webhooks/", {
       method: "POST",
       body: JSON.stringify(data),
     });
   },
 
-  async updateWebhook(id: string, data: any): Promise<any> {
-    return request<any>(`/v1/webhooks/${id}`, {
+  async updateWebhook(id: string, data: WebhookUpdateRequest): Promise<WebhookMutationResponse> {
+    return request<WebhookMutationResponse>(`/v1/webhooks/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
     });
   },
 
-  async deleteWebhook(id: string): Promise<any> {
-    return request<any>(`/v1/webhooks/${id}`, { method: "DELETE" });
+  async deleteWebhook(id: string): Promise<DeleteResponse> {
+    return request<DeleteResponse>(`/v1/webhooks/${id}`, { method: "DELETE" });
   },
 
-  async toggleWebhook(id: string): Promise<any> {
-    return request<any>(`/v1/webhooks/${id}/toggle`, { method: "POST" });
+  async toggleWebhook(id: string): Promise<WebhookToggleResponse> {
+    return request<WebhookToggleResponse>(`/v1/webhooks/${id}/toggle`, { method: "POST" });
   },
 
-  async testWebhook(id: string): Promise<{ success: boolean; message: string }> {
-    return request<{ success: boolean; message: string }>(`/v1/webhooks/${id}/test`, { method: "POST" });
+  async testWebhook(id: string): Promise<WebhookTestResponse> {
+    return request<WebhookTestResponse>(`/v1/webhooks/${id}/test`, { method: "POST" });
   },
 };

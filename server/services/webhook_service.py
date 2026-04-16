@@ -1,85 +1,135 @@
 """
-Webhook 服务 — 管理 Webhook 配置、触发事件通知
+"""Webhook 服务 — 管理 Webhook 配置、触发事件通知
 支持通用 HTTP POST 和企业微信群机器人格式
+
+存储层使用 SQLite（access_logs.db 同库），支持多 Worker（多进程）并发安全读写。
 """
 
 import json
 import hmac
 import hashlib
 import logging
+import sqlite3
 import asyncio
+import threading
 from typing import Optional, List, Dict, Any
-from pathlib import Path
 from datetime import datetime
 
 import httpx
 
+from server.config import ACCESS_LOG_DB_PATH
+
 logger = logging.getLogger(__name__)
 
-# Webhook 配置文件路径（与 access_logs.db 同级）
-WEBHOOK_CONFIG_PATH = Path(__file__).parent.parent.parent / "webhooks.json"
+# ============ SQLite 存储层 ============
 
-# 文件读写锁（防止并发竞态）
-import threading
-_file_lock = threading.Lock()
+_thread_local = threading.local()
 
+def _get_db_conn() -> sqlite3.Connection:
+    """获取线程本地的 SQLite 连接（复用，WAL 模式）"""
+    conn = getattr(_thread_local, "wh_conn", None)
+    if conn is not None:
+        try:
+            conn.execute("SELECT 1")
+            return conn
+        except Exception:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            _thread_local.wh_conn = None
 
-# ============ 数据模型 ============
-
-class WebhookItem:
-    def __init__(self, data: dict):
-        self.id: str = data.get("id", "")
-        self.name: str = data.get("name", "")
-        self.url: str = data.get("url", "")
-        self.enabled: bool = data.get("enabled", True)
-        self.events: List[str] = data.get("events", [])
-        self.secret: Optional[str] = data.get("secret")
-        self.created_at: str = data.get("created_at", "")
-        self.last_triggered: Optional[str] = data.get("last_triggered")
-        self.last_status: Optional[str] = data.get("last_status")
-
-    def to_dict(self) -> dict:
-        d = {
-            "id": self.id,
-            "name": self.name,
-            "url": self.url,
-            "enabled": self.enabled,
-            "events": self.events,
-            "created_at": self.created_at,
-        }
-        if self.secret:
-            d["secret"] = self.secret
-        if self.last_triggered:
-            d["last_triggered"] = self.last_triggered
-        if self.last_status:
-            d["last_status"] = self.last_status
-        return d
+    conn = sqlite3.connect(ACCESS_LOG_DB_PATH, check_same_thread=False)
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.row_factory = sqlite3.Row
+    _thread_local.wh_conn = conn
+    return conn
 
 
-# ============ 存储层 ============
+def init_webhook_table():
+    """初始化 Webhook 配置表（应用启动时调用）"""
+    conn = _get_db_conn()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS webhooks (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            url TEXT NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            events TEXT NOT NULL DEFAULT '[]',
+            secret TEXT,
+            created_at TEXT NOT NULL,
+            last_triggered TEXT,
+            last_status TEXT
+        )
+    """)
+    conn.commit()
+    logger.info("Webhook 配置表已初始化")
+
+
+def _migrate_from_json():
+    """从旧的 webhooks.json 迁移数据到 SQLite（一次性，启动时自动执行）"""
+    from pathlib import Path
+    json_path = Path(__file__).parent.parent.parent / "webhooks.json"
+    if not json_path.exists():
+        return
+    try:
+        data = json.loads(json_path.read_text(encoding="utf-8"))
+        if not data:
+            return
+        conn = _get_db_conn()
+        # 检查是否已有数据（避免重复迁移）
+        existing = conn.execute("SELECT COUNT(*) FROM webhooks").fetchone()[0]
+        if existing > 0:
+            logger.info("Webhook SQLite 表已有数据，跳过 JSON 迁移")
+            return
+        for wh in data:
+            conn.execute(
+                """INSERT OR IGNORE INTO webhooks (id, name, url, enabled, events, secret, created_at, last_triggered, last_status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    wh.get("id", ""),
+                    wh.get("name", ""),
+                    wh.get("url", ""),
+                    1 if wh.get("enabled", True) else 0,
+                    json.dumps(wh.get("events", []), ensure_ascii=False),
+                    wh.get("secret"),
+                    wh.get("created_at", ""),
+                    wh.get("last_triggered"),
+                    wh.get("last_status"),
+                ),
+            )
+        conn.commit()
+        # 迁移成功后重命名旧文件
+        backup_path = json_path.with_suffix(".json.bak")
+        json_path.rename(backup_path)
+        logger.info(f"已从 webhooks.json 迁移 {len(data)} 条 Webhook 配置到 SQLite，旧文件已备份为 {backup_path.name}")
+    except Exception as e:
+        logger.warning(f"从 webhooks.json 迁移失败（不影响正常使用）: {e}")
+
+
+def _row_to_dict(row: sqlite3.Row) -> dict:
+    """将 SQLite Row 转换为 Webhook 字典"""
+    d = dict(row)
+    d["enabled"] = bool(d.get("enabled", 1))
+    try:
+        d["events"] = json.loads(d.get("events", "[]"))
+    except (json.JSONDecodeError, TypeError):
+        d["events"] = []
+    return d
+
+
+# ============ 存储层（SQLite） ============
 
 def _load_webhooks() -> List[dict]:
-    """从 JSON 文件加载 Webhook 配置"""
-    with _file_lock:
-        if not WEBHOOK_CONFIG_PATH.exists():
-            return []
-        try:
-            return json.loads(WEBHOOK_CONFIG_PATH.read_text(encoding="utf-8"))
-        except Exception as e:
-            logger.error(f"加载 Webhook 配置失败: {e}")
-            return []
-
-
-def _save_webhooks(webhooks: List[dict]):
-    """保存 Webhook 配置到 JSON 文件"""
-    with _file_lock:
-        try:
-            WEBHOOK_CONFIG_PATH.write_text(
-                json.dumps(webhooks, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
-        except Exception as e:
-            logger.error(f"保存 Webhook 配置失败: {e}")
+    """从 SQLite 加载所有 Webhook 配置"""
+    try:
+        conn = _get_db_conn()
+        rows = conn.execute("SELECT * FROM webhooks ORDER BY created_at DESC").fetchall()
+        return [_row_to_dict(row) for row in rows]
+    except Exception as e:
+        logger.error(f"加载 Webhook 配置失败: {e}")
+        return []
 
 
 # ============ CRUD ============
@@ -89,48 +139,89 @@ def list_webhooks() -> List[dict]:
 
 
 def get_webhook(webhook_id: str) -> Optional[dict]:
-    for wh in _load_webhooks():
-        if wh.get("id") == webhook_id:
-            return wh
-    return None
+    try:
+        conn = _get_db_conn()
+        row = conn.execute("SELECT * FROM webhooks WHERE id = ?", (webhook_id,)).fetchone()
+        return _row_to_dict(row) if row else None
+    except Exception as e:
+        logger.error(f"获取 Webhook 失败: {e}")
+        return None
 
 
 def create_webhook(data: dict) -> dict:
-    webhooks = _load_webhooks()
-    data["created_at"] = datetime.now().isoformat()
-    webhooks.append(data)
-    _save_webhooks(webhooks)
-    logger.info(f"Webhook 已创建: {data.get('name')} -> {data.get('url')}")
-    return data
+    try:
+        conn = _get_db_conn()
+        data["created_at"] = datetime.now().isoformat()
+        conn.execute(
+            """INSERT INTO webhooks (id, name, url, enabled, events, secret, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                data.get("id", ""),
+                data.get("name", ""),
+                data.get("url", ""),
+                1 if data.get("enabled", True) else 0,
+                json.dumps(data.get("events", []), ensure_ascii=False),
+                data.get("secret"),
+                data["created_at"],
+            ),
+        )
+        conn.commit()
+        logger.info(f"Webhook 已创建: {data.get('name')} -> {data.get('url')}")
+        return data
+    except Exception as e:
+        logger.error(f"创建 Webhook 失败: {e}")
+        raise
 
 
 def update_webhook(webhook_id: str, data: dict) -> Optional[dict]:
-    webhooks = _load_webhooks()
-    for i, wh in enumerate(webhooks):
-        if wh.get("id") == webhook_id:
-            # 保留不可变字段
-            data["id"] = webhook_id
-            data["created_at"] = wh.get("created_at", "")
-            # 保留运行时字段
-            if "last_triggered" not in data:
-                data["last_triggered"] = wh.get("last_triggered")
-            if "last_status" not in data:
-                data["last_status"] = wh.get("last_status")
-            webhooks[i] = data
-            _save_webhooks(webhooks)
-            logger.info(f"Webhook 已更新: {webhook_id}")
-            return data
-    return None
+    try:
+        conn = _get_db_conn()
+        existing = conn.execute("SELECT * FROM webhooks WHERE id = ?", (webhook_id,)).fetchone()
+        if not existing:
+            return None
+        existing_dict = _row_to_dict(existing)
+
+        # 合并字段：保留不可变字段和运行时字段
+        name = data.get("name", existing_dict["name"])
+        url = data.get("url", existing_dict["url"])
+        enabled = data.get("enabled", existing_dict["enabled"])
+        events = data.get("events", existing_dict["events"])
+        secret = data.get("secret", existing_dict.get("secret"))
+        last_triggered = data.get("last_triggered", existing_dict.get("last_triggered"))
+        last_status = data.get("last_status", existing_dict.get("last_status"))
+
+        conn.execute(
+            """UPDATE webhooks SET name=?, url=?, enabled=?, events=?, secret=?,
+               last_triggered=?, last_status=? WHERE id=?""",
+            (
+                name, url,
+                1 if enabled else 0,
+                json.dumps(events, ensure_ascii=False),
+                secret, last_triggered, last_status,
+                webhook_id,
+            ),
+        )
+        conn.commit()
+        logger.info(f"Webhook 已更新: {webhook_id}")
+        # 返回更新后的完整数据
+        return get_webhook(webhook_id)
+    except Exception as e:
+        logger.error(f"更新 Webhook 失败: {e}")
+        return None
 
 
 def delete_webhook(webhook_id: str) -> bool:
-    webhooks = _load_webhooks()
-    filtered = [wh for wh in webhooks if wh.get("id") != webhook_id]
-    if len(filtered) == len(webhooks):
+    try:
+        conn = _get_db_conn()
+        cursor = conn.execute("DELETE FROM webhooks WHERE id = ?", (webhook_id,))
+        conn.commit()
+        if cursor.rowcount == 0:
+            return False
+        logger.info(f"Webhook 已删除: {webhook_id}")
+        return True
+    except Exception as e:
+        logger.error(f"删除 Webhook 失败: {e}")
         return False
-    _save_webhooks(filtered)
-    logger.info(f"Webhook 已删除: {webhook_id}")
-    return True
 
 
 # ============ URL 验证 ============
@@ -285,15 +376,19 @@ async def trigger_webhooks(
         tasks = [_send_webhook(client, wh, event_type, data) for wh in matched]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # 更新触发状态
-        all_webhooks = _load_webhooks()
-        for wh, result in zip(matched, results):
-            for i, stored in enumerate(all_webhooks):
-                if stored.get("id") == wh.get("id"):
-                    all_webhooks[i]["last_triggered"] = datetime.now().isoformat()
-                    all_webhooks[i]["last_status"] = "success" if not isinstance(result, Exception) else "failed"
-                    break
-        _save_webhooks(all_webhooks)
+        # 更新触发状态（直接写 SQLite，无需全量读写）
+        try:
+            conn = _get_db_conn()
+            now_iso = datetime.now().isoformat()
+            for wh, result in zip(matched, results):
+                status = "success" if not isinstance(result, Exception) else "failed"
+                conn.execute(
+                    "UPDATE webhooks SET last_triggered=?, last_status=? WHERE id=?",
+                    (now_iso, status, wh.get("id")),
+                )
+            conn.commit()
+        except Exception as e:
+            logger.warning(f"更新 Webhook 触发状态失败: {e}")
 
         success_count = sum(1 for r in results if not isinstance(r, Exception))
         logger.info(f"Webhook 触发完成: 事件={event_type}, 匹配={len(matched)}, 成功={success_count}")

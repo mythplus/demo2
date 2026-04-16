@@ -31,21 +31,8 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { mem0Api } from "@/lib/api";
+import type { WebhookConfig } from "@/lib/api";
 import { DeleteConfirmDialog } from "@/components/memories/delete-confirm-dialog";
-
-// ============ 类型 ============
-
-interface WebhookConfig {
-  id: string;
-  name: string;
-  url: string;
-  enabled: boolean;
-  events: string[];
-  secret?: string;
-  created_at: string;
-  last_triggered?: string;
-  last_status?: "success" | "failed";
-}
 
 // 支持的事件类型
 const EVENT_TYPES = [

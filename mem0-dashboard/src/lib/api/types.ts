@@ -468,3 +468,61 @@ export type PlaygroundSSEEvent =
   | { type: "content"; content: string }
   | { type: "done"; new_memories: PlaygroundNewMemory[] }
   | { type: "error"; error: string };
+
+// ============ Webhooks ============
+
+/** Webhook 配置 */
+export interface WebhookConfig {
+  id: string;
+  name: string;
+  url: string;
+  enabled: boolean;
+  events: string[];
+  secret?: string;
+  created_at: string;
+  last_triggered?: string;
+  last_status?: "success" | "failed";
+}
+
+/** 创建 Webhook 请求 */
+export interface WebhookCreateRequest {
+  id: string;
+  name: string;
+  url: string;
+  enabled: boolean;
+  events: string[];
+  secret?: string;
+}
+
+/** 更新 Webhook 请求 */
+export interface WebhookUpdateRequest {
+  name?: string;
+  url?: string;
+  enabled?: boolean;
+  events?: string[];
+  secret?: string;
+}
+
+/** Webhook 列表响应 */
+export interface WebhookListResponse {
+  webhooks: WebhookConfig[];
+  total: number;
+}
+
+/** Webhook 创建/更新响应 */
+export interface WebhookMutationResponse {
+  message: string;
+  webhook: WebhookConfig;
+}
+
+/** Webhook 切换响应 */
+export interface WebhookToggleResponse {
+  message: string;
+  enabled: boolean;
+}
+
+/** Webhook 测试响应 */
+export interface WebhookTestResponse {
+  success: boolean;
+  message: string;
+}

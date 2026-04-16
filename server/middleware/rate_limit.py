@@ -13,7 +13,7 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-from server.config import ACCESS_LOG_DB_PATH
+from server.config import RATE_LIMIT_DB_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.rpm = rpm  # 每分钟最大请求数
         self.window = 60  # 窗口大小（秒）
-        self._db_path = ACCESS_LOG_DB_PATH
+        self._db_path = RATE_LIMIT_DB_PATH
         self._local = threading.local()
         self._cleanup_lock = threading.Lock()
         self._last_cleanup_at = 0.0
