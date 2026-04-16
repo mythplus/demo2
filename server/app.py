@@ -24,6 +24,7 @@ from server.middleware.auth import ApiKeyAuthMiddleware
 from server.middleware.rate_limit import RateLimitMiddleware
 from server.middleware.request_log import RequestLogMiddleware
 from server.routes import health, memories, search, stats, logs, graph, playground, webhooks
+from server.routes.playground import wait_background_tasks
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,8 @@ async def lifespan(app: FastAPI):
     init_webhook_table()
     _migrate_webhooks_from_json()
     yield
+    # 等待 Playground 后台任务完成（如记忆存储），最多等 30 秒
+    await wait_background_tasks(timeout=30.0)
     # 停止后台日志写入线程（flush 剩余日志）
     stop_log_writer()
     # 关闭全局异步 HTTP 客户端

@@ -1,5 +1,4 @@
-"""
-"""Webhook 服务 — 管理 Webhook 配置、触发事件通知
+"""Webhook 服务 - 管理 Webhook 配置、触发事件通知
 支持通用 HTTP POST 和企业微信群机器人格式
 
 存储层使用 SQLite（access_logs.db 同库），支持多 Worker（多进程）并发安全读写。
