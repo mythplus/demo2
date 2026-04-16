@@ -150,6 +150,7 @@ def start_log_writer():
 
 _LOG_RETENTION_DAYS = 30  # 日志保留天数
 _cleanup_thread: Optional[threading.Thread] = None
+_stop_event = threading.Event()  # 用于快速唤醒清理线程以响应停止信号
 
 
 def cleanup_old_logs():
@@ -164,7 +165,6 @@ def cleanup_old_logs():
             ("access_logs", "timestamp"),
             ("memory_change_logs", "timestamp"),
             ("category_snapshots", "timestamp"),
-            ("memory_state_history", "changed_at"),
         ]
 
         total_deleted = 0
@@ -195,13 +195,11 @@ def cleanup_old_logs():
 
 def _daily_cleanup_loop():
     """后台线程：每天执行一次日志清理"""
-    import time as _time
     while _log_writer_running:
-        # 睡眠 24 小时
-        for _ in range(24 * 3600):
-            if not _log_writer_running:
-                return
-            _time.sleep(1)
+        # 等待 24 小时，或被 _stop_event 提前唤醒
+        stopped = _stop_event.wait(timeout=24 * 3600)
+        if stopped or not _log_writer_running:
+            return
         cleanup_old_logs()
 
 
@@ -221,6 +219,7 @@ def stop_log_writer():
     """停止后台日志写入线程，并 flush 剩余日志"""
     global _log_writer_running
     _log_writer_running = False
+    _stop_event.set()  # 唤醒清理线程使其快速退出
     if _log_writer_thread is not None:
         _log_writer_thread.join(timeout=10)
     # flush 队列中剩余的日志
@@ -299,21 +298,6 @@ def init_access_log_db():
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_cat_snap_memory_id ON category_snapshots(memory_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_cat_snap_timestamp ON category_snapshots(timestamp)")
-
-    # 记忆变更日志表（纳入 SQLAlchemy 统一管理）
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS memory_state_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            memory_id TEXT NOT NULL,
-            old_state TEXT,
-            new_state TEXT NOT NULL,
-            changed_by TEXT NOT NULL DEFAULT 'system',
-            reason TEXT NOT NULL DEFAULT '',
-            changed_at TEXT NOT NULL
-        )
-    """)
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_msh_memory_id ON memory_state_history(memory_id)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_msh_changed_at ON memory_state_history(changed_at)")
 
     conn.commit()
 
@@ -611,54 +595,4 @@ def get_request_logs(request_type: str = None, since: str = None, until: str = N
         return [], 0
 
 
-# ============ 状态变更历史 ============
 
-def save_state_history(
-    memory_id: str,
-    old_state: str | None,
-    new_state: str,
-    changed_by: str = "system",
-    reason: str = "",
-    changed_at: str = "",
-):
-    """记录一条状态变更历史（同步写入，状态变更是关键路径）"""
-    try:
-        ts = changed_at or datetime.now().isoformat()
-        _flush_log_batch([
-            {
-                "table": "memory_state_history",
-                "sql": """INSERT INTO memory_state_history
-                       (memory_id, old_state, new_state, changed_by, reason, changed_at)
-                       VALUES (?, ?, ?, ?, ?, ?)""",
-                "params": (memory_id, old_state or "", new_state, changed_by, reason, ts),
-            }
-        ], raise_on_failure=True)
-    except Exception as e:
-        logger.warning(f"记录状态变更历史失败: {e}")
-        raise
-
-
-def get_state_history(memory_id: str) -> list[dict]:
-    """获取某条记忆的状态变更历史（时间正序）"""
-    try:
-        conn = _get_db_conn()
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            """SELECT old_state, new_state, changed_by, reason, changed_at
-               FROM memory_state_history WHERE memory_id = ? ORDER BY changed_at ASC""",
-            (memory_id,),
-        ).fetchall()
-        return [
-            {
-                "memory_id": memory_id,
-                "old_state": row["old_state"] or None,
-                "new_state": row["new_state"],
-                "changed_by": row["changed_by"],
-                "reason": row["reason"],
-                "changed_at": row["changed_at"],
-            }
-            for row in rows
-        ]
-    except Exception as e:
-        logger.warning(f"查询状态变更历史失败: {e}")
-        return []

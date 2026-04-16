@@ -104,16 +104,6 @@ export interface MemoryHistory {
   old_categories?: string[];
 }
 
-/** 状态变更历史记录 — 已废弃，保留类型兼容 */
-export interface MemoryStateHistoryItem {
-  memory_id: string;
-  old_state?: string;
-  new_state: string;
-  changed_by: string;
-  reason?: string;
-  changed_at: string;
-}
-
 // ============ 筛选参数 ============
 
 /** 多维筛选参数 */

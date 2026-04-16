@@ -5,6 +5,7 @@
 """
 
 import logging
+from contextlib import contextmanager
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
 
@@ -62,14 +63,27 @@ def get_session_factory():
 
 
 def get_db() -> Session:
-    """获取数据库会话（用于 FastAPI 依赖注入或手动管理）"""
+    """获取数据库会话（需调用方手动 close，推荐使用 get_db_session() 上下文管理器）"""
     SessionLocal = get_session_factory()
-    db = SessionLocal()
+    return SessionLocal()
+
+
+@contextmanager
+def get_db_session():
+    """获取数据库会话的上下文管理器，自动管理 commit/rollback/close。
+    用法：
+        with get_db_session() as db:
+            db.query(...)
+    """
+    db = get_db()
     try:
-        return db
+        yield db
+        db.commit()
     except Exception:
-        db.close()
+        db.rollback()
         raise
+    finally:
+        db.close()
 
 
 def init_db():

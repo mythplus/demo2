@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   Loader2,
   Download,
@@ -36,7 +36,6 @@ import {
 
 
 import { Input } from "@/components/ui/input";
-import { Search, ChevronDown, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { UserCombobox } from "@/components/shared/user-combobox";
@@ -107,32 +106,6 @@ export default function DataTransferPage() {
 
   // 判断是否有后台导入正在执行（SPA 切换页面后仍在后台运行）
   const isBackgroundRunning = hasImportingRecord && hasRunningImportTask();
-
-  // 用户搜索
-  const [userSearchQuery, setUserSearchQuery] = useState("");
-  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
-  const userDropdownRef = useRef<HTMLDivElement>(null);
-
-  // 过滤后的用户列表
-  const filteredUserList = userSearchQuery
-    ? userList.filter((uid) =>
-        uid.toLowerCase().includes(userSearchQuery.toLowerCase())
-      )
-    : userList;
-
-  // 点击外部关闭下拉
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        userDropdownRef.current &&
-        !userDropdownRef.current.contains(e.target as Node)
-      ) {
-        setUserDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   // 是否有筛选条件
   const hasFilter = userSelected || filterDateFrom || filterDateTo;
