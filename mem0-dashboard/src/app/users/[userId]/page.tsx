@@ -12,6 +12,7 @@ import {
   MoreHorizontal,
   Pencil,
   Eye,
+  ExternalLink,
   Clock,
   ChevronLeft,
   ChevronRight,
@@ -289,11 +290,10 @@ export default function UserDetailPage() {
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem
                         onClick={() => {
-                          setSelectedMemory(memory);
-                          setDetailPanelOpen(true);
+                          router.push(`/memory/${memory.id}`);
                         }}
                       >
-                        <Eye className="mr-2 h-4 w-4" />
+                        <ExternalLink className="mr-2 h-4 w-4" />
                         查看详情
                       </DropdownMenuItem>
                       <DropdownMenuItem

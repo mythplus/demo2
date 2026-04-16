@@ -344,8 +344,8 @@ export default function MemoriesPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleViewDetail(memory)}>
-                          <Eye className="mr-2 h-4 w-4" />
+                        <DropdownMenuItem onClick={() => window.location.href = `/memory/${memory.id}`}>
+                          <ExternalLink className="mr-2 h-4 w-4" />
                           查看详情
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleEdit(memory)}>

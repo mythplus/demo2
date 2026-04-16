@@ -146,6 +146,77 @@ def start_log_writer():
     logger.info("后台日志写入线程已启动")
 
 
+# ============ 日志自动清理（保留 30 天） ============
+
+_LOG_RETENTION_DAYS = 30  # 日志保留天数
+_cleanup_thread: Optional[threading.Thread] = None
+
+
+def cleanup_old_logs():
+    """清理超过 _LOG_RETENTION_DAYS 天的日志记录（所有日志表统一清理）"""
+    try:
+        from datetime import timedelta
+        cutoff = (datetime.now() - timedelta(days=_LOG_RETENTION_DAYS)).isoformat()
+        conn = _get_db_conn()
+
+        tables_and_cols = [
+            ("request_logs", "timestamp"),
+            ("access_logs", "timestamp"),
+            ("memory_change_logs", "timestamp"),
+            ("category_snapshots", "timestamp"),
+            ("memory_state_history", "changed_at"),
+        ]
+
+        total_deleted = 0
+        for table, col in tables_and_cols:
+            try:
+                cursor = conn.execute(f"DELETE FROM {table} WHERE {col} < ?", (cutoff,))
+                deleted = cursor.rowcount
+                total_deleted += deleted
+                if deleted > 0:
+                    logger.info(f"日志清理: {table} 删除 {deleted} 条（>{_LOG_RETENTION_DAYS}天）")
+            except Exception as e:
+                logger.warning(f"清理 {table} 失败: {e}")
+
+        conn.commit()
+
+        if total_deleted > 0:
+            # 清理后执行 VACUUM 回收磁盘空间
+            try:
+                conn.execute("VACUUM")
+            except Exception:
+                pass  # VACUUM 在 WAL 模式下可能失败，忽略
+            logger.info(f"日志清理完成，共删除 {total_deleted} 条过期记录")
+        else:
+            logger.info("日志清理：无过期记录")
+    except Exception as e:
+        logger.warning(f"日志清理任务异常: {e}")
+
+
+def _daily_cleanup_loop():
+    """后台线程：每天执行一次日志清理"""
+    import time as _time
+    while _log_writer_running:
+        # 睡眠 24 小时
+        for _ in range(24 * 3600):
+            if not _log_writer_running:
+                return
+            _time.sleep(1)
+        cleanup_old_logs()
+
+
+def start_log_cleanup():
+    """启动日志清理：立即清理一次 + 启动每日定时清理线程"""
+    global _cleanup_thread
+    # 启动时立即清理一次
+    cleanup_old_logs()
+    # 启动每日清理线程
+    if _cleanup_thread is None or not _cleanup_thread.is_alive():
+        _cleanup_thread = threading.Thread(target=_daily_cleanup_loop, daemon=True, name="log-cleanup")
+        _cleanup_thread.start()
+        logger.info(f"日志自动清理已启用（保留 {_LOG_RETENTION_DAYS} 天，每日执行）")
+
+
 def stop_log_writer():
     """停止后台日志写入线程，并 flush 剩余日志"""
     global _log_writer_running

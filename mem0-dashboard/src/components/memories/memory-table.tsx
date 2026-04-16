@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { Eye, Pencil, Trash2, MoreHorizontal, Archive, Pause, Play } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Eye, Pencil, Trash2, MoreHorizontal, Archive, Pause, Play, ExternalLink } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -50,6 +51,7 @@ export function MemoryTable({
   onToggleSelect,
   onToggleAll,
 }: MemoryTableProps) {
+  const router = useRouter();
   const allSelected = memories.length > 0 && memories.every((m) => selectedIds.has(m.id));
   const someSelected = memories.some((m) => selectedIds.has(m.id)) && !allSelected;
 
@@ -159,8 +161,8 @@ export function MemoryTable({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onView(memory); }}>
-                        <Eye className="mr-2 h-4 w-4" />
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); router.push(`/memory/${memory.id}`); }}>
+                        <ExternalLink className="mr-2 h-4 w-4" />
                         查看详情
                       </DropdownMenuItem>
                       <DropdownMenuItem

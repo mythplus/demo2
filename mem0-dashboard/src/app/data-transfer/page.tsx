@@ -483,7 +483,7 @@ export default function DataTransferPage() {
             <Button
               variant="outline"
               onClick={handleExportJSON}
-              disabled={exporting || !hasFilter}
+              disabled={exporting || !userSelected}
             >
               {exporting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -495,7 +495,7 @@ export default function DataTransferPage() {
             <Button
               variant="outline"
               onClick={handleExportCSV}
-              disabled={exporting || !hasFilter}
+              disabled={exporting || !userSelected}
             >
               {exporting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -506,7 +506,7 @@ export default function DataTransferPage() {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground -mt-1">
-            💡 {!hasFilter ? "请先选择用户或状态再导出。" : "将按筛选条件导出匹配的记忆数据。"}JSON 格式包含完整的记忆数据（含分类、状态等），适合备份和迁移；CSV 格式适合在 Excel 中查看和分析。
+            💡 {!userSelected ? "请先选择用户再导出。" : "将按筛选条件导出匹配的记忆数据。"}JSON 格式包含完整的记忆数据（含分类、状态等），适合备份和迁移；CSV 格式适合在 Excel 中查看和分析。
           </p>
         </CardContent>
       </Card>

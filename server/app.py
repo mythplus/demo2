@@ -16,7 +16,7 @@ from server.config import (
     IS_PRODUCTION, IS_TESTING, _safe_error_detail, setup_logging,
 )
 from server.services import memory_service
-from server.services.log_service import init_access_log_db, start_log_writer, stop_log_writer
+from server.services.log_service import init_access_log_db, start_log_writer, stop_log_writer, start_log_cleanup
 from server.services.graph_service import close_neo4j_driver
 from server.models.database import init_db, close_db
 from server.middleware.auth import ApiKeyAuthMiddleware
@@ -51,6 +51,8 @@ async def lifespan(app: FastAPI):
     logger.info(f"访问日志数据库: {ACCESS_LOG_DB_PATH}")
     # 启动后台日志写入线程
     start_log_writer()
+    # 启动日志自动清理（保留 30 天，启动时清理一次 + 每日定时）
+    start_log_cleanup()
     yield
     # 停止后台日志写入线程（flush 剩余日志）
     stop_log_writer()
