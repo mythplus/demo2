@@ -31,6 +31,26 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["记忆管理"])
 
 
+# ============ 双写重试工具 ============
+
+async def _retry_db_write(func, *args, max_retries: int = 3, desc: str = "关系库双写", **kwargs):
+    """带重试的关系库双写操作，避免 Qdrant 与关系库数据不一致。
+    最多重试 max_retries 次，每次间隔递增（1s, 2s, 3s）。
+    全部失败后记录 ERROR 级别日志（而非 WARNING），便于监控告警。"""
+    last_err = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            return await asyncio.to_thread(func, *args, **kwargs)
+        except Exception as e:
+            last_err = e
+            if attempt < max_retries:
+                logger.warning(f"{desc}第 {attempt} 次失败，{attempt}s 后重试: {e}")
+                await asyncio.sleep(attempt)  # 递增等待
+            else:
+                logger.error(f"{desc}经过 {max_retries} 次重试后仍然失败: {e}")
+    return None
+
+
 class PaginatedMemoriesResponse(BaseModel):
     items: List[Dict[str, Any]]
     total: int
@@ -140,21 +160,19 @@ async def add_memory(request: AddMemoryRequest):
                 memory_text = item.get("memory", "") if isinstance(item, dict) else ""
                 await asyncio.to_thread(save_memory_audit_snapshot, mid, "ADD", memory_text, init_cats)
 
-                # 双写关系库（对齐 OpenMemory 架构）
-                try:
-                    await asyncio.to_thread(
-                        meta_service.create_memory_meta,
-                        memory_id=mid,
-                        user_id=user_id,
-                        content=memory_text,
-                        hash_value=item.get("hash", "") if isinstance(item, dict) else "",
-                        agent_id=request.agent_id or "",
-                        run_id=request.run_id or "",
-                        categories=init_cats,
-                        metadata=current_meta,
-                    )
-                except Exception as db_err:
-                    logger.warning(f"关系库双写失败（不影响主流程）: {db_err}")
+                # 双写关系库（对齐 OpenMemory 架构，带重试）
+                await _retry_db_write(
+                    meta_service.create_memory_meta,
+                    memory_id=mid,
+                    user_id=user_id,
+                    content=memory_text,
+                    hash_value=item.get("hash", "") if isinstance(item, dict) else "",
+                    agent_id=request.agent_id or "",
+                    run_id=request.run_id or "",
+                    categories=init_cats,
+                    metadata=current_meta,
+                    desc=f"添加记忆 {mid} 关系库双写",
+                )
 
         invalidate_stats_cache()
 
@@ -292,19 +310,17 @@ async def batch_import_memories(request: BatchImportRequest):
                         memory_text = added_item.get("memory", "") if isinstance(added_item, dict) else ""
                         await asyncio.to_thread(save_memory_audit_snapshot, mid, "ADD", memory_text, init_cats)
 
-                        # 双写关系库（对齐 OpenMemory 架构）
-                        try:
-                            await asyncio.to_thread(
-                                meta_service.create_memory_meta,
-                                memory_id=mid,
-                                user_id=uid,
-                                content=memory_text,
-                                hash_value=added_item.get("hash", "") if isinstance(added_item, dict) else "",
-                                categories=init_cats,
-                                metadata=(_pts[0].payload or {}).get("metadata", {}) if _pts else {},
-                            )
-                        except Exception as db_err:
-                            logger.warning(f"批量导入第 {idx+1} 条关系库双写失败（不影响主流程）: {db_err}")
+                        # 双写关系库（对齐 OpenMemory 架构，带重试）
+                        await _retry_db_write(
+                            meta_service.create_memory_meta,
+                            memory_id=mid,
+                            user_id=uid,
+                            content=memory_text,
+                            hash_value=added_item.get("hash", "") if isinstance(added_item, dict) else "",
+                            categories=init_cats,
+                            metadata=(_pts[0].payload or {}).get("metadata", {}) if _pts else {},
+                            desc=f"批量导入第 {idx+1} 条关系库双写",
+                        )
                     except Exception as audit_err:
                         logger.warning(f"批量导入第 {idx+1} 条审计日志写入失败（记忆已成功导入）: {audit_err}")
 
@@ -588,17 +604,15 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
             old_categories,
         )
 
-        # 双写关系库（对齐 OpenMemory 架构）
-        try:
-            await asyncio.to_thread(
-                meta_service.update_memory_meta,
-                memory_id=memory_id,
-                content=new_memory_text if request.text else None,
-                categories=new_cats if (request.categories is not None or request.auto_categorize) else None,
-                metadata=current_metadata,
-            )
-        except Exception as db_err:
-            logger.warning(f"关系库双写更新失败（不影响主流程）: {db_err}")
+        # 双写关系库（对齐 OpenMemory 架构，带重试）
+        await _retry_db_write(
+            meta_service.update_memory_meta,
+            memory_id=memory_id,
+            content=new_memory_text if request.text else None,
+            categories=new_cats if (request.categories is not None or request.auto_categorize) else None,
+            metadata=current_metadata,
+            desc=f"更新记忆 {memory_id} 关系库双写",
+        )
 
         invalidate_stats_cache()
 
@@ -652,13 +666,11 @@ async def delete_memory_by_id(memory_id: str):
             points_selector=PointIdsList(points=[memory_id]),
         )
 
-        # 3. 物理删除关系库中的元数据
-        try:
-            await asyncio.to_thread(
-                meta_service.hard_delete_memory_meta, memory_id
-            )
-        except Exception as db_err:
-            logger.warning(f"关系库物理删除失败（Qdrant 已删除）: {db_err}")
+        # 3. 物理删除关系库中的元数据（带重试）
+        await _retry_db_write(
+            meta_service.hard_delete_memory_meta, memory_id,
+            desc=f"删除记忆 {memory_id} 关系库物理删除",
+        )
 
         # 4. 清理 Neo4j 中与该记忆相关的孤儿实体（尽力清理，不阻塞主流程）
         if user_id:
@@ -739,13 +751,11 @@ async def delete_all_memories(
                     collection_name=collection_name,
                     points_selector=PointIdsList(points=ids),
                 )
-                # 物理删除关系库记录
-                try:
-                    await asyncio.to_thread(
-                        meta_service.batch_hard_delete_memory_meta, ids
-                    )
-                except Exception as db_err:
-                    logger.warning(f"关系库批量物理删除失败: {db_err}")
+                # 物理删除关系库记录（带重试）
+                await _retry_db_write(
+                    meta_service.batch_hard_delete_memory_meta, ids,
+                    desc=f"用户 {user_id} 关系库批量物理删除",
+                )
                 total_deleted += len(ids)
             invalidate_stats_cache()
             return {"message": f"用户 {user_id} 的所有记忆已永久删除（共 {total_deleted} 条）"}
@@ -777,7 +787,15 @@ async def delete_all_memories(
                         points_selector=PointIdsList(points=ids),
                     )
                     total_deleted += len(ids)
-                return {"message": f"所有记忆已删除（共 {total_deleted} 条）"}
+
+                # 同步清空关系库中的所有记忆元数据（带重试）
+                await _retry_db_write(
+                    meta_service.delete_all_memory_meta,
+                    desc="清空全部记忆时关系库清理",
+                )
+
+                invalidate_stats_cache()
+                return {"message": f"所有记忆已删除（共 {total_deleted} 条，关系库已同步清空）"}
             except Exception as qdrant_err:
                 logger.error(f"Qdrant 直接删除失败: {qdrant_err}")
                 raise HTTPException(status_code=500, detail=_safe_error_detail(qdrant_err))
@@ -852,7 +870,7 @@ async def hard_delete_user(user_id: str):
             finally:
                 db.close()
         except Exception as db_err:
-            logger.warning(f"清理用户 {user_id} 的关系库元数据失败（不影响记忆删除）: {db_err}")
+            logger.error(f"清理用户 {user_id} 的关系库元数据失败: {db_err}")
 
         invalidate_stats_cache()
         logger.info(f"已硬删除用户 {user_id} 的所有记忆（共 {total_deleted} 条）")
@@ -954,14 +972,12 @@ async def batch_delete_memories(request: BatchDeleteRequest):
         if success_count > 0:
             invalidate_stats_cache()
 
-            # 物理删除关系库记录
-            try:
-                await asyncio.to_thread(
-                    meta_service.batch_hard_delete_memory_meta,
-                    memory_ids=deleted_ids,
-                )
-            except Exception as db_err:
-                logger.warning(f"关系库批量物理删除失败（Qdrant 已删除）: {db_err}")
+            # 物理删除关系库记录（带重试）
+            await _retry_db_write(
+                meta_service.batch_hard_delete_memory_meta,
+                memory_ids=deleted_ids,
+                desc="批量删除关系库物理删除",
+            )
 
             # 清理 Neo4j 中的孤儿实体（收集被删除记忆涉及的 user_id）
             try:

@@ -584,6 +584,27 @@ def get_memory_change_logs(memory_id: str) -> List[dict]:
 
 # ============ 记忆是否存在于关系库 ============
 
+def delete_all_memory_meta() -> int:
+    """清空关系库中的所有记忆元数据（危险操作，配合 Qdrant 全量清空使用）"""
+    db = _get_db()
+    try:
+        # 先删除关联表数据
+        db.execute(memory_categories.delete())
+        # 删除变更日志
+        deleted_logs = db.query(MemoryChangeLog).delete()
+        # 删除所有记忆元数据
+        deleted_count = db.query(MemoryMeta).delete()
+        db.commit()
+        logger.info(f"已清空关系库所有记忆元数据（删除 {deleted_count} 条记忆，{deleted_logs} 条变更日志）")
+        return deleted_count
+    except Exception as e:
+        db.rollback()
+        logger.error(f"清空关系库所有记忆元数据失败: {e}")
+        raise
+    finally:
+        db.close()
+
+
 def memory_exists_in_db(memory_id: str) -> bool:
     """检查记忆是否存在于关系库"""
     db = _get_db()
