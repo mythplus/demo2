@@ -13,7 +13,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, START, END
 
-from server.config import MEM0_CONFIG
+from server.config import MEM0_CONFIG, _safe_error_detail
 from server.services import memory_service
 from server.services.background_tasks import create_background_task
 from server.services.memory_service import auto_categorize_memory
@@ -339,7 +339,7 @@ async def playground_chat(request: PlaygroundChatRequest):
 
     except Exception as e:
         logger.error(f"Playground 对话失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"对话失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
 @router.post("/chat/stream")

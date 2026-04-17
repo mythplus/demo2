@@ -21,9 +21,11 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# 构建时注入 API 地址（指向 Nginx 反向代理，运行时通过 /api/mem0 转发）
+# 禁用 Next.js 遥测数据上报
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV NEXT_PUBLIC_MEM0_API_URL=http://localhost:8080
+# 生产镜像不预埋后端地址：留空后前端 resolveApiBase() 会走 window.location.origin 同源反向代理
+# （由 Nginx 负责 /v1 转发和 API Key 注入，避免把 localhost 或密钥烘焙进前端 JS bundle）
+ENV NEXT_PUBLIC_MEM0_API_URL=
 
 RUN npm run build
 

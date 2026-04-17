@@ -109,12 +109,14 @@ async function request<T>(
   }
 
   try {
+    // 注意：必须先展开 options，再显式覆盖 headers 和 signal，
+    // 否则如果 options 中包含 headers/signal，会覆盖我们合并好的认证头与超时信号。
     const response = await fetch(url, {
+      ...options,
       headers: {
         ...headers,
-        ...options?.headers,
+        ...(options?.headers as Record<string, string> | undefined),
       },
-      ...options,
       signal: controller.signal,
     });
 

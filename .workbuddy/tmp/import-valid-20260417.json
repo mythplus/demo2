@@ -1,0 +1,22 @@
+{
+  "version": "1.1",
+  "exported_at": "2026-04-17T16:25:00.000Z",
+  "total_count": 3,
+  "memories": [
+    {
+      "memory": "WB_IMPORT_SCAN_20260417_A",
+      "user_id": "wb_import_scan_20260417",
+      "metadata": {"source": "wb-import-scan", "tag": "20260417-a"},
+      "categories": ["work"]
+    },
+    {
+      "memory": "WB_IMPORT_SCAN_20260417_B",
+      "metadata": {"source": "wb-import-scan", "tag": "20260417-b"},
+      "categories": ["work"]
+    },
+    {
+      "memory": "   ",
+      "user_id": "wb_import_scan_20260417"
+    }
+  ]
+}
