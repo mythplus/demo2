@@ -15,58 +15,16 @@ from langgraph.graph import StateGraph, START, END
 
 from server.config import MEM0_CONFIG
 from server.services import memory_service
+from server.services.background_tasks import create_background_task
 from server.services.memory_service import auto_categorize_memory
+
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/playground", tags=["Playground"])
 
-# ============ 后台任务管理器 ============
-
-_background_tasks: set[asyncio.Task] = set()
-
-
-def tracked_create_task(coro, *, name: str = None) -> asyncio.Task:
-    """创建可追踪的后台任务，支持异常捕获和优雅关闭时等待"""
-    task = asyncio.create_task(coro, name=name)
-    _background_tasks.add(task)
-
-    def _on_done(t: asyncio.Task):
-        _background_tasks.discard(t)
-        if t.cancelled():
-            logger.warning(f"后台任务被取消: {t.get_name()}")
-        elif exc := t.exception():
-            logger.error(f"后台任务异常 [{t.get_name()}]: {exc}", exc_info=exc)
-        else:
-            logger.debug(f"后台任务完成: {t.get_name()}")
-
-    task.add_done_callback(_on_done)
-    return task
-
-
-async def wait_background_tasks(timeout: float = 30.0):
-    """等待所有后台任务完成（用于服务器优雅关闭）
-
-    Args:
-        timeout: 最大等待秒数，超时后强制取消未完成的任务
-    """
-    if not _background_tasks:
-        logger.info("无待完成的后台任务")
-        return
-    pending_count = len(_background_tasks)
-    logger.info(f"等待 {pending_count} 个后台任务完成（超时 {timeout}s）...")
-    done, pending = await asyncio.wait(
-        list(_background_tasks), timeout=timeout
-    )
-    if pending:
-        logger.warning(f"{len(pending)} 个后台任务超时未完成，强制取消")
-        for t in pending:
-            t.cancel()
-    else:
-        logger.info(f"所有 {pending_count} 个后台任务已完成")
-
-
 # ============ 请求/响应模型 ============
+
 
 class ChatMessage(BaseModel):
     role: str = Field(..., description="消息角色: user / assistant / system")
@@ -466,10 +424,11 @@ async def playground_chat_stream(request: PlaygroundChatRequest):
                 }
                 await store_memories_node(store_state)
 
-            tracked_create_task(
+            create_background_task(
                 _save_memories_background(),
-                name=f"save_memories_{user_id}",
+                name=f"playground:save_memories:{user_id}",
             )
+
 
         except Exception as e:
             logger.error(f"流式对话失败: {e}", exc_info=True)

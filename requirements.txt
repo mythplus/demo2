@@ -35,6 +35,8 @@ SQLAlchemy==2.0.41
 PyYAML==6.0.3
 python-dotenv==1.2.2
 pydantic==2.12.5
+cryptography==45.0.4
+
 
 # 测试（仅开发环境需要，生产可跳过）
 pytest==9.0.2

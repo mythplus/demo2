@@ -17,14 +17,19 @@ from server.config import (
 )
 from server.services import memory_service
 from server.services.log_service import init_access_log_db, start_log_writer, stop_log_writer, start_log_cleanup
-from server.services.webhook_service import init_webhook_table, _migrate_from_json as _migrate_webhooks_from_json
+from server.services.webhook_service import (
+    init_webhook_table,
+    migrate_webhook_secrets,
+    _migrate_from_json as _migrate_webhooks_from_json,
+)
 from server.services.graph_service import close_neo4j_driver
+from server.services.background_tasks import wait_background_tasks
 from server.models.database import init_db, close_db
 from server.middleware.auth import ApiKeyAuthMiddleware
 from server.middleware.rate_limit import RateLimitMiddleware
 from server.middleware.request_log import RequestLogMiddleware
 from server.routes import health, memories, search, stats, logs, graph, playground, webhooks
-from server.routes.playground import wait_background_tasks
+
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +60,11 @@ async def lifespan(app: FastAPI):
     start_log_writer()
     # 启动日志自动清理（保留 30 天，启动时清理一次 + 每日定时）
     start_log_cleanup()
-    # 初始化 Webhook 配置表并迁移旧 JSON 数据
+    # 初始化 Webhook 配置表、迁移旧 JSON 数据，并将旧明文 secret 升级为加密存储
     init_webhook_table()
     _migrate_webhooks_from_json()
+    migrate_webhook_secrets()
+
     yield
     # 等待 Playground 后台任务完成（如记忆存储），最多等 30 秒
     await wait_background_tasks(timeout=30.0)
@@ -121,12 +128,19 @@ app.add_middleware(
 )
 
 # API Key 认证中间件
-_configured_api_key = MEM0_CONFIG.get("security", {}).get("api_key", "")
-if _configured_api_key:
+_configured_api_key = str(MEM0_CONFIG.get("security", {}).get("api_key", "") or "").strip()
+if IS_PRODUCTION and not _configured_api_key:
+    raise RuntimeError("生产环境必须配置 security.api_key（或 MEM0_API_KEY），禁止无鉴权启动")
+
+if IS_TESTING:
+    logger.info("测试环境：已跳过 API Key 认证中间件")
+elif _configured_api_key:
     app.add_middleware(ApiKeyAuthMiddleware, api_key=_configured_api_key)
     logger.info("API Key 认证已启用")
 else:
-    logger.warning("⚠️ 未配置 API Key，所有接口无需认证即可访问（建议生产环境设置 security.api_key）")
+    logger.warning("⚠️ 当前未配置 API Key，仅允许在开发/测试环境无鉴权访问")
+
+
 
 # 速率限制中间件
 _rate_limit_rpm = int(MEM0_CONFIG.get("security", {}).get("rate_limit", 60))

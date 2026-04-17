@@ -8,3 +8,5 @@ Mem0 Dashboard 后端 API 服务 — server 包
 """
 
 from server.app import app  # noqa: F401 — FastAPI 应用实例
+from server.middleware.auth import ApiKeyAuthMiddleware  # noqa: F401 — 兼容测试与外部显式导入
+

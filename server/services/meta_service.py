@@ -489,6 +489,16 @@ def compute_stats_from_db() -> dict:
             ~MemoryMeta.id.in_(db.query(categorized_ids)),
         ).scalar() or 0
 
+        # 状态分布（metadata.state 未设置时默认视为 active）
+        state_distribution = {"active": 0, "paused": 0, "deleted": 0}
+        metadata_rows = db.query(MemoryMeta.metadata_).all()
+        for (metadata_value,) in metadata_rows:
+            metadata = metadata_value or {}
+            state = metadata.get("state", "active") if isinstance(metadata, dict) else "active"
+            if state not in state_distribution:
+                state = "active"
+            state_distribution[state] += 1
+
         # 每日趋势
         daily_rows = db.query(
             func.date(MemoryMeta.created_at).label("day"),
@@ -500,9 +510,11 @@ def compute_stats_from_db() -> dict:
             "total_memories": total_memories,
             "total_users": total_users,
             "category_distribution": category_distribution,
+            "state_distribution": state_distribution,
             "uncategorized_count": uncategorized_count,
             "daily_counter": daily_counter,
         }
+
     finally:
         db.close()
 
@@ -605,7 +617,27 @@ def delete_all_memory_meta() -> int:
         db.close()
 
 
+def hard_delete_user_memory_meta(user_id: str) -> int:
+    """物理删除某个用户在关系库中的全部记忆元数据。"""
+    db = _get_db()
+    try:
+        records = db.query(MemoryMeta).filter(MemoryMeta.user_id == user_id).all()
+        deleted_count = len(records)
+        for record in records:
+            db.delete(record)
+        db.commit()
+        logger.info(f"已清理用户 {user_id} 的关系库元数据（删除 {deleted_count} 条）")
+        return deleted_count
+    except Exception as e:
+        db.rollback()
+        logger.error(f"清理用户 {user_id} 的关系库元数据失败: {e}")
+        raise
+    finally:
+        db.close()
+
+
 def memory_exists_in_db(memory_id: str) -> bool:
+
     """检查记忆是否存在于关系库"""
     db = _get_db()
     try:

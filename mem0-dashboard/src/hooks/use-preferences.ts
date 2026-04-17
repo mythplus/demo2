@@ -1,120 +1,51 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useEffect } from "react";
+import {
+  PREFERENCES_STORAGE_KEY,
+  usePreferencesStore,
+  type UserPreferences,
+} from "@/store/preferences-store";
 
-/** 用户偏好设置 */
-export interface UserPreferences {
-  /** 每页显示条数 */
-  pageSize: number;
-  /** 默认排序方式 */
-  sortOrder: "newest" | "oldest";
-  /** 主题模式 */
-  themeMode: "light" | "dark";
-}
-
-const DEFAULT_PREFERENCES: UserPreferences = {
-  pageSize: 10,
-  sortOrder: "newest",
-  themeMode: "light",
-};
-
-const STORAGE_KEY = "mem0-preferences";
-
-/** 自定义事件名，用于同一页面内跨组件同步 */
-const SYNC_EVENT = "mem0-preferences-sync";
-
-function normalizePreferences(raw: unknown): UserPreferences {
-  if (!raw || typeof raw !== "object") {
-    return { ...DEFAULT_PREFERENCES };
-  }
-
-  const parsed = raw as Partial<UserPreferences> & { themeMode?: string };
-
-  return {
-    pageSize:
-      typeof parsed.pageSize === "number"
-        ? parsed.pageSize
-        : DEFAULT_PREFERENCES.pageSize,
-    sortOrder: parsed.sortOrder === "oldest" ? "oldest" : "newest",
-    themeMode: parsed.themeMode === "dark" ? "dark" : "light",
-  };
-}
+export type { UserPreferences } from "@/store/preferences-store";
 
 /**
  * 全局用户偏好设置 Hook
- * 使用 localStorage 持久化，支持跨组件实时同步
+ * 使用单一 store 持久化，支持跨组件实时同步与跨标签页同步。
  */
 export function usePreferences() {
-  const [preferences, setPreferences] =
-    useState<UserPreferences>(DEFAULT_PREFERENCES);
-  const [loaded, setLoaded] = useState(false);
+  const preferences = usePreferencesStore((state) => state.preferences);
+  const loaded = usePreferencesStore((state) => state.loaded);
+  const hydratePreferences = usePreferencesStore((state) => state.hydratePreferences);
+  const savePreferences = usePreferencesStore((state) => state.savePreferences);
+  const resetPreferences = usePreferencesStore((state) => state.resetPreferences);
 
-  // 从 localStorage 加载
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const normalized = normalizePreferences(JSON.parse(saved));
-        setPreferences(normalized);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
-      }
-    } catch {
-      // 忽略解析错误
+    hydratePreferences();
+  }, [hydratePreferences]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
     }
-    setLoaded(true);
-  }, []);
 
-  // 监听同页面内其他组件的偏好变更（自定义事件）
-  useEffect(() => {
-    const handleSync = () => {
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          setPreferences(normalizePreferences(JSON.parse(saved)));
-        }
-      } catch {
-        // 忽略
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === PREFERENCES_STORAGE_KEY) {
+        usePreferencesStore.setState({ loaded: false });
+        hydratePreferences();
       }
     };
 
-    // 监听自定义同步事件（同一标签页内跨组件）
-    window.addEventListener(SYNC_EVENT, handleSync);
-    // 监听 storage 事件（跨标签页同步）
-    window.addEventListener("storage", (e) => {
-      if (e.key === STORAGE_KEY) handleSync();
-    });
-
+    window.addEventListener("storage", handleStorage);
     return () => {
-      window.removeEventListener(SYNC_EVENT, handleSync);
-      window.removeEventListener("storage", handleSync);
+      window.removeEventListener("storage", handleStorage);
     };
-  }, []);
-
-  // 保存到 localStorage 并通知其他组件
-  const savePreferences = useCallback(
-    (newPrefs: Partial<UserPreferences>) => {
-      setPreferences((prev) => {
-        const updated = { ...prev, ...newPrefs };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-        // 派发自定义事件，通知同页面内其他使用此 hook 的组件
-        window.dispatchEvent(new Event(SYNC_EVENT));
-        return updated;
-      });
-    },
-    []
-  );
-
-  // 重置为默认值
-  const resetPreferences = useCallback(() => {
-    setPreferences(DEFAULT_PREFERENCES);
-    localStorage.removeItem(STORAGE_KEY);
-    window.dispatchEvent(new Event(SYNC_EVENT));
-  }, []);
+  }, [hydratePreferences]);
 
   return {
     preferences,
     loaded,
-    savePreferences,
+    savePreferences: (newPrefs: Partial<UserPreferences>) => savePreferences(newPrefs),
     resetPreferences,
   };
 }

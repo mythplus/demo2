@@ -16,6 +16,10 @@
 - 后端 Ollama 地址: http://9.134.231.238:11434 (qwen2.5:7b + nomic-embed-text)
 - 前端默认端口 3000，后端默认端口 8080
 - 访问日志存储在 access_logs.db (SQLite)
+- 生产环境必须配置 `security.api_key`；前端不再使用 `NEXT_PUBLIC_MEM0_API_KEY`，默认通过同源 Nginx 反向代理访问后端
+- Webhook URL 需经过 SSRF 安全校验；`secret` 使用加密存储，密钥来自 `security.webhook_secret_key` 或 `api_key` 派生值
+- 生产模式默认单 worker，避免多个 SQLite 文件（访问日志 / 限流 / 元数据库）在多进程下产生锁竞争
+
 
 ## 用户偏好
 - 主人惜字如金，喜欢简短交流

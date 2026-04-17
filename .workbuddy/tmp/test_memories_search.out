@@ -1,0 +1,54 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.3, pytest-9.0.2, pluggy-1.6.0 -- D:\Program Files\Python314\python.exe
+cachedir: .pytest_cache
+rootdir: D:\Users\V_grhe\Desktop\ai-demo\demo2
+configfile: pytest.ini
+plugins: anyio-4.13.0, langsmith-0.7.31, asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 7 items
+
+tests/test_memories_search.py::TestSearchMemories::test_search_memories_success PASSED [ 14%]
+tests/test_memories_search.py::TestSearchMemories::test_search_memories_with_user_id PASSED [ 28%]
+tests/test_memories_search.py::TestSearchMemories::test_search_memories_empty_query PASSED [ 42%]
+tests/test_memories_search.py::TestSearchMemories::test_search_memories_with_limit PASSED [ 57%]
+tests/test_memories_search.py::TestSearchMemories::test_search_results_exclude_deleted FAILED [ 71%]
+tests/test_memories_search.py::TestMemoryHistory::test_get_memory_history PASSED [ 85%]
+tests/test_memories_search.py::TestMemoryHistory::test_get_memory_history_empty PASSED [100%]
+
+================================== FAILURES ===================================
+___________ TestSearchMemories.test_search_results_exclude_deleted ____________
+
+self = <tests.test_memories_search.TestSearchMemories object at 0x0000025014345370>
+client = <starlette.testclient.TestClient object at 0x00000250354F2EA0>
+mock_memory = <MagicMock id='2542956748416'>
+
+    def test_search_results_exclude_deleted(self, client, mock_memory):
+        """������������ų���ɾ���ļ���"""
+        mock_memory.search.return_value = {
+            "results": [
+                {"id": "id-1", "memory": "��Ծ����", "score": 0.9, "user_id": "user1", "metadata": {"state": "active"}},
+                {"id": "id-2", "memory": "��ɾ������", "score": 0.8, "user_id": "user1", "metadata": {"state": "deleted"}},
+            ]
+        }
+        response = client.post(
+            "/v1/memories/search/",
+            json={"query": "����", "user_id": "user1"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        for result in data.get("results", []):
+>           assert result.get("state") != "deleted"
+E           AssertionError: assert 'deleted' != 'deleted'
+E            +  where 'deleted' = <built-in method get of dict object at 0x00000250140C7880>('state')
+E            +    where <built-in method get of dict object at 0x00000250140C7880> = {'id': 'id-2', 'memory': '\u5df2\u5220\u9664\u8bb0\u5fc6', 'user_id': 'user1', 'categories': [], 'state': 'deleted', 'created_at': '', 'updated_at': '', 'agent_id': '', 'run_id': '', 'hash': '', 'metadata': {'state': 'deleted'}, 'score': 0.8}.get
+
+tests\test_memories_search.py:61: AssertionError
+---------------------------- Captured stderr call -----------------------------
+2026-04-16 20:47:57 [WARNING] server.services.background_tasks: ��̨����ȡ��: webhook:memory.searched:204756833127
+------------------------------ Captured log call ------------------------------
+WARNING  server.services.background_tasks:background_tasks.py:24 ��̨����ȡ��: webhook:memory.searched:204756833127
+=========================== short test summary info ===========================
+FAILED tests/test_memories_search.py::TestSearchMemories::test_search_results_exclude_deleted - AssertionError: assert 'deleted' != 'deleted'
+ +  where 'deleted' = <built-in method get of dict object at 0x00000250140C7880>('state')
+ +    where <built-in method get of dict object at 0x00000250140C7880> = {'id': 'id-2', 'memory': '\u5df2\u5220\u9664\u8bb0\u5fc6', 'user_id': 'user1', 'categories': [], 'state': 'deleted', 'created_at': '', 'updated_at': '', 'agent_id': '', 'run_id': '', 'hash': '', 'metadata': {'state': 'deleted'}, 'score': 0.8}.get
+========================= 1 failed, 6 passed in 4.63s =========================

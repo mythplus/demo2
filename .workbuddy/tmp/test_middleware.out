@@ -1,0 +1,39 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.3, pytest-9.0.2, pluggy-1.6.0 -- D:\Program Files\Python314\python.exe
+cachedir: .pytest_cache
+rootdir: D:\Users\V_grhe\Desktop\ai-demo\demo2
+configfile: pytest.ini
+plugins: anyio-4.13.0, langsmith-0.7.31, asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 7 items
+
+tests/test_middleware.py::TestApiKeyAuth::test_no_auth_when_key_not_configured PASSED [ 14%]
+tests/test_middleware.py::TestApiKeyAuth::test_auth_required_when_key_configured FAILED [ 28%]
+tests/test_middleware.py::TestRateLimiting::test_no_rate_limit_when_disabled PASSED [ 42%]
+tests/test_middleware.py::TestRequestLogMiddleware::test_get_requests_not_logged PASSED [ 57%]
+tests/test_middleware.py::TestRequestLogMiddleware::test_post_requests_logged PASSED [ 71%]
+tests/test_middleware.py::TestCORS::test_cors_headers_present PASSED     [ 85%]
+tests/test_middleware.py::TestGlobalExceptionHandler::test_unhandled_exception_returns_500 PASSED [100%]
+
+================================== FAILURES ===================================
+____________ TestApiKeyAuth.test_auth_required_when_key_configured ____________
+
+self = <tests.test_middleware.TestApiKeyAuth object at 0x00000132FE3391D0>
+mock_memory = <MagicMock id='1318528094896'>
+in_memory_db = <sqlite3.Connection object at 0x00000132FE305990>
+
+    def test_auth_required_when_key_configured(self, mock_memory, in_memory_db):
+        """�������� API Key ����Ҫ��֤��ע�⣺�м����ģ�����ʱע�ᣬ�˲�����֤���"""
+        # �����м����ģ�����ʱ����ע�ᣬ�޷�������ʱ��̬����
+        # �˲�����֤ API Key ��֤�ĸ�����ȷ��
+        import server
+        # ��֤ ApiKeyAuthMiddleware �����
+>       assert hasattr(server, 'ApiKeyAuthMiddleware')
+E       AssertionError: assert False
+E        +  where False = hasattr(<module 'server' from 'D:\\Users\\V_grhe\\Desktop\\ai-demo\\demo2\\server\\__init__.py'>, 'ApiKeyAuthMiddleware')
+
+tests\test_middleware.py:24: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_middleware.py::TestApiKeyAuth::test_auth_required_when_key_configured - AssertionError: assert False
+ +  where False = hasattr(<module 'server' from 'D:\\Users\\V_grhe\\Desktop\\ai-demo\\demo2\\server\\__init__.py'>, 'ApiKeyAuthMiddleware')
+========================= 1 failed, 6 passed in 2.98s =========================

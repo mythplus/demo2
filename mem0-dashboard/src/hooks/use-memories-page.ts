@@ -10,7 +10,8 @@ import { toast } from "@/hooks/use-toast";
 import { mem0Api } from "@/lib/api";
 import type { Memory, FilterParams, PaginatedMemoriesResponse, UserInfo } from "@/lib/api";
 import { usePreferences } from "@/hooks/use-preferences";
-import type { ViewMode } from "@/components/memories/view-toggle";
+import { useUIStore } from "@/store";
+
 
 export function useMemoriesPage() {
   // 用户偏好设置
@@ -32,8 +33,11 @@ export function useMemoriesPage() {
   const [pageSize, setPageSize] = useState(preferences.pageSize);
   const [jumpPage, setJumpPage] = useState("");
 
-  // ============ 视图模式 ============
-  const [viewMode, setViewMode] = useState<ViewMode>("table");
+  // ============ 视图模式（全局 UI store，避免页面切换后状态漂移） ============
+  const viewMode = useUIStore((state) => state.viewMode);
+  const setViewMode = useUIStore((state) => state.setViewMode);
+  const hydratePersistedState = useUIStore((state) => state.hydratePersistedState);
+
 
   // ============ IME 中文输入法组合状态 ============
   const [isComposing, setIsComposing] = useState(false);
@@ -119,8 +123,13 @@ export function useMemoriesPage() {
   }, [searchText]);
 
   useEffect(() => {
+    hydratePersistedState();
+  }, [hydratePersistedState]);
+
+  useEffect(() => {
     fetchMemories();
   }, [fetchMemories]);
+
 
   useEffect(() => {
     fetchUsers();

@@ -32,15 +32,17 @@ def main():
             "reload_excludes": ["qdrant_data/**", "*.log"],
         })
     else:
-        import multiprocessing
-        # 生产环境：多 Worker 利用多核 CPU，关闭 access log 减少 IO
-        workers = int(os.environ.get("MEM0_WORKERS", min(multiprocessing.cpu_count(), 4)))
+        # 生产环境默认单 Worker，避免 SQLite（访问日志 / 限流 / 元数据库）在多进程下产生额外锁竞争。
+        workers = int(os.environ.get("MEM0_WORKERS", 1))
+        if workers > 1:
+            logger.warning("当前配置了多 Worker；项目仍依赖多个 SQLite 文件，可能出现锁竞争和吞吐抖动")
         run_kwargs.update({
             "workers": workers,
             "access_log": False,
             "timeout_keep_alive": 30,
         })
         logger.info(f"生产模式：启动 {workers} 个 Worker 进程")
+
 
     uvicorn.run("server.app:app", **run_kwargs)
 

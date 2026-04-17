@@ -1,0 +1,1211 @@
+FFFFFFFFFFFFFFFFFFFFFFF..FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF.F..F.FFFFFFFFF [ 98%]
+F                                                                        [100%]
+================================== FAILURES ===================================
+_____________________ TestAccessLogs.test_get_access_logs _____________________
+
+self = <tests.test_access_logs.TestAccessLogs object at 0x000001889DB08CD0>
+client = <starlette.testclient.TestClient object at 0x00000188BEAB01A0>
+in_memory_db = <sqlite3.Connection object at 0x000001889DBB9F30>
+
+    def test_get_access_logs(self, client, in_memory_db):
+        """���Ի�ȡȫ�ַ�����־"""
+        in_memory_db.execute(
+            "INSERT INTO access_logs (memory_id, action, memory_preview, timestamp) VALUES (?, ?, ?, ?)",
+            ("test-id-1", "view", "���Լ���Ԥ��", datetime.now().isoformat()),
+        )
+        in_memory_db.commit()
+        response = client.get("/v1/access-logs/")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_access_logs.py:20: AssertionError
+---------------------------- Captured stderr setup ----------------------------
+2026-04-16 18:13:06 [INFO] server.app: API Key ��֤������
+2026-04-16 18:13:06 [INFO] server.app: ���Ի��������������������м��
+----------------------------- Captured log setup ------------------------------
+WARNING  server.config:config.py:121 �������� WEBHOOK_SECRET_KEY δ���ã������滻Ϊ���ַ��������� .env �ļ��򻷾��������ã�
+_____________ TestAccessLogs.test_get_access_logs_with_memory_id ______________
+
+self = <tests.test_access_logs.TestAccessLogs object at 0x000001889DB091D0>
+client = <starlette.testclient.TestClient object at 0x00000188BEA6DA90>
+in_memory_db = <sqlite3.Connection object at 0x00000188BE98A2F0>
+
+    def test_get_access_logs_with_memory_id(self, client, in_memory_db):
+        """���԰����� ID ɸѡ������־"""
+        in_memory_db.execute(
+            "INSERT INTO access_logs (memory_id, action, memory_preview, timestamp) VALUES (?, ?, ?, ?)",
+            ("test-id-1", "view", "����", datetime.now().isoformat()),
+        )
+        in_memory_db.commit()
+        response = client.get("/v1/access-logs/?memory_id=test-id-1")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_access_logs.py:32: AssertionError
+_________________ TestAccessLogs.test_get_memory_access_logs __________________
+
+self = <tests.test_access_logs.TestAccessLogs object at 0x000001889DACD5B0>
+client = <starlette.testclient.TestClient object at 0x00000188BEA6F4D0>
+in_memory_db = <sqlite3.Connection object at 0x00000188BE98A7A0>
+
+    def test_get_memory_access_logs(self, client, in_memory_db):
+        """���Ի�ȡ��������ķ�����־"""
+        in_memory_db.execute(
+            "INSERT INTO access_logs (memory_id, action, memory_preview, timestamp) VALUES (?, ?, ?, ?)",
+            ("test-id-1", "search", "����Ԥ��", datetime.now().isoformat()),
+        )
+        in_memory_db.commit()
+        response = client.get("/v1/memories/test-id-1/access-logs/")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_access_logs.py:44: AssertionError
+_______________ TestAccessLogs.test_get_access_logs_with_limit ________________
+
+self = <tests.test_access_logs.TestAccessLogs object at 0x000001889DACD810>
+client = <starlette.testclient.TestClient object at 0x00000188BE873BB0>
+in_memory_db = <sqlite3.Connection object at 0x00000188BE98AC50>
+
+    def test_get_access_logs_with_limit(self, client, in_memory_db):
+        """���Է�����־��ҳ����"""
+        for i in range(10):
+            in_memory_db.execute(
+                "INSERT INTO access_logs (memory_id, action, memory_preview, timestamp) VALUES (?, ?, ?, ?)",
+                (f"id-{i}", "view", f"Ԥ��{i}", datetime.now().isoformat()),
+            )
+        in_memory_db.commit()
+        response = client.get("/v1/access-logs/?limit=5")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_access_logs.py:57: AssertionError
+_____________________ TestConfigInfo.test_get_config_info _____________________
+
+self = <tests.test_config.TestConfigInfo object at 0x000001889DB09090>
+client = <starlette.testclient.TestClient object at 0x00000188BEC255B0>
+
+    def test_get_config_info(self, client):
+        """���Ի�ȡϵͳ������Ϣ"""
+        response = client.get("/v1/config/info")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_config.py:15: AssertionError
+_________________ TestConfigInfo.test_config_info_llm_fields __________________
+
+self = <tests.test_config.TestConfigInfo object at 0x000001889DB09310>
+client = <starlette.testclient.TestClient object at 0x00000188BEB28B90>
+
+    def test_config_info_llm_fields(self, client):
+        """���� LLM �����ֶ�����"""
+        response = client.get("/v1/config/info")
+        data = response.json()
+>       llm = data["llm"]
+              ^^^^^^^^^^^
+E       KeyError: 'llm'
+
+tests\test_config.py:26: KeyError
+_______________ TestConfigInfo.test_config_info_embedder_fields _______________
+
+self = <tests.test_config.TestConfigInfo object at 0x000001889DACD940>
+client = <starlette.testclient.TestClient object at 0x00000188BEA538A0>
+
+    def test_config_info_embedder_fields(self, client):
+        """���� Embedder �����ֶ�����"""
+        response = client.get("/v1/config/info")
+        data = response.json()
+>       embedder = data["embedder"]
+                   ^^^^^^^^^^^^^^^^
+E       KeyError: 'embedder'
+
+tests\test_config.py:35: KeyError
+_______________ TestLLMConnectionTest.test_test_llm_connection ________________
+
+self = <tests.test_config.TestLLMConnectionTest object at 0x000001889DB096D0>
+client = <starlette.testclient.TestClient object at 0x00000188BED3CF30>
+
+    def test_test_llm_connection(self, client):
+        """���� LLM ���Ӳ��Զ˵�"""
+        with patch("server.services.memory_service.http_client") as mock_client:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"models": [{"name": "qwen2.5:7b"}]}
+            mock_response.raise_for_status = MagicMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+    
+            mock_chat_response = MagicMock()
+            mock_chat_response.status_code = 200
+            mock_chat_response.json.return_value = {"response": "Hello!"}
+            mock_chat_response.raise_for_status = MagicMock()
+            mock_client.post = AsyncMock(return_value=mock_chat_response)
+    
+            response = client.get("/v1/config/test-llm")
+>           assert response.status_code == 200
+E           assert 401 == 200
+E            +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_config.py:59: AssertionError
+__________ TestEmbedderConnectionTest.test_test_embedder_connection ___________
+
+self = <tests.test_config.TestEmbedderConnectionTest object at 0x000001889DB09A90>
+client = <starlette.testclient.TestClient object at 0x00000188BED3E250>
+
+    def test_test_embedder_connection(self, client):
+        """���� Embedder ���Ӳ��Զ˵�"""
+        with patch("server.services.memory_service.http_client") as mock_client:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"embedding": [0.1] * 768}
+            mock_response.raise_for_status = MagicMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+    
+            response = client.get("/v1/config/test-embedder")
+>           assert response.status_code == 200
+E           assert 401 == 200
+E            +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_config.py:79: AssertionError
+_____________________ TestGraphStats.test_get_graph_stats _____________________
+
+self = <tests.test_graph.TestGraphStats object at 0x000001889DB0A0D0>
+client = <starlette.testclient.TestClient object at 0x00000188BED3E690>
+
+    def test_get_graph_stats(self, client):
+        """���Ի�ȡͼ��ͳ��"""
+        with patch("server.routes.graph.neo4j_query") as mock_query:
+            mock_query.side_effect = [
+                [{"count": 100}],
+                [{"count": 200}],
+                [{"relation_type": "KNOWS", "count": 50}],
+                [{"user_id": "user1", "count": 30}],
+            ]
+            response = client.get("/v1/graph/stats")
+>           assert response.status_code == 200
+E           assert 401 == 200
+E            +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_graph.py:23: AssertionError
+_____________________ TestGraphEntities.test_get_entities _____________________
+
+self = <tests.test_graph.TestGraphEntities object at 0x000001889DB0A210>
+client = <starlette.testclient.TestClient object at 0x00000188BED3E9C0>
+
+    def test_get_entities(self, client):
+        """���Ի�ȡʵ���б�"""
+        with patch("server.routes.graph.neo4j_query") as mock_query:
+            mock_query.side_effect = [
+                [{"name": "Python", "user_id": "user1", "labels": ["Entity"], "element_id": "1", "relation_count": 5}],
+                [{"total": 1}],
+            ]
+            response = client.get("/v1/graph/entities")
+>           assert response.status_code == 200
+E           assert 401 == 200
+E            +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_graph.py:42: AssertionError
+_______________ TestGraphEntities.test_get_entities_with_search _______________
+
+self = <tests.test_graph.TestGraphEntities object at 0x000001889DB0A350>
+client = <starlette.testclient.TestClient object at 0x00000188BED3ECF0>
+
+    def test_get_entities_with_search(self, client):
+        """��������ʵ��"""
+        with patch("server.routes.graph.neo4j_query") as mock_query:
+            mock_query.side_effect = [
+                [{"name": "Python", "user_id": "user1", "labels": ["Entity"], "element_id": "1", "relation_count": 3}],
+                [{"total": 1}],
+            ]
+            response = client.get("/v1/graph/entities?search=Python")
+>           assert response.status_code == 200
+E           assert 401 == 200
+E            +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_graph.py:55: AssertionError
+____________ TestGraphEntities.test_get_entities_with_user_filter _____________
+
+self = <tests.test_graph.TestGraphEntities object at 0x000001889DACE3F0>
+client = <starlette.testclient.TestClient object at 0x000001889DA729C0>
+
+    def test_get_entities_with_user_filter(self, client):
+        """���԰��û�ɸѡʵ��"""
+        with patch("server.routes.graph.neo4j_query") as mock_query:
+            mock_query.side_effect = [[], [{"total": 0}]]
+            response = client.get("/v1/graph/entities?user_id=user1")
+>           assert response.status_code == 200
+E           assert 401 == 200
+E            +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_graph.py:62: AssertionError
+____________________ TestGraphRelations.test_get_relations ____________________
+
+self = <tests.test_graph.TestGraphRelations object at 0x000001889DB0A490>
+client = <starlette.testclient.TestClient object at 0x00000188BEA53350>
+
+    def test_get_relations(self, client):
+        """���Ի�ȡ��ϵ�б�"""
+        with patch("server.routes.graph.neo4j_query") as mock_query:
+            mock_query.side_effect = [
+                [{"source": "Python", "relation": "USED_BY", "target": "user1", "source_user_id": None, "target_user_id": "user1", "element_id": "r1"}],
+                [{"total": 1}],
+            ]
+            response = client.get("/v1/graph/relations")
+>           assert response.status_code == 200
+E           assert 401 == 200
+E            +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_graph.py:76: AssertionError
+____________ TestGraphRelations.test_get_relations_with_pagination ____________
+
+self = <tests.test_graph.TestGraphRelations object at 0x000001889DB0A5D0>
+client = <starlette.testclient.TestClient object at 0x00000188BEA53570>
+
+    def test_get_relations_with_pagination(self, client):
+        """���Թ�ϵ�б���ҳ"""
+        with patch("server.routes.graph.neo4j_query") as mock_query:
+            mock_query.side_effect = [[], [{"total": 0}]]
+            response = client.get("/v1/graph/relations?limit=10&offset=5")
+>           assert response.status_code == 200
+E           assert 401 == 200
+E            +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_graph.py:86: AssertionError
+______________________ TestGraphSearch.test_search_graph ______________________
+
+self = <tests.test_graph.TestGraphSearch object at 0x000001889DB0A710>
+client = <starlette.testclient.TestClient object at 0x00000188BEA52E00>
+
+    def test_search_graph(self, client):
+        """����ͼ������"""
+        with patch("server.routes.graph.neo4j_query") as mock_query:
+            mock_query.side_effect = [
+                [{"source": "Python", "relation": "KNOWS", "target": "Java", "source_user_id": "user1", "target_user_id": "user1"}],
+                [],
+            ]
+            response = client.post(
+                "/v1/graph/search",
+                json={"query": "Python", "limit": 10},
+            )
+>           assert response.status_code == 200
+E           assert 401 == 200
+E            +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_graph.py:103: AssertionError
+_______________ TestGraphSearch.test_search_graph_with_user_id ________________
+
+self = <tests.test_graph.TestGraphSearch object at 0x000001889DB0A850>
+client = <starlette.testclient.TestClient object at 0x00000188BEA527A0>
+
+    def test_search_graph_with_user_id(self, client):
+        """���Դ��û� ID ��ͼ������"""
+        with patch("server.routes.graph.neo4j_query") as mock_query:
+            mock_query.side_effect = [[], []]
+            response = client.post(
+                "/v1/graph/search",
+                json={"query": "����", "user_id": "user1"},
+            )
+>           assert response.status_code == 200
+E           assert 401 == 200
+E            +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_graph.py:117: AssertionError
+__________________ TestGraphUserSubgraph.test_get_user_graph __________________
+
+self = <tests.test_graph.TestGraphUserSubgraph object at 0x000001889DB0A990>
+client = <starlette.testclient.TestClient object at 0x00000188BEA52690>
+
+    def test_get_user_graph(self, client):
+        """���Ի�ȡ�û���ͼ"""
+        with patch("server.routes.graph.neo4j_query") as mock_query:
+            mock_query.side_effect = [
+                [{"source": "A", "source_user_id": "user1", "source_labels": ["Entity"],
+                  "relation": "KNOWS", "target": "B", "target_user_id": "user1", "target_labels": ["Entity"]}],
+                [],
+            ]
+            response = client.get("/v1/graph/user/user1")
+>           assert response.status_code == 200
+E           assert 401 == 200
+E            +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_graph.py:132: AssertionError
+_______________________ TestGraphAll.test_get_all_graph _______________________
+
+self = <tests.test_graph.TestGraphAll object at 0x000001889DB0AAD0>
+client = <starlette.testclient.TestClient object at 0x00000188BEA53BD0>
+
+    def test_get_all_graph(self, client):
+        """���Ի�ȡȫ��ͼ��"""
+        with patch("server.routes.graph.neo4j_query") as mock_query:
+            mock_query.side_effect = [
+                [{"source": "A", "source_user_id": "user1", "source_labels": ["Entity"],
+                  "relation": "KNOWS", "target": "B", "target_user_id": "user1", "target_labels": ["Entity"]}],
+                [],
+            ]
+            response = client.get("/v1/graph/all")
+>           assert response.status_code == 200
+E           assert 401 == 200
+E            +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_graph.py:152: AssertionError
+_____________________ TestGraphDelete.test_delete_entity ______________________
+
+self = <tests.test_graph.TestGraphDelete object at 0x000001889DB0AC10>
+client = <starlette.testclient.TestClient object at 0x00000188BEA52BE0>
+
+    def test_delete_entity(self, client):
+        """����ɾ��ʵ��"""
+        with patch("server.routes.graph.neo4j_query") as mock_query:
+            mock_query.return_value = [{"deleted_relations": 3}]
+            with patch("server.routes.graph.get_neo4j_driver") as mock_driver:
+                mock_session = MagicMock()
+                mock_session.run.return_value = MagicMock()
+                mock_driver_instance = MagicMock()
+                mock_driver_instance.session.return_value.__enter__ = MagicMock(return_value=mock_session)
+                mock_driver_instance.session.return_value.__exit__ = MagicMock(return_value=False)
+                mock_driver.return_value = mock_driver_instance
+                response = client.delete("/v1/graph/entities/Python")
+>               assert response.status_code in [200, 500]
+E               assert 401 in [200, 500]
+E                +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_graph.py:173: AssertionError
+____________________ TestGraphDelete.test_delete_relation _____________________
+
+self = <tests.test_graph.TestGraphDelete object at 0x000001889DB0AD50>
+client = <starlette.testclient.TestClient object at 0x00000188BEA52470>
+
+    def test_delete_relation(self, client):
+        """����ɾ����ϵ"""
+        with patch("server.routes.graph.neo4j_query") as mock_query:
+            mock_query.return_value = [{"deleted": 1}]
+            response = client.delete(
+                "/v1/graph/relations?source=Python&relation=KNOWS&target=Java"
+            )
+>           assert response.status_code == 200
+E           assert 401 == 200
+E            +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_graph.py:182: AssertionError
+_________________ TestGraphHealth.test_graph_health_connected _________________
+
+self = <tests.test_graph.TestGraphHealth object at 0x000001889DB0AE90>
+client = <starlette.testclient.TestClient object at 0x00000188BEA52250>
+
+    def test_graph_health_connected(self, client):
+        """���� Neo4j ��������"""
+        with patch("server.routes.graph.get_neo4j_driver") as mock_driver:
+            mock_session = MagicMock()
+            mock_session.run.return_value = True
+            mock_driver_instance = MagicMock()
+            mock_driver_instance.session.return_value.__enter__ = MagicMock(return_value=mock_session)
+            mock_driver_instance.session.return_value.__exit__ = MagicMock(return_value=False)
+            mock_driver.return_value = mock_driver_instance
+            response = client.get("/v1/graph/health")
+>           assert response.status_code == 200
+E           assert 401 == 200
+E            +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_graph.py:198: AssertionError
+_______________ TestGraphHealth.test_graph_health_disconnected ________________
+
+self = <tests.test_graph.TestGraphHealth object at 0x000001889DB0AFD0>
+client = <starlette.testclient.TestClient object at 0x00000188BEA53680>
+
+    def test_graph_health_disconnected(self, client):
+        """���� Neo4j ���ӶϿ�"""
+        with patch("server.routes.graph.get_neo4j_driver", return_value=None):
+            response = client.get("/v1/graph/health")
+>           assert response.status_code == 200
+E           assert 401 == 200
+E            +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_graph.py:207: AssertionError
+____________________ TestAddMemory.test_add_memory_success ____________________
+
+self = <tests.test_memories_crud.TestAddMemory object at 0x000001889DB0B390>
+client = <starlette.testclient.TestClient object at 0x00000188BEA53AC0>
+sample_add_request = {'auto_categorize': False, 'categories': ['work'], 'infer': False, 'messages': [{'content': '�ҽ����������Ŀ����', 'role': 'user'}], ...}
+
+    def test_add_memory_success(self, client, sample_add_request):
+        """�����������Ӽ���"""
+        response = client.post("/v1/memories/", json=sample_add_request)
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:16: AssertionError
+________________ TestAddMemory.test_add_memory_missing_user_id ________________
+
+self = <tests.test_memories_crud.TestAddMemory object at 0x000001889DB0B4D0>
+client = <starlette.testclient.TestClient object at 0x000001889DECC380>
+
+    def test_add_memory_missing_user_id(self, client):
+        """����ȱ�� user_id ʱ���� 400"""
+        request_data = {
+            "messages": [{"role": "user", "content": "��������"}],
+            "user_id": "",
+        }
+        response = client.post("/v1/memories/", json=request_data)
+>       assert response.status_code in [400, 500]  # �����У�� user_id
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       assert 401 in [400, 500]
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:27: AssertionError
+___________ TestAddMemory.test_add_memory_empty_user_id_whitespace ____________
+
+self = <tests.test_memories_crud.TestAddMemory object at 0x000001889DACE520>
+client = <starlette.testclient.TestClient object at 0x00000188BED3E7A0>
+
+    def test_add_memory_empty_user_id_whitespace(self, client):
+        """���� user_id Ϊ�հ��ַ���ʱ���� 400"""
+        request_data = {
+            "messages": [{"role": "user", "content": "��������"}],
+            "user_id": "   ",
+        }
+        response = client.post("/v1/memories/", json=request_data)
+>       assert response.status_code in [400, 500]  # �����У�� user_id
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       assert 401 in [400, 500]
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:36: AssertionError
+________________ TestAddMemory.test_add_memory_with_categories ________________
+
+self = <tests.test_memories_crud.TestAddMemory object at 0x000001889DACE650>
+client = <starlette.testclient.TestClient object at 0x00000188BED3D8C0>
+
+    def test_add_memory_with_categories(self, client):
+        """���Դ������ǩ���Ӽ���"""
+        request_data = {
+            "messages": [{"role": "user", "content": "ѧϰ Python ���"}],
+            "user_id": "user1",
+            "categories": ["education", "ai_ml_technology"],
+            "infer": False,
+            "auto_categorize": False,
+        }
+        response = client.post("/v1/memories/", json=request_data)
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:48: AssertionError
+_____________ TestAddMemory.test_add_memory_with_auto_categorize ______________
+
+self = <tests.test_memories_crud.TestAddMemory object at 0x000001889DB060F0>
+client = <starlette.testclient.TestClient object at 0x00000188BED3D9D0>
+
+    def test_add_memory_with_auto_categorize(self, client):
+        """���� AI �Զ�����"""
+        request_data = {
+            "messages": [{"role": "user", "content": "����ȥ������������"}],
+            "user_id": "user1",
+            "infer": False,
+            "auto_categorize": True,
+        }
+        response = client.post("/v1/memories/", json=request_data)
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:59: AssertionError
+_______________ TestAddMemory.test_add_memory_missing_messages ________________
+
+self = <tests.test_memories_crud.TestAddMemory object at 0x000001889DA73130>
+client = <starlette.testclient.TestClient object at 0x00000188BED3DF20>
+
+    def test_add_memory_missing_messages(self, client):
+        """����ȱ�� messages �ֶ�ʱ���� 422"""
+        request_data = {"user_id": "user1"}
+        response = client.post("/v1/memories/", json=request_data)
+>       assert response.status_code == 422
+E       assert 401 == 422
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:65: AssertionError
+__________________ TestBatchImport.test_batch_import_success __________________
+
+self = <tests.test_memories_crud.TestBatchImport object at 0x000001889DB0B610>
+client = <starlette.testclient.TestClient object at 0x00000188BED3C6B0>
+mock_memory = <MagicMock id='1686833434640'>
+
+    def test_batch_import_success(self, client, mock_memory):
+        """������������ɹ�"""
+        request_data = {
+            "items": [
+                {"content": "����1", "user_id": "user1"},
+                {"content": "����2", "user_id": "user1"},
+            ],
+            "default_user_id": "user1",
+            "infer": False,
+            "auto_categorize": False,
+        }
+        response = client.post("/v1/memories/batch", json=request_data)
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:83: AssertionError
+________________ TestBatchImport.test_batch_import_empty_items ________________
+
+self = <tests.test_memories_crud.TestBatchImport object at 0x000001889DB0B750>
+client = <starlette.testclient.TestClient object at 0x00000188BED3CC00>
+
+    def test_batch_import_empty_items(self, client):
+        """���Կ� items �б����� 400"""
+        request_data = {"items": []}
+        response = client.post("/v1/memories/batch", json=request_data)
+>       assert response.status_code == 400
+E       assert 401 == 400
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:95: AssertionError
+__________________ TestGetMemories.test_get_memories_success __________________
+
+self = <tests.test_memories_crud.TestGetMemories object at 0x000001889DB0B9D0>
+client = <starlette.testclient.TestClient object at 0x00000188BED3EBE0>
+
+    def test_get_memories_success(self, client):
+        """���Ի�ȡ�����б�"""
+        response = client.get("/v1/memories/")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:104: AssertionError
+_____________ TestGetMemories.test_get_memories_with_user_filter ______________
+
+self = <tests.test_memories_crud.TestGetMemories object at 0x000001889DB0BB10>
+client = <starlette.testclient.TestClient object at 0x00000188BED3F130>
+
+    def test_get_memories_with_user_filter(self, client):
+        """���԰��û�ɸѡ����"""
+        response = client.get("/v1/memories/?user_id=user1")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:111: AssertionError
+___________ TestGetMemories.test_get_memories_with_category_filter ____________
+
+self = <tests.test_memories_crud.TestGetMemories object at 0x000001889DACE780>
+client = <starlette.testclient.TestClient object at 0x00000188BED3F460>
+
+    def test_get_memories_with_category_filter(self, client):
+        """���԰�����ɸѡ����"""
+        response = client.get("/v1/memories/?categories=work,education")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:116: AssertionError
+_____________ TestGetMemories.test_get_memories_with_state_filter _____________
+
+self = <tests.test_memories_crud.TestGetMemories object at 0x000001889DACE8B0>
+client = <starlette.testclient.TestClient object at 0x00000188BED3F790>
+
+    def test_get_memories_with_state_filter(self, client):
+        """���԰�״̬ɸѡ����"""
+        response = client.get("/v1/memories/?state=active")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:121: AssertionError
+_____________ TestGetMemoryDetail.test_get_memory_detail_success ______________
+
+self = <tests.test_memories_crud.TestGetMemoryDetail object at 0x000001889DB0BC50>
+client = <starlette.testclient.TestClient object at 0x00000188BED3FAC0>
+mock_memory = <MagicMock id='1686835708992'>
+
+    def test_get_memory_detail_success(self, client, mock_memory):
+        """���Ի�ȡ������������"""
+        response = client.get("/v1/memories/test-id-1/")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:130: AssertionError
+____________ TestGetMemoryDetail.test_get_memory_detail_not_found _____________
+
+self = <tests.test_memories_crud.TestGetMemoryDetail object at 0x000001889DB0BD90>
+client = <starlette.testclient.TestClient object at 0x00000188BED3FDF0>
+mock_memory = <MagicMock id='1686835721760'>
+
+    def test_get_memory_detail_not_found(self, client, mock_memory):
+        """���Ի�ȡ�����ڵļ��䷵�� 404 �� 500"""
+        mock_memory.get.return_value = None
+        mock_memory.vector_store.client.retrieve.return_value = []
+        response = client.get("/v1/memories/nonexistent-id/")
+>       assert response.status_code in [404, 500]
+E       assert 401 in [404, 500]
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:140: AssertionError
+__________________ TestUpdateMemory.test_update_memory_text ___________________
+
+self = <tests.test_memories_crud.TestUpdateMemory object at 0x000001889DB0BED0>
+client = <starlette.testclient.TestClient object at 0x00000188BF4B4160>
+mock_memory = <MagicMock id='1686836128000'>
+
+    def test_update_memory_text(self, client, mock_memory):
+        """���Ը��¼����ı�"""
+        response = client.put(
+            "/v1/memories/test-id-1/",
+            json={"text": "���º�ļ�������"},
+        )
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:152: AssertionError
+_______________ TestUpdateMemory.test_update_memory_categories ________________
+
+self = <tests.test_memories_crud.TestUpdateMemory object at 0x000001889DBB4050>
+client = <starlette.testclient.TestClient object at 0x00000188BF4B4490>
+mock_memory = <MagicMock id='1686836682032'>
+
+    def test_update_memory_categories(self, client, mock_memory):
+        """���Ը��¼������"""
+        response = client.put(
+            "/v1/memories/test-id-1/",
+            json={"categories": ["education", "work"]},
+        )
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:160: AssertionError
+__________________ TestUpdateMemory.test_update_memory_state __________________
+
+self = <tests.test_memories_crud.TestUpdateMemory object at 0x000001889DACE9E0>
+client = <starlette.testclient.TestClient object at 0x00000188BF4B47C0>
+mock_memory = <MagicMock id='1686837104992'>
+
+    def test_update_memory_state(self, client, mock_memory):
+        """���Ը��¼���״̬"""
+        response = client.put(
+            "/v1/memories/test-id-1/",
+            json={"state": "paused"},
+        )
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:168: AssertionError
+________________ TestUpdateMemory.test_update_memory_not_found ________________
+
+self = <tests.test_memories_crud.TestUpdateMemory object at 0x000001889DACEB10>
+client = <starlette.testclient.TestClient object at 0x00000188BF4B4AF0>
+mock_memory = <MagicMock id='1686837577104'>
+
+    def test_update_memory_not_found(self, client, mock_memory):
+        """���Ը��²����ڵļ��䣨������ categories/state ʱ���ܷ��� 200��"""
+        mock_memory.get.return_value = None
+        mock_memory.vector_store.client.retrieve.return_value = []
+        response = client.put(
+            "/v1/memories/nonexistent-id/",
+            json={"text": "��������"},
+        )
+        # ���½ӿڿ����� Qdrant ���洦������һ������ 404
+>       assert response.status_code in [200, 404, 500]
+E       assert 401 in [200, 404, 500]
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:179: AssertionError
+_________________ TestDeleteMemory.test_delete_single_memory __________________
+
+self = <tests.test_memories_crud.TestDeleteMemory object at 0x000001889DB0B890>
+client = <starlette.testclient.TestClient object at 0x00000188BF4B4E20>
+mock_memory = <MagicMock id='1686837590208'>
+
+    def test_delete_single_memory(self, client, mock_memory):
+        """����ɾ����������"""
+        response = client.delete("/v1/memories/test-id-1/")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:188: AssertionError
+_______________ TestDeleteMemory.test_delete_all_user_memories ________________
+
+self = <tests.test_memories_crud.TestDeleteMemory object at 0x000001889DBB4190>
+client = <starlette.testclient.TestClient object at 0x00000188BF4B5150>
+mock_memory = <MagicMock id='1686838062320'>
+
+    def test_delete_all_user_memories(self, client, mock_memory):
+        """����ɾ���û����м���"""
+        response = client.delete("/v1/memories/?user_id=user1")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:193: AssertionError
+__________ TestDeleteMemory.test_delete_all_memories_missing_user_id __________
+
+self = <tests.test_memories_crud.TestDeleteMemory object at 0x000001889DACEC40>
+client = <starlette.testclient.TestClient object at 0x00000188BF4B5480>
+
+    def test_delete_all_memories_missing_user_id(self, client):
+        """����ɾ�����м���ʱȱ�� user_id"""
+        response = client.delete("/v1/memories/")
+>       assert response.status_code == 400
+E       assert 401 == 400
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:198: AssertionError
+__________________ TestBatchDelete.test_batch_delete_success __________________
+
+self = <tests.test_memories_crud.TestBatchDelete object at 0x000001889DBB42D0>
+client = <starlette.testclient.TestClient object at 0x00000188BF4B57B0>
+mock_memory = <MagicMock id='1686839022928'>
+
+    def test_batch_delete_success(self, client, mock_memory):
+        """��������ɾ���ɹ�"""
+        response = client.post(
+            "/v1/memories/batch-delete",
+            json={"memory_ids": ["id-1", "id-2", "id-3"]},
+        )
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:210: AssertionError
+_________________ TestBatchDelete.test_batch_delete_empty_ids _________________
+
+self = <tests.test_memories_crud.TestBatchDelete object at 0x000001889DBB4410>
+client = <starlette.testclient.TestClient object at 0x00000188BF4B5AE0>
+
+    def test_batch_delete_empty_ids(self, client):
+        """���Կ� ID �б�"""
+        response = client.post(
+            "/v1/memories/batch-delete",
+            json={"memory_ids": []},
+        )
+>       assert response.status_code == 400
+E       assert 401 == 400
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:222: AssertionError
+______________ TestGetRelatedMemories.test_get_related_memories _______________
+
+self = <tests.test_memories_crud.TestGetRelatedMemories object at 0x000001889DBB4550>
+client = <starlette.testclient.TestClient object at 0x00000188BF4B5E10>
+mock_memory = <MagicMock id='1686839491760'>
+
+    def test_get_related_memories(self, client, mock_memory):
+        """���Ի�ȡ��������"""
+        mock_memory.search.return_value = {
+            "results": [
+                {"id": "related-1", "memory": "��ؼ���", "score": 0.8, "user_id": "user1", "metadata": {}}
+            ]
+        }
+        response = client.get("/v1/memories/test-id-1/related/?limit=5")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:236: AssertionError
+_________ TestGetRelatedMemories.test_get_related_memories_not_found __________
+
+self = <tests.test_memories_crud.TestGetRelatedMemories object at 0x000001889DBB4690>
+client = <starlette.testclient.TestClient object at 0x00000188BF4B6250>
+mock_memory = <MagicMock id='1686839996640'>
+
+    def test_get_related_memories_not_found(self, client, mock_memory):
+        """���Ի�ȡ�����ڼ���Ĺ�������"""
+        mock_memory.get.return_value = None
+        response = client.get("/v1/memories/nonexistent/related/")
+>       assert response.status_code == 404
+E       assert 401 == 404
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_crud.py:242: AssertionError
+_______________ TestSearchMemories.test_search_memories_success _______________
+
+self = <tests.test_memories_search.TestSearchMemories object at 0x000001889DBB47D0>
+client = <starlette.testclient.TestClient object at 0x00000188BF4B6580>
+sample_search_request = {'query': '��Ŀ����', 'user_id': 'user1'}
+
+    def test_search_memories_success(self, client, sample_search_request):
+        """������������"""
+        response = client.post("/v1/memories/search/", json=sample_search_request)
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_search.py:15: AssertionError
+____________ TestSearchMemories.test_search_memories_with_user_id _____________
+
+self = <tests.test_memories_search.TestSearchMemories object at 0x000001889DBB4910>
+client = <starlette.testclient.TestClient object at 0x00000188BF4B68B0>
+
+    def test_search_memories_with_user_id(self, client):
+        """���԰��û�����"""
+        response = client.post(
+            "/v1/memories/search/",
+            json={"query": "��������", "user_id": "user1"},
+        )
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_search.py:26: AssertionError
+_____________ TestSearchMemories.test_search_memories_empty_query _____________
+
+self = <tests.test_memories_search.TestSearchMemories object at 0x000001889DACEEA0>
+client = <starlette.testclient.TestClient object at 0x00000188BF4B6BE0>
+
+    def test_search_memories_empty_query(self, client):
+        """���Կղ�ѯ�ַ���"""
+        response = client.post(
+            "/v1/memories/search/",
+            json={"query": ""},
+        )
+>       assert response.status_code in [200, 422]
+E       assert 401 in [200, 422]
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_search.py:36: AssertionError
+_____________ TestSearchMemories.test_search_memories_with_limit ______________
+
+self = <tests.test_memories_search.TestSearchMemories object at 0x000001889DACEFD0>
+client = <starlette.testclient.TestClient object at 0x00000188BF4B6F10>
+
+    def test_search_memories_with_limit(self, client):
+        """���Դ� limit ����������"""
+        response = client.post(
+            "/v1/memories/search/",
+            json={"query": "����", "limit": 3},
+        )
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_search.py:44: AssertionError
+___________ TestSearchMemories.test_search_results_exclude_deleted ____________
+
+self = <tests.test_memories_search.TestSearchMemories object at 0x000001889DB055B0>
+client = <starlette.testclient.TestClient object at 0x00000188BF4B7240>
+mock_memory = <MagicMock id='1686841717968'>
+
+    def test_search_results_exclude_deleted(self, client, mock_memory):
+        """������������ų���ɾ���ļ���"""
+        mock_memory.search.return_value = {
+            "results": [
+                {"id": "id-1", "memory": "��Ծ����", "score": 0.9, "user_id": "user1", "metadata": {"state": "active"}},
+                {"id": "id-2", "memory": "��ɾ������", "score": 0.8, "user_id": "user1", "metadata": {"state": "deleted"}},
+            ]
+        }
+        response = client.post(
+            "/v1/memories/search/",
+            json={"query": "����", "user_id": "user1"},
+        )
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_search.py:58: AssertionError
+__________________ TestMemoryHistory.test_get_memory_history __________________
+
+self = <tests.test_memories_search.TestMemoryHistory object at 0x000001889DBB4A50>
+client = <starlette.testclient.TestClient object at 0x00000188BF4B7570>
+mock_memory = <MagicMock id='1686842190080'>
+
+    def test_get_memory_history(self, client, mock_memory):
+        """���Ի�ȡ�����޸���ʷ"""
+        response = client.get("/v1/memories/history/test-id-1/")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_search.py:70: AssertionError
+_______________ TestMemoryHistory.test_get_memory_history_empty _______________
+
+self = <tests.test_memories_search.TestMemoryHistory object at 0x000001889DBB4B90>
+client = <starlette.testclient.TestClient object at 0x00000188BF4B78A0>
+mock_memory = <MagicMock id='1686842678240'>
+
+    def test_get_memory_history_empty(self, client, mock_memory):
+        """���Ի�ȡ����ʷ��¼�ļ���"""
+        mock_memory.history.return_value = []
+        response = client.get("/v1/memories/history/no-history-id/")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_memories_search.py:78: AssertionError
+____________ TestApiKeyAuth.test_auth_required_when_key_configured ____________
+
+self = <tests.test_middleware.TestApiKeyAuth object at 0x000001889DBB4E10>
+mock_memory = <MagicMock id='1686841711248'>
+in_memory_db = <sqlite3.Connection object at 0x00000188BE98BD30>
+
+    def test_auth_required_when_key_configured(self, mock_memory, in_memory_db):
+        """�������� API Key ����Ҫ��֤��ע�⣺�м����ģ�����ʱע�ᣬ�˲�����֤���"""
+        # �����м����ģ�����ʱ����ע�ᣬ�޷�������ʱ��̬����
+        # �˲�����֤ API Key ��֤�ĸ�����ȷ��
+        import server
+        # ��֤ ApiKeyAuthMiddleware �����
+>       assert hasattr(server, 'ApiKeyAuthMiddleware')
+E       AssertionError: assert False
+E        +  where False = hasattr(<module 'server' from 'D:\\Users\\V_grhe\\Desktop\\ai-demo\\demo2\\server\\__init__.py'>, 'ApiKeyAuthMiddleware')
+
+tests\test_middleware.py:24: AssertionError
+_____________ TestRequestLogMiddleware.test_post_requests_logged ______________
+
+self = <tests.test_middleware.TestRequestLogMiddleware object at 0x000001889DBB51D0>
+client = <starlette.testclient.TestClient object at 0x00000188BED3F240>
+sample_add_request = {'auto_categorize': False, 'categories': ['work'], 'infer': False, 'messages': [{'content': '�ҽ����������Ŀ����', 'role': 'user'}], ...}
+
+    def test_post_requests_logged(self, client, sample_add_request):
+        """���� POST ���󱻼�¼"""
+        response = client.post("/v1/memories/", json=sample_add_request)
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_middleware.py:48: AssertionError
+_______ TestGlobalExceptionHandler.test_unhandled_exception_returns_500 _______
+
+self = <tests.test_middleware.TestGlobalExceptionHandler object at 0x000001889DBB5450>
+client = <starlette.testclient.TestClient object at 0x00000188BED3C490>
+mock_memory = <MagicMock id='1686839032672'>
+
+    def test_unhandled_exception_returns_500(self, client, mock_memory):
+        """����δ�����쳣���� 500"""
+        mock_memory.get.side_effect = RuntimeError("�������")
+        mock_memory.vector_store.client.retrieve.side_effect = RuntimeError("�������")
+        response = client.get("/v1/memories/test-id/")
+>       assert response.status_code in [500, 200]  # ȡ�����쳣�Ƿ��ڲ� try/except ����
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       assert 401 in [500, 200]
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_middleware.py:74: AssertionError
+____________________ TestRequestLogs.test_get_request_logs ____________________
+
+self = <tests.test_request_logs.TestRequestLogs object at 0x000001889DBB5590>
+client = <starlette.testclient.TestClient object at 0x00000188BED3D7B0>
+in_memory_db = <sqlite3.Connection object at 0x00000188BF98E980>
+
+    def test_get_request_logs(self, client, in_memory_db):
+        """���Ի�ȡ������־�б�"""
+        in_memory_db.execute(
+            "INSERT INTO request_logs (timestamp, method, path, request_type, user_id, status_code, latency_ms, payload_summary, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (datetime.now().isoformat(), "POST", "/v1/memories/", "add_memory", "user1", 200, 150.5, "���Ӽ���", ""),
+        )
+        in_memory_db.commit()
+        response = client.get("/v1/request-logs/")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_request_logs.py:20: AssertionError
+___________ TestRequestLogs.test_get_request_logs_with_type_filter ____________
+
+self = <tests.test_request_logs.TestRequestLogs object at 0x000001889DBB56D0>
+client = <starlette.testclient.TestClient object at 0x00000188BED3E470>
+in_memory_db = <sqlite3.Connection object at 0x00000188BF98EC50>
+
+    def test_get_request_logs_with_type_filter(self, client, in_memory_db):
+        """���԰���������ɸѡ"""
+        in_memory_db.execute(
+            "INSERT INTO request_logs (timestamp, method, path, request_type, user_id, status_code, latency_ms, payload_summary, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (datetime.now().isoformat(), "POST", "/v1/memories/search/", "search_memory", "user1", 200, 80.0, "��������", ""),
+        )
+        in_memory_db.commit()
+        response = client.get("/v1/request-logs/?request_type=search_memory")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_request_logs.py:33: AssertionError
+____________ TestRequestLogs.test_get_request_logs_with_pagination ____________
+
+self = <tests.test_request_logs.TestRequestLogs object at 0x000001889DACF100>
+client = <starlette.testclient.TestClient object at 0x00000188BED3E140>
+in_memory_db = <sqlite3.Connection object at 0x00000188BF98E020>
+
+    def test_get_request_logs_with_pagination(self, client, in_memory_db):
+        """����������־��ҳ"""
+        for i in range(15):
+            in_memory_db.execute(
+                "INSERT INTO request_logs (timestamp, method, path, request_type, user_id, status_code, latency_ms, payload_summary, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (datetime.now().isoformat(), "POST", "/v1/memories/", "add_memory", "user1", 200, 100.0, f"����{i}", ""),
+            )
+        in_memory_db.commit()
+        response = client.get("/v1/request-logs/?limit=5&offset=0")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_request_logs.py:44: AssertionError
+______________ TestRequestLogsStats.test_get_request_logs_stats _______________
+
+self = <tests.test_request_logs.TestRequestLogsStats object at 0x000001889DBB5810>
+client = <starlette.testclient.TestClient object at 0x00000188BED3CE20>
+in_memory_db = <sqlite3.Connection object at 0x00000188BF83DE40>
+
+    def test_get_request_logs_stats(self, client, in_memory_db):
+        """���Ի�ȡ������־ͳ��"""
+        for req_type in ["add_memory", "search_memory", "delete_memory"]:
+            in_memory_db.execute(
+                "INSERT INTO request_logs (timestamp, method, path, request_type, user_id, status_code, latency_ms, payload_summary, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (datetime.now().isoformat(), "POST", "/v1/memories/", req_type, "user1", 200, 100.0, "����", ""),
+            )
+        in_memory_db.commit()
+        response = client.get("/v1/request-logs/stats/")
+        # ������Ϊ SQLite �߳����ⷵ�� 500��������֪����
+>       assert response.status_code in [200, 500]
+E       assert 401 in [200, 500]
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_request_logs.py:62: AssertionError
+______ TestRequestLogsStats.test_get_request_logs_stats_with_date_range _______
+
+self = <tests.test_request_logs.TestRequestLogsStats object at 0x000001889DBB5950>
+client = <starlette.testclient.TestClient object at 0x00000188BED3E030>
+in_memory_db = <sqlite3.Connection object at 0x00000188BE98B880>
+
+    def test_get_request_logs_stats_with_date_range(self, client, in_memory_db):
+        """���Դ����ڷ�Χ��������־ͳ��"""
+        in_memory_db.execute(
+            "INSERT INTO request_logs (timestamp, method, path, request_type, user_id, status_code, latency_ms, payload_summary, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("2024-01-15T10:00:00", "POST", "/v1/memories/", "add_memory", "user1", 200, 100.0, "����", ""),
+        )
+        in_memory_db.commit()
+        response = client.get("/v1/request-logs/stats/?since=2024-01-01&until=2024-12-31")
+>       assert response.status_code in [200, 500]
+E       assert 401 in [200, 500]
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_request_logs.py:76: AssertionError
+______________________ TestStats.test_get_stats_success _______________________
+
+self = <tests.test_stats.TestStats object at 0x000001889DBB5A90>
+client = <starlette.testclient.TestClient object at 0x00000188BED3FF00>
+
+    def test_get_stats_success(self, client):
+        """���Ի�ȡͳ������"""
+        response = client.get("/v1/stats/")
+>       assert response.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <Response [401 Unauthorized]>.status_code
+
+tests\test_stats.py:14: AssertionError
+______________ TestStats.test_stats_category_distribution_format ______________
+
+self = <tests.test_stats.TestStats object at 0x000001889DBB5BD0>
+client = <starlette.testclient.TestClient object at 0x00000188BED3FBD0>
+
+    def test_stats_category_distribution_format(self, client):
+        """���Է���ֲ���ʽ��ȷ"""
+        response = client.get("/v1/stats/")
+        data = response.json()
+>       cat_dist = data["category_distribution"]
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'category_distribution'
+
+tests\test_stats.py:26: KeyError
+_______________ TestStats.test_stats_state_distribution_format ________________
+
+self = <tests.test_stats.TestStats object at 0x000001889DACF230>
+client = <starlette.testclient.TestClient object at 0x00000188BED3F680>
+
+    def test_stats_state_distribution_format(self, client):
+        """����״̬�ֲ���ʽ��ȷ"""
+        response = client.get("/v1/stats/")
+        data = response.json()
+>       state_dist = data["state_distribution"]
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'state_distribution'
+
+tests\test_stats.py:41: KeyError
+___________________ TestStats.test_stats_daily_trend_format ___________________
+
+self = <tests.test_stats.TestStats object at 0x000001889DACF360>
+client = <starlette.testclient.TestClient object at 0x00000188BED3C5A0>
+
+    def test_stats_daily_trend_format(self, client):
+        """����ÿ�����Ƹ�ʽ��ȷ��30 �����ݣ�"""
+        response = client.get("/v1/stats/")
+        data = response.json()
+>       daily_trend = data["daily_trend"]
+                      ^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'daily_trend'
+
+tests\test_stats.py:50: KeyError
+=========================== short test summary info ===========================
+FAILED tests/test_access_logs.py::TestAccessLogs::test_get_access_logs - asse...
+FAILED tests/test_access_logs.py::TestAccessLogs::test_get_access_logs_with_memory_id
+FAILED tests/test_access_logs.py::TestAccessLogs::test_get_memory_access_logs
+FAILED tests/test_access_logs.py::TestAccessLogs::test_get_access_logs_with_limit
+FAILED tests/test_config.py::TestConfigInfo::test_get_config_info - assert 40...
+FAILED tests/test_config.py::TestConfigInfo::test_config_info_llm_fields - Ke...
+FAILED tests/test_config.py::TestConfigInfo::test_config_info_embedder_fields
+FAILED tests/test_config.py::TestLLMConnectionTest::test_test_llm_connection
+FAILED tests/test_config.py::TestEmbedderConnectionTest::test_test_embedder_connection
+FAILED tests/test_graph.py::TestGraphStats::test_get_graph_stats - assert 401...
+FAILED tests/test_graph.py::TestGraphEntities::test_get_entities - assert 401...
+FAILED tests/test_graph.py::TestGraphEntities::test_get_entities_with_search
+FAILED tests/test_graph.py::TestGraphEntities::test_get_entities_with_user_filter
+FAILED tests/test_graph.py::TestGraphRelations::test_get_relations - assert 4...
+FAILED tests/test_graph.py::TestGraphRelations::test_get_relations_with_pagination
+FAILED tests/test_graph.py::TestGraphSearch::test_search_graph - assert 401 =...
+FAILED tests/test_graph.py::TestGraphSearch::test_search_graph_with_user_id
+FAILED tests/test_graph.py::TestGraphUserSubgraph::test_get_user_graph - asse...
+FAILED tests/test_graph.py::TestGraphAll::test_get_all_graph - assert 401 == 200
+FAILED tests/test_graph.py::TestGraphDelete::test_delete_entity - assert 401 ...
+FAILED tests/test_graph.py::TestGraphDelete::test_delete_relation - assert 40...
+FAILED tests/test_graph.py::TestGraphHealth::test_graph_health_connected - as...
+FAILED tests/test_graph.py::TestGraphHealth::test_graph_health_disconnected
+FAILED tests/test_memories_crud.py::TestAddMemory::test_add_memory_success - ...
+FAILED tests/test_memories_crud.py::TestAddMemory::test_add_memory_missing_user_id
+FAILED tests/test_memories_crud.py::TestAddMemory::test_add_memory_empty_user_id_whitespace
+FAILED tests/test_memories_crud.py::TestAddMemory::test_add_memory_with_categories
+FAILED tests/test_memories_crud.py::TestAddMemory::test_add_memory_with_auto_categorize
+FAILED tests/test_memories_crud.py::TestAddMemory::test_add_memory_missing_messages
+FAILED tests/test_memories_crud.py::TestBatchImport::test_batch_import_success
+FAILED tests/test_memories_crud.py::TestBatchImport::test_batch_import_empty_items
+FAILED tests/test_memories_crud.py::TestGetMemories::test_get_memories_success
+FAILED tests/test_memories_crud.py::TestGetMemories::test_get_memories_with_user_filter
+FAILED tests/test_memories_crud.py::TestGetMemories::test_get_memories_with_category_filter
+FAILED tests/test_memories_crud.py::TestGetMemories::test_get_memories_with_state_filter
+FAILED tests/test_memories_crud.py::TestGetMemoryDetail::test_get_memory_detail_success
+FAILED tests/test_memories_crud.py::TestGetMemoryDetail::test_get_memory_detail_not_found
+FAILED tests/test_memories_crud.py::TestUpdateMemory::test_update_memory_text
+FAILED tests/test_memories_crud.py::TestUpdateMemory::test_update_memory_categories
+FAILED tests/test_memories_crud.py::TestUpdateMemory::test_update_memory_state
+FAILED tests/test_memories_crud.py::TestUpdateMemory::test_update_memory_not_found
+FAILED tests/test_memories_crud.py::TestDeleteMemory::test_delete_single_memory
+FAILED tests/test_memories_crud.py::TestDeleteMemory::test_delete_all_user_memories
+FAILED tests/test_memories_crud.py::TestDeleteMemory::test_delete_all_memories_missing_user_id
+FAILED tests/test_memories_crud.py::TestBatchDelete::test_batch_delete_success
+FAILED tests/test_memories_crud.py::TestBatchDelete::test_batch_delete_empty_ids
+FAILED tests/test_memories_crud.py::TestGetRelatedMemories::test_get_related_memories
+FAILED tests/test_memories_crud.py::TestGetRelatedMemories::test_get_related_memories_not_found
+FAILED tests/test_memories_search.py::TestSearchMemories::test_search_memories_success
+FAILED tests/test_memories_search.py::TestSearchMemories::test_search_memories_with_user_id
+FAILED tests/test_memories_search.py::TestSearchMemories::test_search_memories_empty_query
+FAILED tests/test_memories_search.py::TestSearchMemories::test_search_memories_with_limit
+FAILED tests/test_memories_search.py::TestSearchMemories::test_search_results_exclude_deleted
+FAILED tests/test_memories_search.py::TestMemoryHistory::test_get_memory_history
+FAILED tests/test_memories_search.py::TestMemoryHistory::test_get_memory_history_empty
+FAILED tests/test_middleware.py::TestApiKeyAuth::test_auth_required_when_key_configured
+FAILED tests/test_middleware.py::TestRequestLogMiddleware::test_post_requests_logged
+FAILED tests/test_middleware.py::TestGlobalExceptionHandler::test_unhandled_exception_returns_500
+FAILED tests/test_request_logs.py::TestRequestLogs::test_get_request_logs - a...
+FAILED tests/test_request_logs.py::TestRequestLogs::test_get_request_logs_with_type_filter
+FAILED tests/test_request_logs.py::TestRequestLogs::test_get_request_logs_with_pagination
+FAILED tests/test_request_logs.py::TestRequestLogsStats::test_get_request_logs_stats
+FAILED tests/test_request_logs.py::TestRequestLogsStats::test_get_request_logs_stats_with_date_range
+FAILED tests/test_stats.py::TestStats::test_get_stats_success - assert 401 ==...
+FAILED tests/test_stats.py::TestStats::test_stats_category_distribution_format
+FAILED tests/test_stats.py::TestStats::test_stats_state_distribution_format
+FAILED tests/test_stats.py::TestStats::test_stats_daily_trend_format - KeyErr...
+67 failed, 6 passed in 3.85s

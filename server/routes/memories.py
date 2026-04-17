@@ -176,16 +176,14 @@ async def add_memory(request: AddMemoryRequest):
 
         invalidate_stats_cache()
 
-        # 触发 Webhook（后台异步，不阻塞响应）
-        try:
-            _wh_data = {
-                "user_id": user_id,
-                "memory": " ".join(msg.content for msg in request.messages)[:200],
-                "memory_id": ", ".join(added_ids_for_rollback) if added_ids_for_rollback else "",
-            }
-            asyncio.ensure_future(webhook_service.trigger_webhooks("memory.added", _wh_data, _mem_svc.http_client))
-        except Exception:
-            pass
+        # 触发 Webhook（托管到统一后台任务管理器）
+        _wh_data = {
+            "user_id": user_id,
+            "memory": " ".join(msg.content for msg in request.messages)[:200],
+            "memory_id": ", ".join(added_ids_for_rollback) if added_ids_for_rollback else "",
+        }
+        webhook_service.schedule_webhook_delivery("memory.added", _wh_data, _mem_svc.http_client)
+
 
         return result
     except HTTPException:
@@ -378,17 +376,15 @@ class _BatchImportNotifyRequest(BaseModel):
 @router.post("/v1/memories/batch-import-notify")
 async def batch_import_notify(request: _BatchImportNotifyRequest):
     """批量导入完成后发送 Webhook 汇总通知（前端在所有批次完成后调用）"""
-    try:
-        parts = [f"批量导入 {request.total} 条记忆，成功 {request.success} 条，失败 {request.failed} 条"]
-        if request.skipped > 0:
-            parts.append(f"跳过 {request.skipped} 条")
-        _wh_data = {
-            "memory": "，".join(parts),
-            "memory_id": "",
-        }
-        asyncio.ensure_future(webhook_service.trigger_webhooks("memory.batch_imported", _wh_data, _mem_svc.http_client))
-    except Exception:
-        pass
+    parts = [f"批量导入 {request.total} 条记忆，成功 {request.success} 条，失败 {request.failed} 条"]
+    if request.skipped > 0:
+        parts.append(f"跳过 {request.skipped} 条")
+    _wh_data = {
+        "memory": "，".join(parts),
+        "memory_id": "",
+    }
+    webhook_service.schedule_webhook_delivery("memory.batch_imported", _wh_data, _mem_svc.http_client)
+
     return {"message": "通知已发送"}
 
 
@@ -618,12 +614,10 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
 
         logger.info(f"已更新记忆 {memory_id} 的 metadata: categories={new_cats}")
 
-        # 触发 Webhook
-        try:
-            _wh_data = {"memory_id": memory_id, "memory": new_memory_text[:200], "user_id": old_payload.get("user_id", "")}
-            asyncio.ensure_future(webhook_service.trigger_webhooks("memory.updated", _wh_data, _mem_svc.http_client))
-        except Exception:
-            pass
+        # 触发 Webhook（托管到统一后台任务管理器）
+        _wh_data = {"memory_id": memory_id, "memory": new_memory_text[:200], "user_id": old_payload.get("user_id", "")}
+        webhook_service.schedule_webhook_delivery("memory.updated", _wh_data, _mem_svc.http_client)
+
 
         return result
     except HTTPException:
@@ -690,12 +684,10 @@ async def delete_memory_by_id(memory_id: str):
         except Exception as log_err:
             logger.warning(f"记录删除日志失败（不影响主流程）: {log_err}")
 
-        # 6. 触发 Webhook
-        try:
-            _wh_data = {"memory_id": memory_id, "memory": old_memory_text[:200] if old_memory_text else "", "user_id": user_id}
-            asyncio.ensure_future(webhook_service.trigger_webhooks("memory.deleted", _wh_data, _mem_svc.http_client))
-        except Exception:
-            pass
+        # 6. 触发 Webhook（托管到统一后台任务管理器）
+        _wh_data = {"memory_id": memory_id, "memory": old_memory_text[:200] if old_memory_text else "", "user_id": user_id}
+        webhook_service.schedule_webhook_delivery("memory.deleted", _wh_data, _mem_svc.http_client)
+
 
         invalidate_stats_cache()
         return {"message": "记忆已永久删除"}
@@ -721,8 +713,9 @@ async def delete_all_memories(
         if user_id:
             # 分页滚动物理删除该用户的所有记忆
             total_deleted = 0
+            next_offset = None
             while True:
-                records, _ = qdrant_client.scroll(
+                records, next_offset = qdrant_client.scroll(
                     collection_name=collection_name,
                     scroll_filter=Filter(
                         must=[
@@ -730,12 +723,14 @@ async def delete_all_memories(
                         ],
                     ),
                     limit=100,
+                    offset=next_offset,
                     with_payload=True,
                     with_vectors=False,
                 )
                 if not records:
                     break
                 ids = [str(record.id) for record in records]
+
                 # 记录删除日志
                 for point in records:
                     mid = str(point.id)
@@ -757,8 +752,11 @@ async def delete_all_memories(
                     desc=f"用户 {user_id} 关系库批量物理删除",
                 )
                 total_deleted += len(ids)
+                if next_offset is None:
+                    break
             invalidate_stats_cache()
             return {"message": f"用户 {user_id} 的所有记忆已永久删除（共 {total_deleted} 条）"}
+
         else:
             # 无 user_id 时必须显式确认，防止误删全部数据
             if not confirm:
@@ -772,23 +770,29 @@ async def delete_all_memories(
                 collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
                 qdrant_client = m.vector_store.client
                 total_deleted = 0
+                next_offset = None
                 while True:
-                    records, _ = qdrant_client.scroll(
+                    records, next_offset = qdrant_client.scroll(
                         collection_name=collection_name,
                         limit=100,
+                        offset=next_offset,
                         with_payload=False,
                         with_vectors=False,
                     )
                     if not records:
                         break
                     ids = [record.id for record in records]
+
                     qdrant_client.delete(
                         collection_name=collection_name,
                         points_selector=PointIdsList(points=ids),
                     )
                     total_deleted += len(ids)
+                    if next_offset is None:
+                        break
 
                 # 同步清空关系库中的所有记忆元数据（带重试）
+
                 await _retry_db_write(
                     meta_service.delete_all_memory_meta,
                     desc="清空全部记忆时关系库清理",
@@ -817,9 +821,10 @@ async def hard_delete_user(user_id: str):
         collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
         qdrant_client = m.vector_store.client
         total_deleted = 0
+        next_offset = None
         # 1. 分页滚动物理删除该用户在 Qdrant 中的所有记忆（包括已软删除的）
         while True:
-            records, _ = qdrant_client.scroll(
+            records, next_offset = qdrant_client.scroll(
                 collection_name=collection_name,
                 scroll_filter=Filter(
                     must=[
@@ -827,19 +832,24 @@ async def hard_delete_user(user_id: str):
                     ],
                 ),
                 limit=100,
+                offset=next_offset,
                 with_payload=False,
                 with_vectors=False,
             )
             if not records:
                 break
             ids = [str(record.id) for record in records]
+
             qdrant_client.delete(
                 collection_name=collection_name,
                 points_selector=PointIdsList(points=ids),
             )
             total_deleted += len(ids)
+            if next_offset is None:
+                break
 
         # 2. 清理 Neo4j 中该用户的所有图谱实体和关系
+
         graph_deleted = 0
         try:
             from server.services.graph_service import neo4j_query
@@ -856,39 +866,28 @@ async def hard_delete_user(user_id: str):
         # 3. 清理 memory_meta.db 中该用户的所有记忆元数据
         meta_deleted = 0
         try:
-            from server.models.database import get_session_factory
-            from server.models.models import MemoryMeta
-            SessionLocal = get_session_factory()
-            db = SessionLocal()
-            try:
-                metas = db.query(MemoryMeta).filter(MemoryMeta.user_id == user_id).all()
-                meta_deleted = len(metas)
-                for m_record in metas:
-                    db.delete(m_record)
-                db.commit()
-                logger.info(f"已清理用户 {user_id} 的关系库元数据（删除 {meta_deleted} 条）")
-            finally:
-                db.close()
+            meta_deleted = await _retry_db_write(
+                meta_service.hard_delete_user_memory_meta,
+                user_id,
+                desc=f"用户 {user_id} 关系库物理删除",
+            ) or 0
         except Exception as db_err:
             logger.error(f"清理用户 {user_id} 的关系库元数据失败: {db_err}")
+
 
         invalidate_stats_cache()
         logger.info(f"已硬删除用户 {user_id} 的所有记忆（共 {total_deleted} 条）")
 
-        # 触发 Webhook（硬删除用户）
-        try:
-            _wh_data = {
-                "user_id": user_id,
-"memory": f"用户 {user_id} 已被删除（记忆 {total_deleted} 条，图谱实体 {graph_deleted} 个）",
-                "event_detail": "hard_delete_user",
-                "deleted_memories_count": total_deleted,
-                "deleted_graph_entities_count": graph_deleted,
-            }
-            asyncio.ensure_future(
-                webhook_service.trigger_webhooks("user.hard_deleted", _wh_data, _mem_svc.http_client)
-            )
-        except Exception:
-            pass
+        # 触发 Webhook（硬删除用户，托管到统一后台任务管理器）
+        _wh_data = {
+            "user_id": user_id,
+            "memory": f"用户 {user_id} 已被删除（记忆 {total_deleted} 条，图谱实体 {graph_deleted} 个）",
+            "event_detail": "hard_delete_user",
+            "deleted_memories_count": total_deleted,
+            "deleted_graph_entities_count": graph_deleted,
+        }
+        webhook_service.schedule_webhook_delivery("user.hard_deleted", _wh_data, _mem_svc.http_client)
+
 
         return {
             "message": f"用户 {user_id} 及其所有数据已永久删除（记忆 {total_deleted} 条，图谱实体 {graph_deleted} 个，元数据 {meta_deleted} 条）"
@@ -998,18 +997,16 @@ async def batch_delete_memories(request: BatchDeleteRequest):
             except Exception as graph_err:
                 logger.warning(f"清理 Neo4j 孤儿实体失败（不影响主流程）: {graph_err}")
 
-        # 触发 Webhook（批量删除汇总通知）
-        try:
-            _id_summary = ", ".join(deleted_ids[:5])
-            if len(deleted_ids) > 5:
-                _id_summary += f" ...等共 {len(deleted_ids)} 条"
-            _wh_data = {
-                "memory": f"批量删除 {len(request.memory_ids)} 条记忆，成功 {success_count} 条，失败 {failed_count} 条",
-                "memory_id": _id_summary,
-            }
-            asyncio.ensure_future(webhook_service.trigger_webhooks("memory.batch_deleted", _wh_data, _mem_svc.http_client))
-        except Exception:
-            pass
+        # 触发 Webhook（批量删除汇总通知，托管到统一后台任务管理器）
+        _id_summary = ", ".join(deleted_ids[:5])
+        if len(deleted_ids) > 5:
+            _id_summary += f" ...等共 {len(deleted_ids)} 条"
+        _wh_data = {
+            "memory": f"批量删除 {len(request.memory_ids)} 条记忆，成功 {success_count} 条，失败 {failed_count} 条",
+            "memory_id": _id_summary,
+        }
+        webhook_service.schedule_webhook_delivery("memory.batch_deleted", _wh_data, _mem_svc.http_client)
+
 
         return BatchDeleteResponse(
             total=len(request.memory_ids),

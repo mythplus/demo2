@@ -50,6 +50,8 @@ _LOG_FLUSH_INTERVAL = 5  # 每 5 秒 flush 一次
 _LOG_FLUSH_BATCH_SIZE = 100  # 每批最多写入 100 条
 _log_writer_thread: Optional[threading.Thread] = None
 _log_writer_running = False
+_dropped_log_count = 0
+
 
 
 def _log_writer_loop():
@@ -129,10 +131,13 @@ def _flush_log_batch(batch: list, raise_on_failure: bool = False):
 
 def _enqueue_log(table: str, sql: str, params: tuple):
     """将一条日志投递到写入队列（非阻塞）"""
+    global _dropped_log_count
     try:
         _log_queue.put_nowait({"table": table, "sql": sql, "params": params})
     except _queue.Full:
-        logger.warning("日志队列已满，丢弃一条日志")
+        _dropped_log_count += 1
+        logger.warning(f"日志队列已满，累计丢弃 {_dropped_log_count} 条日志")
+
 
 
 def start_log_writer():
@@ -150,7 +155,9 @@ def start_log_writer():
 
 _LOG_RETENTION_DAYS = 30  # 日志保留天数
 _cleanup_thread: Optional[threading.Thread] = None
-_stop_event = threading.Event()  # 用于快速唤醒清理线程以响应停止信号
+_cleanup_running = False
+_cleanup_stop_event = threading.Event()  # 用于快速唤醒清理线程以响应停止信号
+
 
 
 def cleanup_old_logs():
@@ -195,33 +202,40 @@ def cleanup_old_logs():
 
 def _daily_cleanup_loop():
     """后台线程：每天执行一次日志清理"""
-    while _log_writer_running:
-        # 等待 24 小时，或被 _stop_event 提前唤醒
-        stopped = _stop_event.wait(timeout=24 * 3600)
-        if stopped or not _log_writer_running:
+    while _cleanup_running:
+        # 等待 24 小时，或被 _cleanup_stop_event 提前唤醒
+        stopped = _cleanup_stop_event.wait(timeout=24 * 3600)
+        if stopped or not _cleanup_running:
             return
         cleanup_old_logs()
 
 
+
 def start_log_cleanup():
     """启动日志清理：立即清理一次 + 启动每日定时清理线程"""
-    global _cleanup_thread
+    global _cleanup_thread, _cleanup_running
     # 启动时立即清理一次
     cleanup_old_logs()
     # 启动每日清理线程
     if _cleanup_thread is None or not _cleanup_thread.is_alive():
+        _cleanup_running = True
+        _cleanup_stop_event.clear()
         _cleanup_thread = threading.Thread(target=_daily_cleanup_loop, daemon=True, name="log-cleanup")
         _cleanup_thread.start()
         logger.info(f"日志自动清理已启用（保留 {_LOG_RETENTION_DAYS} 天，每日执行）")
 
 
+
 def stop_log_writer():
     """停止后台日志写入线程，并 flush 剩余日志"""
-    global _log_writer_running
+    global _log_writer_running, _cleanup_running
     _log_writer_running = False
-    _stop_event.set()  # 唤醒清理线程使其快速退出
+    _cleanup_running = False
+    _cleanup_stop_event.set()  # 唤醒清理线程使其快速退出
     if _log_writer_thread is not None:
         _log_writer_thread.join(timeout=10)
+    if _cleanup_thread is not None:
+        _cleanup_thread.join(timeout=5)
     # flush 队列中剩余的日志
     remaining: list = []
     while not _log_queue.empty():
@@ -232,6 +246,7 @@ def stop_log_writer():
     if remaining:
         _flush_log_batch(remaining)
         logger.info(f"已 flush 剩余 {len(remaining)} 条日志")
+
 
 
 def init_access_log_db():

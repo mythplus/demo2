@@ -63,20 +63,21 @@ async def get_webhook(webhook_id: str):
 async def create_webhook(request: WebhookCreateRequest):
     """创建 Webhook"""
     # 校验事件类型
-    valid_events = {"memory.added", "memory.updated", "memory.deleted", "memory.searched", "user.hard_deleted", "memory.batch_imported", "memory.batch_deleted"}
-    invalid = [e for e in request.events if e not in valid_events]
+    invalid = webhook_service.validate_webhook_events(request.events)
     if invalid:
         raise HTTPException(status_code=400, detail=f"无效的事件类型: {invalid}")
+
 
     # 检查 ID 重复
     if webhook_service.get_webhook(request.id):
         raise HTTPException(status_code=409, detail=f"Webhook ID 已存在: {request.id}")
 
-    # 验证 Webhook URL 可用性
+    # 验证 Webhook URL（仅做格式与目标主机策略校验，不主动探测远端）
     validation = await webhook_service.validate_webhook_url(
         request.url,
         http_client=memory_service.http_client,
     )
+
     if not validation["valid"]:
         raise HTTPException(status_code=400, detail=f"Webhook URL 验证失败: {validation['message']}，请检查URL的正确性")
 
@@ -97,17 +98,18 @@ async def update_webhook(webhook_id: str, request: WebhookUpdateRequest):
 
     # 校验事件类型
     if request.events is not None:
-        valid_events = {"memory.added", "memory.updated", "memory.deleted", "memory.searched", "user.hard_deleted", "memory.batch_imported", "memory.batch_deleted"}
-        invalid = [e for e in request.events if e not in valid_events]
+        invalid = webhook_service.validate_webhook_events(request.events)
         if invalid:
             raise HTTPException(status_code=400, detail=f"无效的事件类型: {invalid}")
 
-    # 如果更新了 URL，先做可达性校验
+
+    # 如果更新了 URL，先做格式与目标主机策略校验
     if request.url is not None:
         validation = await webhook_service.validate_webhook_url(
             request.url,
             http_client=memory_service.http_client,
         )
+
         if not validation["valid"]:
             raise HTTPException(status_code=400, detail=f"Webhook URL 验证失败: {validation['message']}，请检查URL的正确性")
 

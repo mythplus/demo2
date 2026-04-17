@@ -9,17 +9,14 @@ import {
   MoreHorizontal,
   Pencil,
   Trash2,
-  Eye,
   RefreshCw,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
   CheckSquare,
   X,
-  Archive,
-  Pause,
-  Play,
 } from "lucide-react";
+
 import {
   Card,
   CardContent,
@@ -57,8 +54,8 @@ export default function MemoriesPage() {
     // 数据
     loading,
     error,
-    filteredMemories,
     paginatedMemories,
+
     uniqueUsers,
     totalCount,
     // 筛选 & 分页

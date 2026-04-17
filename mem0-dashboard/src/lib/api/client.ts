@@ -15,16 +15,16 @@ import type {
   FilterParams,
   StatsResponse,
   PaginatedMemoriesResponse,
-  Category,
   MemorySummaryResponse,
+
   RelatedMemoriesResponse,
   AccessLogsResponse,
   RequestLogsResponse,
   RequestLogsStats,
   BatchImportRequest,
   BatchImportResponse,
-  BatchDeleteRequest,
   BatchDeleteResponse,
+
   GraphData,
   GraphEntitiesResponse,
   GraphRelationsResponse,
@@ -37,8 +37,8 @@ import type {
   PlaygroundChatRequest,
   PlaygroundChatResponse,
   PlaygroundSSEEvent,
-  WebhookConfig,
   WebhookCreateRequest,
+
   WebhookUpdateRequest,
   WebhookListResponse,
   WebhookMutationResponse,
@@ -46,15 +46,29 @@ import type {
   WebhookTestResponse,
 } from "./types";
 
-// API 基础地址
-const API_BASE =
-  process.env.NEXT_PUBLIC_MEM0_API_URL || "http://localhost:8080";
-
-// API Key 认证（与后端 security.api_key 配置对应）
-const API_KEY = process.env.NEXT_PUBLIC_MEM0_API_KEY || "";
-
 // 全局请求超时（毫秒）
 const DEFAULT_TIMEOUT = 30000;
+
+function normalizeApiBase(base: string): string {
+  if (!base) return "";
+  return base.endsWith("/") ? base.slice(0, -1) : base;
+}
+
+function resolveApiBase(): string {
+  const configured = normalizeApiBase(process.env.NEXT_PUBLIC_MEM0_API_URL || "");
+  if (configured) {
+    return configured;
+  }
+
+  // 生产环境默认走同源反向代理（例如 Nginx /v1 转发），避免把内部服务地址和密钥策略暴露给浏览器。
+  if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+    return normalizeApiBase(window.location.origin);
+  }
+
+  // 本地开发默认直连后端 8080。
+  return "http://localhost:8080";
+}
+
 
 /**
  * 通用请求方法（带全局超时控制）
@@ -63,15 +77,18 @@ async function request<T>(
   endpoint: string,
   options?: RequestInit & { timeout?: number; externalSignal?: AbortSignal }
 ): Promise<T> {
-  const url = `${API_BASE}${endpoint}`;
+  const apiBase = resolveApiBase();
+  const url = apiBase ? `${apiBase}${endpoint}` : endpoint;
   const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
 
-  // 构建请求头，如果配置了 API Key 则自动携带认证头
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  if (API_KEY) {
-    headers["X-API-Key"] = API_KEY;
+
+  // 自动携带 API Key 认证头（从环境变量 NEXT_PUBLIC_MEM0_API_KEY 读取）
+  const apiKey = process.env.NEXT_PUBLIC_MEM0_API_KEY;
+  if (apiKey) {
+    headers["Authorization"] = `Bearer ${apiKey}`;
   }
 
   // 超时控制 + 外部取消信号合并
@@ -394,15 +411,13 @@ export const mem0Api = {
    */
   async healthCheck(): Promise<boolean> {
     try {
-      const headers: Record<string, string> = {};
-      if (API_KEY) {
-        headers["X-API-Key"] = API_KEY;
-      }
-      const response = await fetch(`${API_BASE}/`, {
+      const apiBase = resolveApiBase();
+      const url = apiBase ? `${apiBase}/` : "/";
+      const response = await fetch(url, {
         method: "GET",
-        headers,
         signal: AbortSignal.timeout(5000),
       });
+
       return response.ok;
     } catch {
       return false;
@@ -561,12 +576,16 @@ export const mem0Api = {
     onEvent: (event: PlaygroundSSEEvent) => void,
     signal?: AbortSignal,
   ): Promise<void> {
-    const url = `${API_BASE}/v1/playground/chat/stream`;
+    const apiBase = resolveApiBase();
+    const url = apiBase ? `${apiBase}/v1/playground/chat/stream` : "/v1/playground/chat/stream";
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
-    if (API_KEY) {
-      headers["X-API-Key"] = API_KEY;
+
+    // 自动携带 API Key 认证头
+    const apiKey = process.env.NEXT_PUBLIC_MEM0_API_KEY;
+    if (apiKey) {
+      headers["Authorization"] = `Bearer ${apiKey}`;
     }
 
     const response = await fetch(url, {

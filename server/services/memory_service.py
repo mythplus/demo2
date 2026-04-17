@@ -482,9 +482,12 @@ def compute_memory_stats() -> dict:
         logger.warning(f"关系库统计查询失败: {e}")
         return {
             "total_memories": 0, "total_users": 0,
-            "category_distribution": {}, "uncategorized_count": 0,
+            "category_distribution": {},
+            "state_distribution": {"active": 0, "paused": 0, "deleted": 0},
+            "uncategorized_count": 0,
             "daily_counter": {},
         }
+
 
 
 # ============ 统计与摘要缓存 ============

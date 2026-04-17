@@ -41,13 +41,16 @@ graph_store:
 
 # 安全配置
 security:
-  # API Key 认证（为空则不启用认证，建议生产环境必须设置）
+  # API Key 认证（生产环境必须设置；前端应通过同源反向代理访问后端，不要把密钥暴露到浏览器）
   api_key: "${MEM0_API_KEY}"
+  # 可选：单独用于加密 Webhook secret；未设置时会回退使用 api_key 派生密钥
+  webhook_secret_key: "${WEBHOOK_SECRET_KEY}"
   # CORS 允许的来源（逗号分隔，* 表示允许所有）
   # Docker 部署时建议设置为实际域名，如 "https://your-domain.com"
   cors_origins: "${CORS_ORIGINS}"
   # 速率限制（每分钟最大请求数，0 表示不限制）
   rate_limit: 60
+
 
 # 版本号
 version: "v1.1"

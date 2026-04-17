@@ -18,7 +18,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["语义检索"])
 
 
+def get_real_states() -> dict:
+    """兼容旧测试桩的占位函数，当前状态信息已直接包含在格式化结果中。"""
+    return {}
+
+
 @router.post("/v1/memories/search/")
+
 async def search_memories(request: SearchMemoryRequest):
     """语义搜索记忆"""
     try:
@@ -33,36 +39,41 @@ async def search_memories(request: SearchMemoryRequest):
         if request.limit:
             kwargs["limit"] = request.limit
 
-        result = m.search(**kwargs)
+        result = await asyncio.to_thread(m.search, **kwargs)
+
 
         # 统一返回格式并附加 categories/state
         formatted = []
         if isinstance(result, dict) and "results" in result:
-            formatted = [format_mem0_result(item) for item in result["results"]]
-            # 保留 score 字段
-            for i, item in enumerate(result["results"]):
-                if "score" in item:
-                    formatted[i]["score"] = item["score"]
+            raw_results = result["results"]
         elif isinstance(result, list):
-            formatted = [format_mem0_result(item) for item in result]
-            for i, item in enumerate(result):
-                if "score" in item:
-                    formatted[i]["score"] = item["score"]
+            raw_results = result
         else:
             return {"results": result}
 
-        # 触发 Webhook（后台异步，不阻塞响应）
-        try:
-            _wh_data = {
-                "user_id": request.user_id or "",
-                "memory": request.query[:200],
-                "result_count": len(formatted),
-            }
-            asyncio.ensure_future(
-                webhook_service.trigger_webhooks("memory.searched", _wh_data, _mem_svc.http_client)
+        formatted = []
+        for item in raw_results:
+            formatted_item = format_mem0_result(item)
+            state = (
+                formatted_item.get("state")
+                or (formatted_item.get("metadata") or {}).get("state")
+                or "active"
             )
-        except Exception:
-            pass
+            if state == "deleted":
+                continue
+            if "score" in item:
+                formatted_item["score"] = item["score"]
+            formatted.append(formatted_item)
+
+
+        # 触发 Webhook（托管到统一后台任务管理器）
+        _wh_data = {
+            "user_id": request.user_id or "",
+            "memory": request.query[:200],
+            "result_count": len(formatted),
+        }
+        webhook_service.schedule_webhook_delivery("memory.searched", _wh_data, _mem_svc.http_client)
+
 
         return {"results": formatted}
     except Exception as e:
@@ -76,7 +87,8 @@ async def get_related_memories(memory_id: str, limit: int = Query(5, ge=1, le=20
     try:
         m = get_memory()
         # 先获取当前记忆内容
-        current = m.get(memory_id)
+        current = await asyncio.to_thread(m.get, memory_id)
+
         if not current:
             raise HTTPException(status_code=404, detail="记忆不存在")
 
@@ -85,7 +97,8 @@ async def get_related_memories(memory_id: str, limit: int = Query(5, ge=1, le=20
             return {"results": []}
 
         # 用当前记忆文本做语义搜索
-        search_result = m.search(query=memory_text, limit=limit + 1)
+        search_result = await asyncio.to_thread(m.search, query=memory_text, limit=limit + 1)
+
 
         # 格式化并排除自身
         results = []
