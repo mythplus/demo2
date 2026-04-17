@@ -264,7 +264,8 @@ export default function RequestsPage() {
   // 对后端返回的 types 做归一化（兼容旧英文类型名）
   const normalizedTypes = (stats?.types || []).map(normalizeType);
   // 去重（旧 "POST" 和新 "添加" 归并后可能重复）
-  const uniqueTypes = [...new Set(normalizedTypes)];
+  const uniqueTypes = Array.from(new Set(normalizedTypes));
+
 
   const chartData = stats?.daily_trend?.map((d: any) => {
     // 将旧类型 key 的值归并到中文 key 上

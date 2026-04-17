@@ -2,6 +2,7 @@
  * 数据导入/导出工具
  */
 import type { Memory } from "@/lib/api";
+import { CATEGORY_MAP } from "@/lib/constants";
 
 /** 导出结果，包含 Blob 和文件名，用于操作记录 */
 export interface ExportOutput {
@@ -59,7 +60,7 @@ export function exportToCSV(memories: Memory[], filename?: string): ExportOutput
     csvSafe(m.memory || ""),
     csvSafe(m.user_id || ""),
     csvSafe(m.agent_id || ""),
-    csvSafe((m.categories || []).join(";")),
+    csvSafe((m.categories || []).map((c) => CATEGORY_MAP.get(c)?.label ?? c).join(";")),
     csvSafe(m.created_at || ""),
     csvSafe(m.updated_at || ""),
   ]);

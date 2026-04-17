@@ -196,6 +196,14 @@ def client(mock_memory, in_memory_db):
             "created_at": item.get("created_at", ""), "updated_at": item.get("updated_at", ""),
             "agent_id": "", "run_id": "", "hash": "", "metadata": item.get("metadata", {}),
         }))
+        stack.enter_context(patch("server.routes.search._mem_svc.semantic_search_memories", new_callable=AsyncMock, return_value=[{
+            "id": "test-id-1", "memory": "测试记忆内容", "user_id": "user1",
+            "categories": ["work"], "state": "active",
+            "created_at": "2024-01-01T00:00:00", "updated_at": "2024-01-01T00:00:00",
+            "agent_id": "", "run_id": "", "hash": "", "metadata": {"categories": ["work"], "state": "active"},
+            "score": 0.95,
+        }]))
+
         # 图谱服务 Mock
         stack.enter_context(patch("server.services.graph_service.close_neo4j_driver"))
         stack.enter_context(patch("server.routes.graph.neo4j_query", return_value=[]))

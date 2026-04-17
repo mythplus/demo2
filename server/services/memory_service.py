@@ -3,6 +3,7 @@
 对齐 OpenMemory 官方架构：结构化查询走关系库（meta_service），向量搜索走 Qdrant
 """
 
+import asyncio
 import copy
 import json
 import time
@@ -10,6 +11,7 @@ import logging
 from typing import List, Dict, Any, Iterator
 from datetime import datetime, timezone
 from contextlib import contextmanager
+
 
 import httpx
 from qdrant_client.http.models import (
@@ -140,7 +142,107 @@ async def auto_categorize_memory(memory_text: str) -> List[str]:
         return []
 
 
+async def embed_query_text(text: str) -> List[float]:
+    """根据当前 Embedder 配置生成查询向量。"""
+    if http_client is None:
+        raise RuntimeError("Embedder HTTP 客户端未初始化")
+
+    embedder_config = MEM0_CONFIG.get("embedder", {})
+    provider = embedder_config.get("provider", "ollama")
+    config = embedder_config.get("config", {})
+    model = config.get("model", "")
+    base_url = config.get("ollama_base_url", config.get("openai_base_url", ""))
+
+    if not model or not base_url:
+        raise RuntimeError("Embedder 配置不完整")
+
+    if provider == "ollama":
+        response = await http_client.post(
+            f"{base_url}/api/embeddings",
+            json={"model": model, "prompt": text},
+            timeout=15,
+        )
+        response.raise_for_status()
+        embedding = response.json().get("embedding", [])
+    else:
+        headers = {"Content-Type": "application/json"}
+        api_key = config.get("api_key", "")
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        response = await http_client.post(
+            f"{base_url}/embeddings",
+            json={"model": model, "input": text},
+            headers=headers,
+            timeout=15,
+        )
+        response.raise_for_status()
+        data = response.json().get("data", [{}])
+        embedding = data[0].get("embedding", []) if data else []
+
+    if not isinstance(embedding, list) or not embedding:
+        raise RuntimeError("Embedder 未返回有效向量")
+
+    return embedding
+
+
+async def semantic_search_memories(
+    query: str,
+    limit: int = 10,
+    user_id: str | None = None,
+    agent_id: str | None = None,
+    run_id: str | None = None,
+    exclude_ids: list[str] | None = None,
+) -> List[Dict[str, Any]]:
+    """直接基于 Qdrant 做语义搜索，作为 Mem0 SDK 全局搜索的回退路径。"""
+    query_vector = await embed_query_text(query)
+    collection_name, qdrant_client = _get_qdrant_collection_and_client()
+
+    must = []
+    if user_id:
+        must.append(FieldCondition(key="user_id", match=MatchValue(value=user_id)))
+    if agent_id:
+        must.append(FieldCondition(key="agent_id", match=MatchValue(value=agent_id)))
+    if run_id:
+        must.append(FieldCondition(key="run_id", match=MatchValue(value=run_id)))
+    query_filter = Filter(must=must) if must else None
+
+    fetch_limit = min(max(limit * 3, limit + len(exclude_ids or []) + 10), 100)
+    query_result = await asyncio.to_thread(
+        qdrant_client.query_points,
+        collection_name=collection_name,
+        query=query_vector,
+        query_filter=query_filter,
+        limit=fetch_limit,
+        with_payload=True,
+        with_vectors=False,
+    )
+
+    excluded = {str(item) for item in (exclude_ids or []) if item}
+    results: List[Dict[str, Any]] = []
+    for point in getattr(query_result, "points", []) or []:
+        formatted = format_record(point)
+        point_id = formatted.get("id") or str(point.id)
+        if point_id in excluded:
+            continue
+
+        state = (
+            formatted.get("state")
+            or (formatted.get("metadata") or {}).get("state")
+            or "active"
+        )
+        if state == "deleted":
+            continue
+
+        formatted["score"] = point.score
+        results.append(formatted)
+        if len(results) >= limit:
+            break
+
+    return results
+
+
 # ============ Qdrant 查询与聚合 ============
+
 
 _DEFAULT_SCROLL_BATCH_SIZE = 128
 _MAX_PAGE_SIZE = 200

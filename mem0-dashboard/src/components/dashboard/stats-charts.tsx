@@ -77,7 +77,8 @@ export function StatsCharts({ stats, requestStats }: StatsChartsProps) {
   const requestTotal = requestStats?.total ?? 0;
   const rawTypes = requestStats?.types ?? [];
   // 去重归一化：将旧英文类型映射为中文后去重
-  const requestTypes = [...new Set(rawTypes.map(normalizeType))];
+  const requestTypes = Array.from(new Set(rawTypes.map(normalizeType)));
+
   const requestTrend = (requestStats?.daily_trend ?? []).map((d: any) => {
     const row: any = { date: formatDate(d.date || d.time || "") };
     // 将旧英文 key 的值合并到中文 key 上

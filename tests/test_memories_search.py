@@ -2,8 +2,8 @@
 语义搜索接口测试
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import AsyncMock, patch
+
 
 
 class TestSearchMemories:
@@ -43,7 +43,35 @@ class TestSearchMemories:
         )
         assert response.status_code == 200
 
+    def test_search_memories_without_scope_falls_back_to_qdrant(self, client, mock_memory):
+        """测试未指定 user/agent/run 时回退到全局 Qdrant 语义搜索"""
+        mock_memory.search.side_effect = RuntimeError("At least one of 'user_id', 'agent_id', or 'run_id' must be provided.")
+
+        with patch(
+            "server.routes.search._mem_svc.semantic_search_memories",
+            new=AsyncMock(return_value=[{
+                "id": "global-1",
+                "memory": "升降桌相关记忆",
+                "user_id": "user1",
+                "categories": ["购物"],
+                "state": "active",
+                "metadata": {"categories": ["购物"], "state": "active"},
+                "score": 0.88,
+            }]),
+        ) as semantic_search:
+            response = client.post(
+                "/v1/memories/search/",
+                json={"query": "升降桌", "limit": 5},
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["results"][0]["id"] == "global-1"
+        semantic_search.assert_awaited_once()
+        mock_memory.search.assert_not_called()
+
     def test_search_results_exclude_deleted(self, client, mock_memory):
+
         """测试搜索结果排除已删除的记忆"""
         mock_memory.search.return_value = {
             "results": [

@@ -119,13 +119,16 @@ async def global_exception_handler(request: Request, exc: Exception):
 # CORS 配置（从 config.yaml 读取允许的来源）
 _cors_origins_str = MEM0_CONFIG.get("security", {}).get("cors_origins", "*")
 _cors_origins = [o.strip() for o in _cors_origins_str.split(",") if o.strip()] if _cors_origins_str != "*" else ["*"]
+_local_origin_regex = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$" if not IS_PRODUCTION else None
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
+    allow_origin_regex=_local_origin_regex,
     allow_credentials=True if _cors_origins != ["*"] else False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # API Key 认证中间件
 _configured_api_key = str(MEM0_CONFIG.get("security", {}).get("api_key", "") or "").strip()

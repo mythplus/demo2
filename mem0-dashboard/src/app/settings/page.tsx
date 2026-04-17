@@ -267,11 +267,12 @@ export default function SettingsPage() {
                   </Button>
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                  <p><span className="text-muted-foreground">提供商：</span><Badge variant="secondary" className="font-mono text-sm px-2.5 py-0.5">{configInfo.llm.provider}</Badge></p>
-                  <p><span className="text-muted-foreground">模型名称：</span><Badge variant="outline" className="font-mono text-sm px-2.5 py-0.5">{configInfo.llm.model}</Badge></p>
+                  <div className="flex items-center gap-2"><span className="text-muted-foreground">提供商：</span><Badge variant="secondary" className="font-mono text-sm px-2.5 py-0.5">{configInfo.llm.provider}</Badge></div>
+                  <div className="flex items-center gap-2"><span className="text-muted-foreground">模型名称：</span><Badge variant="outline" className="font-mono text-sm px-2.5 py-0.5">{configInfo.llm.model}</Badge></div>
                   <p className="truncate" title={configInfo.llm.base_url}><span className="text-muted-foreground">服务地址：</span><span className="font-mono">{configInfo.llm.base_url || "-"}</span></p>
                   <p><span className="text-muted-foreground">Temperature：</span><span className="font-mono">{configInfo.llm.temperature}</span></p>
                 </div>
+
                 {llmTestStatus === "success" && llmTestResult && (
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
@@ -315,10 +316,11 @@ export default function SettingsPage() {
                   </Button>
                 </div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                  <p><span className="text-muted-foreground">提供商：</span><Badge variant="secondary" className="font-mono text-sm px-2.5 py-0.5">{configInfo.embedder.provider}</Badge></p>
-                  <p><span className="text-muted-foreground">模型名称：</span><Badge variant="outline" className="font-mono text-sm px-2.5 py-0.5">{configInfo.embedder.model}</Badge></p>
+                  <div className="flex items-center gap-2"><span className="text-muted-foreground">提供商：</span><Badge variant="secondary" className="font-mono text-sm px-2.5 py-0.5">{configInfo.embedder.provider}</Badge></div>
+                  <div className="flex items-center gap-2"><span className="text-muted-foreground">模型名称：</span><Badge variant="outline" className="font-mono text-sm px-2.5 py-0.5">{configInfo.embedder.model}</Badge></div>
                   <p className="col-span-2 truncate" title={configInfo.embedder.base_url}><span className="text-muted-foreground">服务地址：</span><span className="font-mono">{configInfo.embedder.base_url || "-"}</span></p>
                 </div>
+
                 {embedderTestStatus === "success" && embedderTestResult && (
                   <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
                     <CheckCircle className="h-3.5 w-3.5" />
@@ -341,10 +343,11 @@ export default function SettingsPage() {
                     <span className="text-base font-semibold">向量数据库</span>
                   </div>
                   <div className="text-sm space-y-2">
-                    <p><span className="text-muted-foreground">类型：</span><Badge variant="secondary" className="font-mono text-sm px-2.5 py-0.5">{configInfo.vector_store.provider}</Badge></p>
+                    <div className="flex items-center gap-2"><span className="text-muted-foreground">类型：</span><Badge variant="secondary" className="font-mono text-sm px-2.5 py-0.5">{configInfo.vector_store.provider}</Badge></div>
                     <p><span className="text-muted-foreground">集合：</span><span className="font-mono">{configInfo.vector_store.collection_name}</span></p>
                     <p><span className="text-muted-foreground">维度：</span><span className="font-mono">{configInfo.vector_store.embedding_model_dims}</span></p>
                   </div>
+
                 </div>
                 <div className="rounded-lg border p-4 space-y-3">
                   <div className="flex items-center gap-2">
@@ -352,9 +355,10 @@ export default function SettingsPage() {
                     <span className="text-base font-semibold">图数据库</span>
                   </div>
                   <div className="text-sm space-y-2">
-                    <p><span className="text-muted-foreground">类型：</span><Badge variant="secondary" className="font-mono text-sm px-2.5 py-0.5">{configInfo.graph_store.provider}</Badge></p>
+                    <div className="flex items-center gap-2"><span className="text-muted-foreground">类型：</span><Badge variant="secondary" className="font-mono text-sm px-2.5 py-0.5">{configInfo.graph_store.provider}</Badge></div>
                     <p className="truncate" title={configInfo.graph_store.url}><span className="text-muted-foreground">地址：</span><span className="font-mono">{configInfo.graph_store.url || "-"}</span></p>
                   </div>
+
                 </div>
               </div>
             </>
