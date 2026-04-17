@@ -1,7 +1,10 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import dynamic from "next/dynamic";
+
 import {
+
   Loader2,
   Download,
   Upload,
@@ -42,13 +45,20 @@ import { UserCombobox } from "@/components/shared/user-combobox";
 import { mem0Api } from "@/lib/api";
 import type { Memory } from "@/lib/api";
 import { exportToJSON, exportToCSV, type ExportOutput } from "@/lib/data-transfer";
-import { ImportDialog, type ImportSuccessInfo } from "@/components/memories/import-dialog";
+import type { ImportSuccessInfo } from "@/components/memories/import-dialog";
 import { useToast } from "@/hooks/use-toast";
+
 import { useOperationRecords, type OperationRecord } from "@/hooks/use-operation-records";
 import { hasRunningImportTask } from "@/lib/import-task-registry";
 import { Progress } from "@/components/ui/progress";
 
+const ImportDialog = dynamic(
+  () => import("@/components/memories/import-dialog").then((m) => ({ default: m.ImportDialog })),
+  { ssr: false }
+);
+
 export default function DataTransferPage() {
+
   const { toast } = useToast();
 
   // 导出状态
@@ -70,6 +80,8 @@ export default function DataTransferPage() {
   // 筛选后的预览数量
   const [filteredCount, setFilteredCount] = useState<number | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  const previewAbortRef = useRef<AbortController | null>(null);
+
 
   // 导入弹窗
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -165,10 +177,17 @@ export default function DataTransferPage() {
 
   // 预览筛选结果数量
   const handlePreview = useCallback(async () => {
+    previewAbortRef.current?.abort();
+
     if (!hasFilter) {
+      previewAbortRef.current = null;
+      setPreviewing(false);
       setFilteredCount(null);
       return;
     }
+
+    const controller = new AbortController();
+    previewAbortRef.current = controller;
     setPreviewing(true);
     try {
       const preview = await mem0Api.getMemories({
@@ -177,15 +196,25 @@ export default function DataTransferPage() {
         date_to: filterDateTo || undefined,
         page: 1,
         page_size: 1,
-      });
+      }, controller.signal);
+      if (previewAbortRef.current !== controller) {
+        return;
+      }
       const totalFromServer = Array.isArray(preview) ? preview.length : preview.total;
       setFilteredCount(totalFromServer);
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return;
+      }
       setFilteredCount(null);
     } finally {
-      setPreviewing(false);
+      if (previewAbortRef.current === controller) {
+        previewAbortRef.current = null;
+        setPreviewing(false);
+      }
     }
   }, [hasFilter, filterUserId, filterDateFrom, filterDateTo]);
+
 
   // 筛选条件变化时自动预览
   useEffect(() => {
@@ -196,7 +225,14 @@ export default function DataTransferPage() {
     return () => clearTimeout(timer);
   }, [handlePreview]);
 
+  useEffect(() => {
+    return () => {
+      previewAbortRef.current?.abort();
+    };
+  }, []);
+
   // 重置筛选条件
+
   const handleResetFilter = () => {
     setFilterUserId("");
     setUserSelected(false);

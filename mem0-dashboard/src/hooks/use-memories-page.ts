@@ -5,7 +5,8 @@
  */
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+
 import { toast } from "@/hooks/use-toast";
 import { mem0Api } from "@/lib/api";
 import type { Memory, FilterParams, PaginatedMemoriesResponse, UserInfo } from "@/lib/api";
@@ -58,13 +59,25 @@ export function useMemoriesPage() {
   const [batchDeleteDialogOpen, setBatchDeleteDialogOpen] = useState(false);
   const [batchDeleteLoading, setBatchDeleteLoading] = useState(false);
 
+  const memoriesAbortRef = useRef<AbortController | null>(null);
+  const usersAbortRef = useRef<AbortController | null>(null);
+  const bulkSelectionAbortRef = useRef<AbortController | null>(null);
+
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
 
   // ============ 数据获取 ============
 
   const fetchUsers = useCallback(async () => {
+    usersAbortRef.current?.abort();
+    const controller = new AbortController();
+    usersAbortRef.current = controller;
+
     try {
-      const users = await mem0Api.getMemoryUsers();
+      const users = await mem0Api.getMemoryUsers(controller.signal);
+      if (usersAbortRef.current !== controller) {
+        return;
+      }
       const ids = Array.isArray(users)
         ? (users as UserInfo[])
             .map((u) => u.user_id)
@@ -72,12 +85,23 @@ export function useMemoriesPage() {
             .sort((a, b) => a.localeCompare(b, "zh-CN", { numeric: true }))
         : [];
       setUniqueUsers(ids);
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return;
+      }
       setUniqueUsers([]);
+    } finally {
+      if (usersAbortRef.current === controller) {
+        usersAbortRef.current = null;
+      }
     }
   }, []);
 
   const fetchMemories = useCallback(async () => {
+    memoriesAbortRef.current?.abort();
+    const controller = new AbortController();
+    memoriesAbortRef.current = controller;
+
     setLoading(true);
     setError("");
     try {
@@ -89,7 +113,10 @@ export function useMemoriesPage() {
         sort_by: sortOrder === "oldest" ? "created_at" : "created_at",
         sort_order: sortOrder === "oldest" ? "asc" : "desc",
       };
-      const data = await mem0Api.getMemories(apiFilters);
+      const data = await mem0Api.getMemories(apiFilters, controller.signal);
+      if (memoriesAbortRef.current !== controller) {
+        return;
+      }
       const pageData: PaginatedMemoriesResponse = Array.isArray(data)
         ? {
             items: data,
@@ -107,13 +134,20 @@ export function useMemoriesPage() {
         setCurrentPage(safeTotalPages);
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return;
+      }
       setError(err instanceof Error ? err.message : "获取记忆列表失败");
       setMemories([]);
       setTotalCount(0);
     } finally {
-      setLoading(false);
+      if (memoriesAbortRef.current === controller) {
+        memoriesAbortRef.current = null;
+        setLoading(false);
+      }
     }
   }, [filters, debouncedSearchText, currentPage, pageSize, sortOrder]);
+
 
   // 搜索防抖：400ms（兼顾中文 IME 输入法组合延迟，减少无效 API 请求）
   useEffect(() => {
@@ -140,7 +174,16 @@ export function useMemoriesPage() {
     setPageSize(preferences.pageSize);
   }, [preferences.pageSize]);
 
+  useEffect(() => {
+    return () => {
+      memoriesAbortRef.current?.abort();
+      usersAbortRef.current?.abort();
+      bulkSelectionAbortRef.current?.abort();
+    };
+  }, []);
+
   // ============ 派生数据 ============
+
 
   const filteredMemories = memories;
   const paginatedMemories = memories;
@@ -249,6 +292,9 @@ export function useMemoriesPage() {
   const handleToggleAll = useCallback(
     async (checked: boolean) => {
       if (checked) {
+        bulkSelectionAbortRef.current?.abort();
+        const controller = new AbortController();
+        bulkSelectionAbortRef.current = controller;
         setSelectAllLoading(true);
         try {
           // 构建与当前列表一致的筛选参数（不含分页），调用后端获取所有 ID
@@ -256,13 +302,19 @@ export function useMemoriesPage() {
             ...filters,
             search: debouncedSearchText.trim() || undefined,
           };
-          const result = await mem0Api.getAllMemoryIds(apiFilters);
+          const result = await mem0Api.getAllMemoryIds(apiFilters, controller.signal);
+          if (bulkSelectionAbortRef.current !== controller) {
+            return;
+          }
           setSelectedIds(new Set(result.ids));
           toast({
             title: "全选成功",
             description: `已选中 ${result.total} 条记忆`,
           });
         } catch (err) {
+          if (err instanceof DOMException && err.name === "AbortError") {
+            return;
+          }
           console.error("全选失败:", err);
           toast({
             title: "全选失败",
@@ -270,14 +322,22 @@ export function useMemoriesPage() {
             variant: "destructive",
           });
         } finally {
-          setSelectAllLoading(false);
+          if (bulkSelectionAbortRef.current === controller) {
+            bulkSelectionAbortRef.current = null;
+            setSelectAllLoading(false);
+          }
         }
       } else {
+        bulkSelectionAbortRef.current?.abort();
+        bulkSelectionAbortRef.current = null;
+        setSelectAllLoading(false);
         setSelectedIds(new Set());
       }
+
     },
     [filters, debouncedSearchText]
   );
+
 
   const handleTogglePageAll = useCallback(
     (checked: boolean) => {
@@ -299,6 +359,9 @@ export function useMemoriesPage() {
   const [invertLoading, setInvertLoading] = useState(false);
 
   const handleInvertSelection = useCallback(async () => {
+    bulkSelectionAbortRef.current?.abort();
+    const controller = new AbortController();
+    bulkSelectionAbortRef.current = controller;
     setInvertLoading(true);
     try {
       // 从后端获取当前筛选条件下的所有记忆 ID
@@ -306,7 +369,10 @@ export function useMemoriesPage() {
         ...filters,
         search: debouncedSearchText.trim() || undefined,
       };
-      const result = await mem0Api.getAllMemoryIds(apiFilters);
+      const result = await mem0Api.getAllMemoryIds(apiFilters, controller.signal);
+      if (bulkSelectionAbortRef.current !== controller) {
+        return;
+      }
       const allIds = new Set(result.ids);
       // 反选：在所有 ID 中，已选的去掉，未选的加上
       const newIds = new Set<string>();
@@ -317,6 +383,9 @@ export function useMemoriesPage() {
       });
       setSelectedIds(newIds);
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return;
+      }
       console.error("反选失败:", err);
       toast({
         title: "反选失败",
@@ -324,9 +393,13 @@ export function useMemoriesPage() {
         variant: "destructive",
       });
     } finally {
-      setInvertLoading(false);
+      if (bulkSelectionAbortRef.current === controller) {
+        bulkSelectionAbortRef.current = null;
+        setInvertLoading(false);
+      }
     }
   }, [filters, debouncedSearchText, selectedIds]);
+
 
   const handleClearSelection = useCallback(() => {
     setSelectedIds(new Set());

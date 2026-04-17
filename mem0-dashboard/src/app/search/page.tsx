@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
+
 import {
   Search,
   Loader2,
@@ -34,8 +36,8 @@ import {
 import { mem0Api } from "@/lib/api";
 import type { SearchResult, Memory, UserInfo } from "@/lib/api";
 import { CategoryBadges } from "@/components/memories/category-badge";
-import { MemoryDetailPanel } from "@/components/memories/memory-detail-panel";
 import { UserCombobox } from "@/components/shared/user-combobox";
+
 
 // 搜索历史记录类型
 interface SearchHistoryItem {
@@ -48,7 +50,13 @@ interface SearchHistoryItem {
 const SEARCH_HISTORY_KEY = "mem0-search-history";
 const MAX_HISTORY = 10;
 
+const MemoryDetailPanel = dynamic(
+  () => import("@/components/memories/memory-detail-panel").then((m) => ({ default: m.MemoryDetailPanel })),
+  { ssr: false }
+);
+
 export default function SearchPage() {
+
   // 搜索状态
   const [query, setQuery] = useState("");
   const [userId, setUserId] = useState<string>("");
@@ -67,6 +75,36 @@ export default function SearchPage() {
 
   // 用户列表（从记忆数据获取）
   const [users, setUsers] = useState<string[]>([]);
+  const usersAbortRef = useRef<AbortController | null>(null);
+  const searchAbortRef = useRef<AbortController | null>(null);
+
+  const loadUsers = useCallback(async () => {
+    usersAbortRef.current?.abort();
+    const controller = new AbortController();
+    usersAbortRef.current = controller;
+
+    try {
+      const data = await mem0Api.getMemoryUsers(controller.signal);
+      if (usersAbortRef.current !== controller) {
+        return;
+      }
+      const uniqueUsers = Array.isArray(data)
+        ? (data as UserInfo[])
+            .map((u) => u.user_id)
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b, "zh-CN", { numeric: true }))
+        : [];
+      setUsers(uniqueUsers);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return;
+      }
+    } finally {
+      if (usersAbortRef.current === controller) {
+        usersAbortRef.current = null;
+      }
+    }
+  }, []);
 
   // 加载搜索历史和用户列表
   useEffect(() => {
@@ -80,20 +118,7 @@ export default function SearchPage() {
 
     // 加载用户列表
     loadUsers();
-  }, []);
-
-  const loadUsers = async () => {
-    try {
-      const data = await mem0Api.getMemoryUsers();
-      const uniqueUsers = Array.isArray(data)
-        ? (data as UserInfo[])
-            .map((u) => u.user_id)
-            .filter(Boolean)
-            .sort((a, b) => a.localeCompare(b, "zh-CN", { numeric: true }))
-        : [];
-      setUsers(uniqueUsers);
-    } catch {}
-  };
+  }, [loadUsers]);
 
   // 保存搜索历史
   const saveHistory = (item: SearchHistoryItem) => {
@@ -112,22 +137,33 @@ export default function SearchPage() {
   };
 
   // 执行搜索
-  const handleSearch = async (searchQuery?: string) => {
+  const handleSearch = useCallback(async (searchQuery?: string) => {
     const q = searchQuery || query;
     if (!q.trim()) return;
+
+    searchAbortRef.current?.abort();
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
 
     setLoading(true);
     setError("");
     setSearched(true);
 
     try {
-      const response = await mem0Api.searchMemories({
-        query: q.trim(),
-        user_id: userId || undefined,
-        limit: parseInt(limit),
-      });
+      const response = await mem0Api.searchMemories(
+        {
+          query: q.trim(),
+          user_id: userId || undefined,
+          limit: parseInt(limit),
+        },
+        controller.signal
+      );
 
-      const searchResults = (response.results || []);
+      if (searchAbortRef.current !== controller) {
+        return;
+      }
+
+      const searchResults = response.results || [];
       setResults(searchResults);
 
       // 保存搜索历史
@@ -138,12 +174,18 @@ export default function SearchPage() {
         resultCount: searchResults.length,
       });
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return;
+      }
       setError(err instanceof Error ? err.message : "搜索失败");
       setResults([]);
     } finally {
-      setLoading(false);
+      if (searchAbortRef.current === controller) {
+        searchAbortRef.current = null;
+        setLoading(false);
+      }
     }
-  };
+  }, [limit, query, saveHistory, userId]);
 
   // 从历史记录搜索
   const handleHistorySearch = (item: SearchHistoryItem) => {
@@ -181,7 +223,15 @@ export default function SearchPage() {
     return "bg-orange-100 dark:bg-orange-900/30";
   };
 
+  useEffect(() => {
+    return () => {
+      usersAbortRef.current?.abort();
+      searchAbortRef.current?.abort();
+    };
+  }, []);
+
   return (
+
     <div className="space-y-4">
       {/* 页面头部 */}
       <div>

@@ -22,18 +22,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { mem0Api } from "@/lib/api";
 import type {
   PlaygroundMessage,
   PlaygroundRetrievedMemory,
-  PlaygroundNewMemory,
   PlaygroundSSEEvent,
   Memory,
   UserInfo,
@@ -140,7 +133,18 @@ const MemorySidebar = React.memo(function MemorySidebar({
   onRefresh: () => void;
   highlightMemoryIds: Set<string>;
 }) {
+  const sortedMemories = React.useMemo(
+    () =>
+      [...userMemories].sort((a, b) => {
+        const aHighlight = highlightMemoryIds.has(a.id) ? 1 : 0;
+        const bHighlight = highlightMemoryIds.has(b.id) ? 1 : 0;
+        return bHighlight - aHighlight;
+      }),
+    [userMemories, highlightMemoryIds]
+  );
+
   return (
+
     <div
       className={`flex flex-col border-l bg-card transition-all duration-300 ${
         open ? "w-80" : "w-0 overflow-hidden border-l-0"
@@ -183,12 +187,9 @@ const MemorySidebar = React.memo(function MemorySidebar({
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
-            ) : userMemories.length > 0 ? (
-              [...userMemories].sort((a, b) => {
-                const aHighlight = highlightMemoryIds.has(a.id) ? 1 : 0;
-                const bHighlight = highlightMemoryIds.has(b.id) ? 1 : 0;
-                return bHighlight - aHighlight;
-              }).map((mem) => (
+            ) : sortedMemories.length > 0 ? (
+              sortedMemories.map((mem) => (
+
                 <div
                   key={mem.id}
                   className={`rounded-lg border p-2.5 text-sm transition-all duration-300 ${
@@ -237,7 +238,7 @@ export default function PlaygroundPage() {
   const [users, setUsers] = useState<string[]>([]);
 
   // 对话状态（IndexedDB 持久化）
-  const { messages, loaded: chatLoaded, updateMessages, clearMessages, flushSave, pausePersist, resumePersist } = usePlaygroundChat(userId);
+  const { messages, updateMessages, clearMessages, flushSave, pausePersist, resumePersist } = usePlaygroundChat(userId);
   const [inputValue, setInputValue] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -252,9 +253,12 @@ export default function PlaygroundPage() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const shouldAutoScrollRef = useRef(true);
 
   // 中止控制器
   const abortControllerRef = useRef<AbortController | null>(null);
+  const usersAbortRef = useRef<AbortController | null>(null);
+  const memoriesAbortRef = useRef<AbortController | null>(null);
 
   // RAF 节流：流式输出时将多个 SSE content 事件合并到一帧内更新，避免逐 token 触发 re-render
   const pendingContentRef = useRef("");
@@ -263,8 +267,15 @@ export default function PlaygroundPage() {
   // 加载用户列表
   useEffect(() => {
     const loadUsers = async () => {
+      usersAbortRef.current?.abort();
+      const controller = new AbortController();
+      usersAbortRef.current = controller;
+
       try {
-        const data = await mem0Api.getMemoryUsers();
+        const data = await mem0Api.getMemoryUsers(controller.signal);
+        if (usersAbortRef.current !== controller) {
+          return;
+        }
         const uniqueUsers = Array.isArray(data)
           ? (data as UserInfo[])
               .map((u) => u.user_id)
@@ -272,23 +283,50 @@ export default function PlaygroundPage() {
               .sort((a, b) => a.localeCompare(b, "zh-CN", { numeric: true }))
           : [];
         setUsers(uniqueUsers);
-      } catch {}
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return;
+        }
+      } finally {
+        if (usersAbortRef.current === controller) {
+          usersAbortRef.current = null;
+        }
+      }
     };
     loadUsers();
   }, []);
 
   // 加载用户记忆
   const loadUserMemories = useCallback(async () => {
-    if (!userId) return;
+    memoriesAbortRef.current?.abort();
+
+    if (!userId) {
+      memoriesAbortRef.current = null;
+      setUserMemories([]);
+      setLoadingMemories(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    memoriesAbortRef.current = controller;
     setLoadingMemories(true);
     try {
-      const memories = await mem0Api.getMemories(userId);
-      const active = (Array.isArray(memories) ? memories : []);
+      const memories = await mem0Api.getMemories(userId, controller.signal);
+      if (memoriesAbortRef.current !== controller) {
+        return;
+      }
+      const active = Array.isArray(memories) ? memories : memories.items || [];
       setUserMemories(active);
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return;
+      }
       setUserMemories([]);
     } finally {
-      setLoadingMemories(false);
+      if (memoriesAbortRef.current === controller) {
+        memoriesAbortRef.current = null;
+        setLoadingMemories(false);
+      }
     }
   }, [userId]);
 
@@ -296,17 +334,23 @@ export default function PlaygroundPage() {
     loadUserMemories();
   }, [loadUserMemories]);
 
+  const isNearBottom = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return true;
+    const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
+    return distance <= 120;
+  }, []);
+
   // 自动滚动到底部
-  // 流式生成期间使用 instant 滚动，避免 smooth 动画堆积导致滚动卡顿
-  const scrollToBottom = useCallback((instant?: boolean) => {
-    messagesEndRef.current?.scrollIntoView({
-      behavior: instant ? "instant" : "smooth",
-    });
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
   }, []);
 
   useEffect(() => {
-    scrollToBottom(isGenerating);
-  }, [messages, scrollToBottom, isGenerating]);
+    if (shouldAutoScrollRef.current) {
+      scrollToBottom(messages.length <= 2 ? "smooth" : "auto");
+    }
+  }, [messages.length, scrollToBottom]);
 
   // 监听滚动位置
   useEffect(() => {
@@ -314,18 +358,27 @@ export default function PlaygroundPage() {
     if (!container) return;
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = container;
-      setShowScrollDown(scrollHeight - scrollTop - clientHeight > 100);
+      const distance = scrollHeight - scrollTop - clientHeight;
+      const nearBottom = distance <= 100;
+      shouldAutoScrollRef.current = nearBottom;
+      setShowScrollDown(!nearBottom);
     };
+    handleScroll();
     container.addEventListener("scroll", handleScroll);
     return () => container.removeEventListener("scroll", handleScroll);
   }, []);
 
   // 发送消息
+
+
   const handleSend = async () => {
     const text = inputValue.trim();
     if (!text || isGenerating) return;
 
+    shouldAutoScrollRef.current = true;
+    setShowScrollDown(false);
     setInputValue("");
+
     // 重置输入框高度
     if (inputRef.current) {
       inputRef.current.style.height = "auto";
@@ -400,7 +453,11 @@ export default function PlaygroundPage() {
                         : m
                     )
                   );
+                  if (shouldAutoScrollRef.current) {
+                    scrollToBottom("auto");
+                  }
                 });
+
               }
               break;
 
@@ -535,7 +592,21 @@ export default function PlaygroundPage() {
     textarea.style.height = `${Math.min(textarea.scrollHeight, 150)}px`;
   };
 
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+      usersAbortRef.current?.abort();
+      memoriesAbortRef.current?.abort();
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      pendingContentRef.current = "";
+    };
+  }, []);
+
   return (
+
     <div className="space-y-4">
       {/* 页面标题区域 — 与其他页面统一 */}
       <div>
@@ -656,7 +727,11 @@ export default function PlaygroundPage() {
                     variant="secondary"
                     size="sm"
                     className="rounded-full shadow-lg pointer-events-auto"
-                    onClick={() => scrollToBottom(false)}
+                    onClick={() => {
+                      shouldAutoScrollRef.current = true;
+                      setShowScrollDown(false);
+                      scrollToBottom("smooth");
+                    }}
                   >
                     <ArrowDown className="mr-1 h-3.5 w-3.5" />
                     回到底部

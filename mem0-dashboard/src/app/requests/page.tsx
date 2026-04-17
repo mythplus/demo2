@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
+
 import {
   RefreshCw,
   Clock,
@@ -81,7 +82,6 @@ const TYPE_BADGE_STYLES: Record<string, string> = {
   "删除": "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
   "更新": "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
   "对话": "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300",
-  "更新": "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
 };
 
 function formatLatency(ms: number): string {
@@ -145,7 +145,9 @@ export default function RequestsPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [activeQuick, setActiveQuick] = useState<string>("");
+  const logsAbortRef = useRef<AbortController | null>(null);
   const pageSize = 20;
+
 
   // 快捷时间按钮处理
   const handleQuickDate = (type: string) => {
@@ -181,6 +183,10 @@ export default function RequestsPage() {
   const hasDateFilter = dateFrom !== "" || dateTo !== "";
 
   const fetchLogs = useCallback(async () => {
+    logsAbortRef.current?.abort();
+    const controller = new AbortController();
+    logsAbortRef.current = controller;
+
     setLoading(true);
     try {
       // 构建时间范围参数
@@ -194,23 +200,50 @@ export default function RequestsPage() {
           until: untilParam,
           limit: pageSize,
           offset: page * pageSize,
-        }),
-        page === 0 ? mem0Api.getRequestLogsStats(sinceParam, untilParam).catch(() => null) : Promise.resolve(stats),
+        }, controller.signal),
+        page === 0
+          ? mem0Api.getRequestLogsStats(sinceParam, untilParam, controller.signal).catch((err) => {
+              if (err instanceof DOMException && err.name === "AbortError") {
+                return null;
+              }
+              return null;
+            })
+          : Promise.resolve<RequestLogsStats | null>(null),
+
       ]);
+
+      if (logsAbortRef.current !== controller) {
+        return;
+      }
+
       setLogs(logsRes.logs || []);
       setTotal(logsRes.total || 0);
       if (statsRes) setStats(statsRes);
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return;
+      }
       console.error("获取请求日志失败:", err);
       setLogs([]);
     } finally {
-      setLoading(false);
+      if (logsAbortRef.current === controller) {
+        logsAbortRef.current = null;
+        setLoading(false);
+      }
     }
-  }, [filterType, page, dateFrom, dateTo]);
+  }, [filterType, page, dateFrom, dateTo, pageSize]);
+
 
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
+
+  useEffect(() => {
+    return () => {
+      logsAbortRef.current?.abort();
+    };
+  }, []);
+
 
   const totalPages = Math.ceil(total / pageSize);
 

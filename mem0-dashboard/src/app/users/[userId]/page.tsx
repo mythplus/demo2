@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+
 import { toast } from "@/hooks/use-toast";
 import {
   ArrowLeft,
@@ -35,10 +37,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { EditMemoryDialog } from "@/components/memories/edit-memory-dialog";
-import { DeleteConfirmDialog } from "@/components/memories/delete-confirm-dialog";
-import { MemoryDetailPanel } from "@/components/memories/memory-detail-panel";
 import { CategoryBadges } from "@/components/memories/category-badge";
+
 import { PageSizeSelector } from "@/components/memories/page-size-selector";
 import {
   Tooltip,
@@ -50,7 +50,21 @@ import { mem0Api } from "@/lib/api";
 import type { Memory } from "@/lib/api";
 import { usePreferences } from "@/hooks/use-preferences";
 
+const EditMemoryDialog = dynamic(
+  () => import("@/components/memories/edit-memory-dialog").then((m) => ({ default: m.EditMemoryDialog })),
+  { ssr: false }
+);
+const DeleteConfirmDialog = dynamic(
+  () => import("@/components/memories/delete-confirm-dialog").then((m) => ({ default: m.DeleteConfirmDialog })),
+  { ssr: false }
+);
+const MemoryDetailPanel = dynamic(
+  () => import("@/components/memories/memory-detail-panel").then((m) => ({ default: m.MemoryDetailPanel })),
+  { ssr: false }
+);
+
 /** 截断过长的用户ID，超过指定长度时显示省略号 */
+
 function truncateId(id: string, maxLen = 24): string {
   return id.length > maxLen ? id.slice(0, maxLen) + "..." : id;
 }
@@ -81,18 +95,29 @@ export default function UserDetailPage() {
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
   const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const memoriesAbortRef = useRef<AbortController | null>(null);
 
   const fetchMemories = useCallback(async () => {
+    memoriesAbortRef.current?.abort();
+    const controller = new AbortController();
+    memoriesAbortRef.current = controller;
+
     setLoading(true);
     setError("");
     try {
-      const data = await mem0Api.getMemories({
-        user_id: userId,
-        page: currentPage,
-        page_size: pageSize,
-        sort_by: "created_at",
-        sort_order: sortOrder === "oldest" ? "asc" : "desc",
-      });
+      const data = await mem0Api.getMemories(
+        {
+          user_id: userId,
+          page: currentPage,
+          page_size: pageSize,
+          sort_by: "created_at",
+          sort_order: sortOrder === "oldest" ? "asc" : "desc",
+        },
+        controller.signal
+      );
+      if (memoriesAbortRef.current !== controller) {
+        return;
+      }
       if (Array.isArray(data)) {
         setMemories(data);
         setTotalCount(data.length);
@@ -105,11 +130,17 @@ export default function UserDetailPage() {
         }
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return;
+      }
       setError(err instanceof Error ? err.message : "获取记忆失败");
       setMemories([]);
       setTotalCount(0);
     } finally {
-      setLoading(false);
+      if (memoriesAbortRef.current === controller) {
+        memoriesAbortRef.current = null;
+        setLoading(false);
+      }
     }
   }, [userId, currentPage, pageSize, sortOrder]);
 
@@ -120,6 +151,12 @@ export default function UserDetailPage() {
   useEffect(() => {
     setPageSize(preferences.pageSize);
   }, [preferences.pageSize]);
+
+  useEffect(() => {
+    return () => {
+      memoriesAbortRef.current?.abort();
+    };
+  }, []);
 
   // 删除单条记忆
   const handleDeleteMemory = async () => {
