@@ -141,11 +141,24 @@ def _get_secret_cipher() -> Optional["Fernet"]:
     return _CIPHER_CACHE
 
 
-def _encrypt_secret(secret: Optional[str]) -> Optional[str]:
+def _encrypt_secret(secret: Optional[str], *, allow_ciphertext: bool = False) -> Optional[str]:
+    """加密明文 Webhook secret。
+
+    Args:
+        secret: 用户提交的明文 secret。
+        allow_ciphertext: 仅供内部迁移/回填场景使用。若为 True，允许传入已带 `enc:v1:`
+            前缀的密文并直接原样返回；对外 API（create/update）必须保持 False，以防
+            攻击者伪造密文绕过加密。
+
+    Raises:
+        ValueError: 当 allow_ciphertext 为 False 且 secret 以 `enc:v1:` 开头时抛出。
+    """
     if not secret:
         return None
     if secret.startswith(_SECRET_PREFIX):
-        return secret
+        if allow_ciphertext:
+            return secret
+        raise ValueError("Webhook secret 不能以 'enc:v1:' 开头（该前缀为内部密文标识）")
 
     cipher = _get_secret_cipher()
     if cipher is None:
@@ -192,7 +205,7 @@ def migrate_webhook_secrets() -> int:
                 continue
             conn.execute(
                 "UPDATE webhooks SET secret = ? WHERE id = ?",
-                (_encrypt_secret(stored_secret), row["id"]),
+                (_encrypt_secret(stored_secret, allow_ciphertext=True), row["id"]),
             )
             migrated += 1
         if migrated:
@@ -238,7 +251,7 @@ def _migrate_from_json() -> None:
                     wh.get("url", ""),
                     1 if wh.get("enabled", True) else 0,
                     json.dumps(wh.get("events", []), ensure_ascii=False),
-                    _encrypt_secret(wh.get("secret")),
+                    _encrypt_secret(wh.get("secret"), allow_ciphertext=True),
                     wh.get("created_at", ""),
                     wh.get("last_triggered"),
                     wh.get("last_status"),
@@ -418,7 +431,16 @@ def create_webhook(data: dict) -> dict:
         raise
 
 
-def update_webhook(webhook_id: str, data: dict) -> Optional[dict]:
+def update_webhook(webhook_id: str, data: dict, *, _allow_ciphertext_secret: bool = False) -> Optional[dict]:
+    """更新 Webhook 配置。
+
+    Args:
+        webhook_id: Webhook ID。
+        data: 更新字段字典。若包含 ``secret`` 键，默认按明文加密入库。
+        _allow_ciphertext_secret: 仅供内部调用（如 toggle/last_status 回填等会把已加密的
+            existing 记录整体回写的场景）。启用后允许 ``secret`` 为已加密的 ``enc:v1:`` 密文
+            原样回写，不做明文伪造校验。对外路由必须保持 False。
+    """
     try:
         conn = _get_db_conn()
         existing = conn.execute("SELECT * FROM webhooks WHERE id = ?", (webhook_id,)).fetchone()
@@ -432,7 +454,7 @@ def update_webhook(webhook_id: str, data: dict) -> Optional[dict]:
         events = data.get("events", existing_dict["events"])
 
         if "secret" in data:
-            secret = _encrypt_secret(data.get("secret"))
+            secret = _encrypt_secret(data.get("secret"), allow_ciphertext=_allow_ciphertext_secret)
         else:
             secret = existing_dict.get("secret")
 
@@ -675,6 +697,7 @@ async def test_webhook(webhook_id: str, http_client: Optional[httpx.AsyncClient]
                 "last_triggered": datetime.now().isoformat(),
                 "last_status": "success",
             },
+            _allow_ciphertext_secret=True,
         )
         return {"success": True, "message": "测试推送成功"}
     except Exception as exc:
@@ -685,6 +708,7 @@ async def test_webhook(webhook_id: str, http_client: Optional[httpx.AsyncClient]
                 "last_triggered": datetime.now().isoformat(),
                 "last_status": "failed",
             },
+            _allow_ciphertext_secret=True,
         )
         return {"success": False, "message": f"测试失败: {exc}"}
     finally:

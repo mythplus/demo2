@@ -101,11 +101,14 @@ async function request<T>(
   let onExternalAbort: (() => void) | undefined;
   if (externalSignal) {
     if (externalSignal.aborted) {
+      // M7: 外部信号进入函数前已被取消，直接清理超时定时器并抛 AbortError，
+      // 避免再发起无意义的 fetch 请求（占用网络线程与后端连接池）。
+      clearTimeout(timeoutId);
       controller.abort();
-    } else {
-      onExternalAbort = () => controller.abort();
-      externalSignal.addEventListener("abort", onExternalAbort);
+      throw new DOMException("Aborted", "AbortError");
     }
+    onExternalAbort = () => controller.abort();
+    externalSignal.addEventListener("abort", onExternalAbort);
   }
 
   try {

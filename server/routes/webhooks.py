@@ -82,7 +82,10 @@ async def create_webhook(request: WebhookCreateRequest):
         raise HTTPException(status_code=400, detail=f"Webhook URL 验证失败: {validation['message']}，请检查URL的正确性")
 
     data = request.model_dump()
-    result = webhook_service.create_webhook(data)
+    try:
+        result = webhook_service.create_webhook(data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     # 脱敏 secret
     if result.get("secret"):
         result["secret"] = "***"
@@ -119,7 +122,10 @@ async def update_webhook(webhook_id: str, request: WebhookUpdateRequest):
         update_data[key] = value
 
 
-    result = webhook_service.update_webhook(webhook_id, update_data)
+    try:
+        result = webhook_service.update_webhook(webhook_id, update_data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     if not result:
         raise HTTPException(status_code=500, detail="更新失败")
     if result.get("secret"):
@@ -143,7 +149,8 @@ async def toggle_webhook(webhook_id: str):
         raise HTTPException(status_code=404, detail="Webhook 不存在")
 
     existing["enabled"] = not existing.get("enabled", True)
-    result = webhook_service.update_webhook(webhook_id, existing)
+    # toggle 回写的 existing 中 secret 已经是 enc:v1: 密文，需要豁免明文校验
+    result = webhook_service.update_webhook(webhook_id, existing, _allow_ciphertext_secret=True)
     return {"message": "已切换", "enabled": result.get("enabled")}
 
 

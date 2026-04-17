@@ -6,6 +6,7 @@ import os
 import re
 import time
 import logging
+from urllib.parse import urlsplit, urlunsplit
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
@@ -19,8 +20,33 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["系统"])
 
 
+def _strip_url_credentials(url: str) -> str:
+    """剥离 URL 中的用户名和密码（user:pass@host 形式），防止凭据在配置接口中泄漏。
+
+    无论是否为生产环境，该函数都会被调用，确保任何环境下配置接口都不会暴露 userinfo。
+    """
+    if not url or "://" not in url:
+        return url
+    try:
+        parts = urlsplit(url)
+        if not parts.username and not parts.password:
+            return url
+        # 重建 netloc，去除 userinfo
+        host = parts.hostname or ""
+        if parts.port:
+            new_netloc = f"{host}:{parts.port}"
+        else:
+            new_netloc = host
+        return urlunsplit((parts.scheme, new_netloc, parts.path, parts.query, parts.fragment))
+    except Exception:
+        return url
+
+
 def _mask_url(url: str) -> str:
-    """对 URL 中的 IP 地址进行脱敏处理，保留协议和端口，隐藏 IP 中间段"""
+    """对 URL 中的 IP 地址进行脱敏处理，保留协议和端口，隐藏 IP 中间段。
+
+    注意：调用前应先通过 _strip_url_credentials 剥离 userinfo。
+    """
     if not url:
         return url
 
@@ -56,6 +82,12 @@ async def get_config_info():
     llm_base_url = llm_config.get("config", {}).get("ollama_base_url", llm_config.get("config", {}).get("openai_base_url", ""))
     embedder_base_url = embedder_config.get("config", {}).get("ollama_base_url", embedder_config.get("config", {}).get("openai_base_url", ""))
     graph_url = graph_config.get("config", {}).get("url", "")
+
+    # 安全：无论环境，先剥离 URL 中可能存在的用户名/密码（user:pass@host），
+    # 再由生产环境决定是否对 IP 进一步脱敏。
+    llm_base_url = _strip_url_credentials(llm_base_url)
+    embedder_base_url = _strip_url_credentials(embedder_base_url)
+    graph_url = _strip_url_credentials(graph_url)
 
     return {
         "llm": {
