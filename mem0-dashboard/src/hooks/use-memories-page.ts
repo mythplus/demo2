@@ -22,6 +22,7 @@ export function useMemoriesPage() {
   // ============ 数据状态 ============
   const [memories, setMemories] = useState<Memory[]>([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [totalIsEstimate, setTotalIsEstimate] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [uniqueUsers, setUniqueUsers] = useState<string[]>([]);
@@ -128,6 +129,7 @@ export function useMemoriesPage() {
         : data;
       setMemories(pageData.items || []);
       setTotalCount(pageData.total || 0);
+      setTotalIsEstimate(Boolean(pageData.total_is_estimate));
 
       const safeTotalPages = Math.max(1, pageData.total_pages || 1);
       if (currentPage > safeTotalPages) {
@@ -140,6 +142,7 @@ export function useMemoriesPage() {
       setError(err instanceof Error ? err.message : "获取记忆列表失败");
       setMemories([]);
       setTotalCount(0);
+      setTotalIsEstimate(false);
     } finally {
       if (memoriesAbortRef.current === controller) {
         memoriesAbortRef.current = null;
@@ -472,6 +475,7 @@ export function useMemoriesPage() {
     paginatedMemories,
     uniqueUsers,
     totalCount,
+    totalIsEstimate,
 
     // 筛选 & 分页
     searchText,

@@ -15,7 +15,7 @@ import os
 import socket
 import sqlite3
 import threading
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qs, urlparse
 
@@ -401,7 +401,7 @@ def get_webhook(webhook_id: str) -> Optional[dict]:
 def create_webhook(data: dict) -> dict:
     try:
         conn = _get_db_conn()
-        created_at = datetime.now().isoformat()
+        created_at = datetime.now(timezone.utc).isoformat()
         stored_secret = _encrypt_secret(data.get("secret"))
         record = {
             **data,
@@ -517,7 +517,7 @@ def _build_wecom_payload(event_type: str, data: dict) -> dict:
     memory_text = data.get("memory", "")[:150]
     user_id = data.get("user_id", "") or ""
     memory_id = data.get("memory_id", "")
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_str = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S")
 
     event_config = {
         "memory.added": {"label": "新增记忆", "color": "info"},
@@ -556,7 +556,7 @@ def _build_generic_payload(event_type: str, data: dict) -> dict:
     """构建通用 Webhook 推送 payload。"""
     return {
         "event": event_type,
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "data": data,
     }
 
@@ -576,7 +576,7 @@ def schedule_webhook_delivery(
     """将 Webhook 推送注册为可追踪后台任务。"""
     create_background_task(
         trigger_webhooks(event_type, data, http_client),
-        name=f"webhook:{event_type}:{datetime.now().strftime('%H%M%S%f')}",
+        name=f"webhook:{event_type}:{datetime.now(timezone.utc).strftime('%H%M%S%f')}",
     )
 
 
@@ -607,7 +607,7 @@ async def trigger_webhooks(
 
         try:
             conn = _get_db_conn()
-            now_iso = datetime.now().isoformat()
+            now_iso = datetime.now(timezone.utc).isoformat()
             for webhook, result in zip(matched, results):
                 status = "success" if not isinstance(result, Exception) else "failed"
                 conn.execute(
@@ -694,7 +694,7 @@ async def test_webhook(webhook_id: str, http_client: Optional[httpx.AsyncClient]
             webhook_id,
             {
                 **webhook,
-                "last_triggered": datetime.now().isoformat(),
+                "last_triggered": datetime.now(timezone.utc).isoformat(),
                 "last_status": "success",
             },
             _allow_ciphertext_secret=True,
@@ -705,7 +705,7 @@ async def test_webhook(webhook_id: str, http_client: Optional[httpx.AsyncClient]
             webhook_id,
             {
                 **webhook,
-                "last_triggered": datetime.now().isoformat(),
+                "last_triggered": datetime.now(timezone.utc).isoformat(),
                 "last_status": "failed",
             },
             _allow_ciphertext_secret=True,

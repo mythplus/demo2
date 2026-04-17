@@ -359,6 +359,7 @@ def query_memories_page(
             "page": safe_page,
             "page_size": safe_page_size,
             "total_pages": total_pages,
+            "total_is_estimate": False,  # L3: 关系库 COUNT 精确，始终为 False
         }
     finally:
         db.close()

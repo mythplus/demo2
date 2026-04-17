@@ -74,6 +74,7 @@ export default function MemoriesPage() {
 
     uniqueUsers,
     totalCount,
+    totalIsEstimate,
     // 筛选 & 分页
     searchText,
     filters,

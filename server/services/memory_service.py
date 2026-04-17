@@ -511,13 +511,18 @@ def _qdrant_get_memories_page(
         if total is not None and not search and scanned >= end:
             break
 
+    # L3: 存在 search 关键词时 total 只是 scanned 估算值（未真正走到数据末尾无法得知精确数），
+    # 通过 total_is_estimate 告知前端，前端可以显示"已加载 N 条"而非"共 N 页"
+    total_is_estimate = False
     if total is None:
         total = scanned
+        total_is_estimate = True
 
     total_pages = (total + safe_page_size - 1) // safe_page_size if total > 0 else 1
     return {
         "items": items, "total": total, "page": safe_page,
         "page_size": safe_page_size, "total_pages": total_pages,
+        "total_is_estimate": total_is_estimate,
     }
 
 

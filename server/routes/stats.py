@@ -4,7 +4,7 @@
 
 import time
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException
 
@@ -36,7 +36,7 @@ async def get_stats():
 
         # 构建每日趋势（补全 30 天内没有数据的日期）
         daily_trend = []
-        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         for i in range(29, -1, -1):
             day_str = (today - timedelta(days=i)).strftime("%Y-%m-%d")
             daily_trend.append({"date": day_str, "count": daily_counter.get(day_str, 0)})

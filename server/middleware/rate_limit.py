@@ -97,8 +97,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 conn.execute("DELETE FROM rate_limit_log WHERE timestamp < ?", (cutoff,))
                 conn.commit()
                 self._last_cleanup_at = now
+            except sqlite3.OperationalError as e:
+                # L6: 多 Worker 并发清理场景下可能产生 "database is locked" 等瞬态错误，
+                # 属于预期情况（其他 Worker 已经或正在清理），降级为 debug 日志避免告警洪水。
+                # 不更新 _last_cleanup_at，允许下次请求到来时重试清理。
+                logger.debug(f"清理限流记录被其他 Worker 抢占或数据库瞬态繁忙（可忽略）: {e}")
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
             except Exception as e:
                 logger.warning(f"清理限流记录失败: {e}")
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
 
 
     async def dispatch(self, request: Request, call_next):

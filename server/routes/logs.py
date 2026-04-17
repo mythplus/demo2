@@ -5,7 +5,7 @@
 import sqlite3
 import logging
 from typing import Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -106,7 +106,7 @@ async def get_request_logs_stats(
             type_distribution[normalized] = type_distribution.get(normalized, 0) + row["count"]
 
         # 判断粒度：since 在 24 小时内用 30 分钟粒度，否则按天
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         if since:
             try:
                 since_dt = datetime.fromisoformat(since.replace("Z", "+00:00")).replace(tzinfo=None)

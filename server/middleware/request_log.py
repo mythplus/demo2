@@ -4,7 +4,7 @@
 
 import time
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -67,7 +67,7 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
             request_type = classify_request(method, path)
             user_id = extract_user_from_request(method, path, body)
             payload_summary = summarize_payload(method, path, body)
-            ts = datetime.now().isoformat()
+            ts = datetime.now(timezone.utc).isoformat()
 
             log_request(ts, method, path, request_type, user_id,
                         status_code, latency_ms, payload_summary, error_msg)

@@ -10,6 +10,15 @@ import yaml
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
+# 配置日志（提前初始化根 logger，确保模块加载阶段的 logger.warning 能被捕获；
+# 正式的日志 handler 在 setup_logging() 中会被重新挂载，不会产生冲突）
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+logger = logging.getLogger(__name__)
+
 # 加载项目根目录的 .env 文件（本地开发时自动注入环境变量，生产环境由七彩石等平台注入）
 _PROJECT_ROOT_FOR_ENV = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _dotenv_path = os.path.join(_PROJECT_ROOT_FOR_ENV, ".env")
@@ -17,16 +26,11 @@ if os.path.exists(_dotenv_path):
     load_dotenv(_dotenv_path, override=False)
 else:
     # .env 文件不存在时输出警告（生产环境由平台注入环境变量，可忽略此警告）
-    import sys
-    print(
-        f"[WARNING] .env 文件不存在: {_dotenv_path}，"
-        "config.yaml 中的 ${{ENV_VAR}} 占位符可能被替换为空值。"
+    logger.warning(
+        ".env 文件不存在: %s，config.yaml 中的 ${ENV_VAR} 占位符可能被替换为空值。"
         "如果是本地开发，请复制 .env.example 为 .env 并填入实际值。",
-        file=sys.stderr,
+        _dotenv_path,
     )
-
-# 配置日志
-logger = logging.getLogger(__name__)
 
 # ============ 环境模式 ============
 _ENV_NAME = os.environ.get("MEM0_ENV", "development").lower()

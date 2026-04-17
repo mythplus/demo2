@@ -126,6 +126,8 @@ export interface PaginatedMemoriesResponse {
   page: number;
   page_size: number;
   total_pages: number;
+  /** total 是否为估算值（L3：Qdrant 回退分页 + search 关键词场景下为 true，前端应显示"已加载 N 条"而非"共 N 页"） */
+  total_is_estimate?: boolean;
 }
 
 // ============ 统计数据 ============

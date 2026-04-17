@@ -69,6 +69,30 @@ function resolveApiBase(): string {
   return "http://localhost:8080";
 }
 
+// ============ API Key 暴露告警（L4） ============
+
+let _apiKeyExposureWarned = false;
+
+/**
+ * 一次性运行时告警：NEXT_PUBLIC_MEM0_API_KEY 会被打包进前端 bundle 并暴露给浏览器。
+ * 仅在生产构建（NODE_ENV === "production"）下触发，开发环境保持静默以减少噪音。
+ *
+ * 生产环境推荐做法：前端留空该变量，由 Nginx 反向代理在服务端注入 Authorization / X-API-Key 头。
+ */
+function warnApiKeyExposureOnce(): void {
+  if (_apiKeyExposureWarned) return;
+  if (process.env.NODE_ENV !== "production") return;
+  if (typeof window === "undefined") return; // SSR 阶段不告警
+
+  _apiKeyExposureWarned = true;
+  // eslint-disable-next-line no-console
+  console.warn(
+    "[Mem0Dashboard][Security] 检测到 NEXT_PUBLIC_MEM0_API_KEY 已被打包进前端 bundle，" +
+      "任何访问站点的用户都能从 DevTools 读取到明文密钥。\n" +
+      "生产环境请留空该变量，改用 Nginx 反向代理在服务端注入 Authorization / X-API-Key 头。"
+  );
+}
+
 
 /**
  * 通用请求方法（带全局超时控制）
@@ -89,6 +113,9 @@ async function request<T>(
   const apiKey = process.env.NEXT_PUBLIC_MEM0_API_KEY;
   if (apiKey) {
     headers["Authorization"] = `Bearer ${apiKey}`;
+    // L4: 生产构建下若仍然把 API Key 暴露到前端 bundle，输出一次性运行时告警
+    // 提醒开发者改用 Nginx 反代在服务端注入 Authorization/X-API-Key 头
+    warnApiKeyExposureOnce();
   }
 
   // 超时控制 + 外部取消信号合并

@@ -9,7 +9,7 @@ import time
 import threading
 import queue as _queue
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from server.config import ACCESS_LOG_DB_PATH
 
@@ -164,7 +164,7 @@ def cleanup_old_logs():
     """清理超过 _LOG_RETENTION_DAYS 天的日志记录（所有日志表统一清理）"""
     try:
         from datetime import timedelta
-        cutoff = (datetime.now() - timedelta(days=_LOG_RETENTION_DAYS)).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=_LOG_RETENTION_DAYS)).isoformat()
         conn = _get_db_conn()
 
         tables_and_cols = [
@@ -322,7 +322,7 @@ def init_access_log_db():
 def save_category_snapshot(memory_id: str, categories: list, timestamp: str = "", strict: bool = False):
     """记录一次标签快照（默认异步队列投递；strict=True 时同步写入并抛出异常）"""
     try:
-        ts = timestamp or datetime.now().isoformat()
+        ts = timestamp or datetime.now(timezone.utc).isoformat()
         cats_json = json.dumps(categories, ensure_ascii=False)
         if strict:
             _flush_log_batch([
@@ -351,7 +351,7 @@ def save_change_log(memory_id: str, event: str, new_memory: str,
                     timestamp: str = ""):
     """记录一条修改历史（默认异步队列投递；strict=True 时同步写入并抛出异常）"""
     try:
-        ts = timestamp or datetime.now().isoformat()
+        ts = timestamp or datetime.now(timezone.utc).isoformat()
         cats_json = json.dumps(categories, ensure_ascii=False)
         old_cats_json = json.dumps(old_categories or [], ensure_ascii=False)
         sql = """INSERT INTO memory_change_logs
@@ -380,7 +380,7 @@ def save_memory_audit_snapshot(memory_id: str, event: str, new_memory: str,
                               categories: list, old_memory: str = None,
                               old_categories: list = None, timestamp: str = ""):
     """同步记录标签快照和修改历史，任一失败即抛错，保证审计链路原子性。"""
-    ts = timestamp or datetime.now().isoformat()
+    ts = timestamp or datetime.now(timezone.utc).isoformat()
     cats_json = json.dumps(categories, ensure_ascii=False)
     old_cats_json = json.dumps(old_categories or [], ensure_ascii=False)
     _flush_log_batch([
@@ -437,6 +437,7 @@ def get_change_logs(memory_id: str) -> list:
 
 # 访问日志去重缓存：防止前端 React StrictMode 等场景下短时间内重复记录
 _access_dedup_cache: dict = {}  # key: "memory_id:action" -> last_timestamp (float)
+_access_dedup_lock = threading.Lock()  # L5: 保护 _access_dedup_cache 的读-判断-写原子性
 _ACCESS_DEDUP_SECONDS = 5  # 同一 memory_id + action 在此秒数内的重复调用将被忽略
 
 
@@ -446,23 +447,24 @@ def log_access(memory_id: str, action: str, memory_preview: str = ""):
         now = time.time()
         dedup_key = f"{memory_id}:{action}"
 
-        # 去重：同一 memory_id + action 在 _ACCESS_DEDUP_SECONDS 秒内只记录一次
-        last_time = _access_dedup_cache.get(dedup_key)
-        if last_time and (now - last_time) < _ACCESS_DEDUP_SECONDS:
-            return  # 跳过重复记录
+        # 去重 + 写入 + 清理统一在锁内执行，保证读-判断-写的原子性
+        with _access_dedup_lock:
+            last_time = _access_dedup_cache.get(dedup_key)
+            if last_time and (now - last_time) < _ACCESS_DEDUP_SECONDS:
+                return  # 跳过重复记录
 
-        _access_dedup_cache[dedup_key] = now
+            _access_dedup_cache[dedup_key] = now
 
-        # 定期清理过期的去重缓存条目（防止内存泄漏）
-        if len(_access_dedup_cache) > 500:
-            expired_keys = [k for k, v in _access_dedup_cache.items() if (now - v) > _ACCESS_DEDUP_SECONDS]
-            for k in expired_keys:
-                _access_dedup_cache.pop(k, None)
+            # 定期清理过期的去重缓存条目（防止内存泄漏）
+            if len(_access_dedup_cache) > 500:
+                expired_keys = [k for k, v in _access_dedup_cache.items() if (now - v) > _ACCESS_DEDUP_SECONDS]
+                for k in expired_keys:
+                    _access_dedup_cache.pop(k, None)
 
         _enqueue_log(
             "access_logs",
             "INSERT INTO access_logs (memory_id, action, memory_preview, timestamp) VALUES (?, ?, ?, ?)",
-            (memory_id, action, memory_preview[:100] if memory_preview else "", datetime.now().isoformat()),
+            (memory_id, action, memory_preview[:100] if memory_preview else "", datetime.now(timezone.utc).isoformat()),
         )
     except Exception as e:
         logger.warning(f"记录访问日志失败: {e}")
