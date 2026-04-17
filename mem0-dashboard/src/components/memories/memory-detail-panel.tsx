@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import { mem0Api } from "@/lib/api";
 import type { Memory, MemoryHistory } from "@/lib/api";
 import { CategoryBadge, CategoryBadges } from "./category-badge";
@@ -169,7 +169,7 @@ export function MemoryDetailPanel({
                       创建时间
                     </label>
                     <p className="text-sm">
-                      {new Date(memory.created_at).toLocaleString("zh-CN")}
+                      {formatDateTime(memory.created_at)}
                     </p>
                   </div>
                 )}
@@ -179,7 +179,7 @@ export function MemoryDetailPanel({
                       最近更新时间
                     </label>
                     <p className="text-sm">
-                      {new Date(memory.updated_at).toLocaleString("zh-CN")}
+                      {formatDateTime(memory.updated_at)}
                     </p>
                   </div>
                 )}
@@ -267,7 +267,7 @@ export function MemoryDetailPanel({
                         </Badge>
                         <span className="text-xs text-muted-foreground">
                           <Clock className="mr-1 inline h-3 w-3" />
-                          {new Date(item.created_at).toLocaleString("zh-CN")}
+                          {formatDateTime(item.created_at)}
                         </span>
                       </div>
 

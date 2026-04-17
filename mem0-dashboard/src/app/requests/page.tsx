@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/tooltip";
 import { mem0Api } from "@/lib/api";
 import type { RequestLog, RequestLogsStats } from "@/lib/api";
+import { formatShortDateTime, formatDateTime } from "@/lib/utils";
 import {
   BarChart,
   Bar,
@@ -102,12 +103,7 @@ function formatLatency(ms: number): string {
 }
 
 function formatRelativeTime(timestamp: string): string {
-  const date = new Date(timestamp);
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${month}/${day} ${hours}:${minutes}`;
+  return formatShortDateTime(timestamp);
 }
 
 // 格式化日期为 "MM-DD" 数字日期格式（直接从字符串提取，避免时区偏移）
@@ -595,7 +591,7 @@ export default function RequestsPage() {
                                 </span>
                               </TooltipTrigger>
                               <TooltipContent>
-                                {new Date(log.timestamp).toLocaleString("zh-CN")}
+                                {formatDateTime(log.timestamp)}
                               </TooltipContent>
                             </Tooltip>
                           </TableCell>

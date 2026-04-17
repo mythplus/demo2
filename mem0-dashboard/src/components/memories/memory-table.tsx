@@ -23,6 +23,7 @@ import {
 import { CategoryBadges } from "./category-badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Memory } from "@/lib/api";
+import { formatShortDateTime, formatDateTime } from "@/lib/utils";
 import {
   Tooltip,
   TooltipContent,
@@ -134,16 +135,11 @@ export const MemoryTable = React.memo(function MemoryTable({
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(memory.created_at).toLocaleString("zh-CN", {
-                            month: "2-digit",
-                            day: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                          {formatShortDateTime(memory.created_at)}
                         </span>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p className="text-xs">{new Date(memory.created_at).toLocaleString("zh-CN")}</p>
+                        <p className="text-xs">{formatDateTime(memory.created_at)}</p>
                       </TooltipContent>
                     </Tooltip>
                   )}

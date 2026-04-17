@@ -25,6 +25,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { formatDateTime } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import {
   Select,
@@ -378,9 +379,7 @@ export default function SearchPage() {
                           )}
                           {result.created_at && (
                             <span className="text-xs text-muted-foreground">
-                              {new Date(result.created_at).toLocaleString(
-                                "zh-CN"
-                              )}
+                              {formatDateTime(result.created_at)}
                             </span>
                           )}
                         </div>
@@ -477,7 +476,7 @@ export default function SearchPage() {
                           {item.resultCount} 条结果
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(item.timestamp).toLocaleString("zh-CN")}
+                          {formatDateTime(item.timestamp)}
                         </span>
                       </div>
                     </div>

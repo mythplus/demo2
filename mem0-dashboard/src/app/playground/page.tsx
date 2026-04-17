@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Card } from "@/components/ui/card";
+import { formatShortDateTime } from "@/lib/utils";
 import { mem0Api } from "@/lib/api";
 import type {
   PlaygroundMessage,
@@ -208,7 +209,7 @@ const MemorySidebar = React.memo(function MemorySidebar({
                     {mem.created_at && (
                       <span className="text-[10px] text-muted-foreground/50">
                         <Clock className="mr-0.5 inline h-2.5 w-2.5" />
-                        {new Date(mem.created_at).toLocaleDateString("zh-CN")}
+                        {formatShortDateTime(mem.created_at)}
                       </span>
                     )}
                   </div>

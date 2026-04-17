@@ -308,7 +308,7 @@ export default function UserDetailPage() {
                       {memory.created_at && (
                         <span className="text-xs text-muted-foreground">
                           <Clock className="mr-1 inline h-3 w-3" />
-                          {new Date(memory.created_at).toLocaleString("zh-CN")}
+                          {formatDateTime(memory.created_at)}
                         </span>
                       )}
                     </div>

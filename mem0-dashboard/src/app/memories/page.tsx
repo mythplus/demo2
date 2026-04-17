@@ -40,6 +40,7 @@ import { MemoryTable } from "@/components/memories/memory-table";
 import { ViewToggle } from "@/components/memories/view-toggle";
 import { PageSizeSelector } from "@/components/memories/page-size-selector";
 import { CategoryBadges } from "@/components/memories/category-badge";
+import { formatDateTime } from "@/lib/utils";
 
 // 懒加载弹窗组件：用户点击时才需要，减少首屏 JS 体积
 const AddMemoryDialog = dynamic(
@@ -330,7 +331,7 @@ export default function MemoriesPage() {
                         <CategoryBadges categories={memory.categories} max={3} />
                         {memory.created_at && (
                           <span className="text-xs text-muted-foreground">
-                            {new Date(memory.created_at).toLocaleString("zh-CN")}
+                            {formatDateTime(memory.created_at)}
                           </span>
                         )}
                         <Link

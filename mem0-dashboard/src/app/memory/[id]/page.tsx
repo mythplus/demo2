@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { formatDateTime } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { CategoryBadge, CategoryBadges } from "@/components/memories/category-badge";
 import { getCategoryInfo } from "@/lib/constants";
@@ -278,7 +279,7 @@ export default function MemoryDetailPage() {
                           </Badge>
                           <span className="text-xs text-muted-foreground">
                             <Clock className="mr-1 inline h-3 w-3" />
-                            {new Date(item.created_at).toLocaleString("zh-CN")}
+                            {formatDateTime(item.created_at)}
                           </span>
                         </div>
 
@@ -459,7 +460,7 @@ export default function MemoryDetailPage() {
                     创建时间
                   </label>
                   <p className="text-sm">
-                    {new Date(memory.created_at).toLocaleString("zh-CN")}
+                    {formatDateTime(memory.created_at)}
                   </p>
                 </div>
               )}
@@ -470,7 +471,7 @@ export default function MemoryDetailPage() {
                     最近更新时间
                   </label>
                   <p className="text-sm">
-                    {new Date(memory.updated_at).toLocaleString("zh-CN")}
+                    {formatDateTime(memory.updated_at)}
                   </p>
                 </div>
               )}

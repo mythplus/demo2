@@ -3,6 +3,7 @@
  */
 import type { Memory } from "@/lib/api";
 import { CATEGORY_MAP } from "@/lib/constants";
+import { formatDateTime } from "@/lib/utils";
 
 /** 导出结果，包含 Blob 和文件名，用于操作记录 */
 export interface ExportOutput {
@@ -61,8 +62,8 @@ export function exportToCSV(memories: Memory[], filename?: string): ExportOutput
     csvSafe(m.user_id || ""),
     csvSafe(m.agent_id || ""),
     csvSafe((m.categories || []).map((c) => CATEGORY_MAP.get(c)?.label ?? c).join(";")),
-    csvSafe(m.created_at || ""),
-    csvSafe(m.updated_at || ""),
+    csvSafe(formatDateTime(m.created_at)),
+    csvSafe(formatDateTime(m.updated_at)),
   ]);
 
   const csvContent = [

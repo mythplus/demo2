@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CategoryBadges } from "@/components/memories/category-badge";
+import { formatDateTime } from "@/lib/utils";
 import { useUIStore } from "@/store";
 import { useDashboardData } from "@/hooks/use-dashboard-data";
 
@@ -254,7 +255,7 @@ export default function DashboardPage() {
                         {memory.created_at && (
                           <span className="text-[11px] text-muted-foreground/70">
                             <Clock className="mr-0.5 inline h-3 w-3" />
-                            {new Date(memory.created_at).toLocaleString("zh-CN")}
+                            {formatDateTime(memory.created_at)}
                           </span>
                         )}
                       </div>
