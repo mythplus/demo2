@@ -619,6 +619,12 @@ export const mem0Api = {
       "Content-Type": "application/json",
     };
 
+    // 自动携带 API Key 认证头（与通用 request 方法保持一致）
+    const apiKey = process.env.NEXT_PUBLIC_MEM0_API_KEY;
+    if (apiKey) {
+      headers["Authorization"] = `Bearer ${apiKey}`;
+    }
+
     const response = await fetch(url, {
 
       method: "POST",

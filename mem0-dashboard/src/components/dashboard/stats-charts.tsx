@@ -24,6 +24,19 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import type { StatsResponse, RequestLogsStats } from "@/lib/api";
 
+// ============ 旧英文类型 → 中文映射（兼容历史数据） ============
+const LEGACY_TYPE_MAP: Record<string, string> = {
+  "POST": "添加",
+  "GET": "获取全部",
+  "PUT": "更新",
+  "DELETE": "删除",
+};
+
+/** 将可能的旧英文类型名归一化为中文 */
+function normalizeType(type: string): string {
+  return LEGACY_TYPE_MAP[type] || type;
+}
+
 // ============ 请求类型颜色 ============
 const REQUEST_TYPE_COLORS: Record<string, string> = {
   "添加": "#22c55e",
@@ -60,11 +73,19 @@ interface StatsChartsProps {
 export function StatsCharts({ stats, requestStats }: StatsChartsProps) {
   const [showRequestDetail, setShowRequestDetail] = useState(false);
 
-  // ============ 请求趋势数据 ============
+  // ============ 请求趋势数据（归一化旧英文类型名） ============
   const requestTotal = requestStats?.total ?? 0;
-  const requestTypes = requestStats?.types ?? [];
+  const rawTypes = requestStats?.types ?? [];
+  // 去重归一化：将旧英文类型映射为中文后去重
+  const requestTypes = [...new Set(rawTypes.map(normalizeType))];
   const requestTrend = (requestStats?.daily_trend ?? []).map((d: any) => {
-    const row: any = { ...d, date: formatDate(d.date || d.time || "") };
+    const row: any = { date: formatDate(d.date || d.time || "") };
+    // 将旧英文 key 的值合并到中文 key 上
+    for (const rawKey of Object.keys(d)) {
+      if (rawKey === "date" || rawKey === "time") continue;
+      const normalized = normalizeType(rawKey);
+      row[normalized] = (row[normalized] || 0) + Number(d[rawKey] || 0);
+    }
     // 计算 total：所有类型字段求和
     if (!row.total) {
       let sum = 0;

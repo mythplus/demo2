@@ -14,6 +14,19 @@ from server.services.log_service import get_access_logs, get_request_logs, _get_
 
 logger = logging.getLogger(__name__)
 
+# 旧版英文 request_type → 新版中文类型名映射（兼容历史数据）
+_LEGACY_TYPE_MAP: Dict[str, str] = {
+    "POST": "添加",
+    "GET": "获取全部",
+    "PUT": "更新",
+    "DELETE": "删除",
+}
+
+
+def _normalize_request_type(raw_type: str) -> str:
+    """将旧版英文类型名归并为中文类型名，已是中文的保持不变"""
+    return _LEGACY_TYPE_MAP.get(raw_type, raw_type)
+
 router = APIRouter(tags=["日志"])
 
 
@@ -82,12 +95,15 @@ async def get_request_logs_stats(
             where += " AND timestamp <= ?"
             params.append(until)
 
-        # 按类型分组
+        # 按类型分组（归并旧版英文类型名）
         type_rows = conn.execute(
             f"SELECT request_type, COUNT(*) as count FROM request_logs {where} GROUP BY request_type ORDER BY count DESC",
             params,
         ).fetchall()
-        type_distribution = {row["request_type"]: row["count"] for row in type_rows}
+        type_distribution: Dict[str, int] = {}
+        for row in type_rows:
+            normalized = _normalize_request_type(row["request_type"])
+            type_distribution[normalized] = type_distribution.get(normalized, 0) + row["count"]
 
         # 判断粒度：since 在 24 小时内用 30 分钟粒度，否则按天
         now = datetime.now()
@@ -118,11 +134,11 @@ async def get_request_logs_stats(
             all_types = set()
             for row in hourly_rows:
                 s = row["slot"]
-                t = row["request_type"]
+                t = _normalize_request_type(row["request_type"])
                 all_types.add(t)
                 if s not in slot_map:
                     slot_map[s] = {}
-                slot_map[s][t] = row["count"]
+                slot_map[s][t] = slot_map[s].get(t, 0) + row["count"]
 
             # 补全 24 小时时间槽（00:00 ~ 23:00）
             daily_trend = []
@@ -153,11 +169,11 @@ async def get_request_logs_stats(
             all_types = set()
             for row in daily_type_rows:
                 d = row["date"]
-                t = row["request_type"]
+                t = _normalize_request_type(row["request_type"])
                 all_types.add(t)
                 if d not in daily_type_map:
                     daily_type_map[d] = {}
-                daily_type_map[d][t] = row["count"]
+                daily_type_map[d][t] = daily_type_map[d].get(t, 0) + row["count"]
 
             # 补全缺失日期
             num_days = min(int(hours_diff / 24) + 1, 30)

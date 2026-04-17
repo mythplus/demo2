@@ -56,6 +56,18 @@ import {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+// 旧英文类型名 → 中文映射（兼容数据库中未归并的历史数据）
+const LEGACY_TYPE_MAP: Record<string, string> = {
+  POST: "添加",
+  PUT: "更新",
+  DELETE: "删除",
+  GET: "获取全部",
+};
+/** 将后端返回的 request_type 统一为中文显示名 */
+function normalizeType(raw: string): string {
+  return LEGACY_TYPE_MAP[raw] || raw;
+}
+
 // 请求类型 hex 颜色（给 recharts 柱状图和统计概览用）
 const TYPE_HEX: Record<string, string> = {
   "添加": "#22c55e",
@@ -249,13 +261,27 @@ export default function RequestsPage() {
 
   // 准备图表数据（根据后端返回的粒度动态格式化标签）
   const granularity = stats?.granularity || "day";
+  // 对后端返回的 types 做归一化（兼容旧英文类型名）
+  const normalizedTypes = (stats?.types || []).map(normalizeType);
+  // 去重（旧 "POST" 和新 "添加" 归并后可能重复）
+  const uniqueTypes = [...new Set(normalizedTypes)];
+
   const chartData = stats?.daily_trend?.map((d: any) => {
-    const total = (stats.types || []).reduce(
-      (sum: number, t: string) => sum + (Number(d[t]) || 0),
+    // 将旧类型 key 的值归并到中文 key 上
+    const row: any = { ...d };
+    for (const rawType of stats.types || []) {
+      const mapped = normalizeType(rawType);
+      if (mapped !== rawType && row[rawType] !== undefined) {
+        row[mapped] = (Number(row[mapped]) || 0) + (Number(row[rawType]) || 0);
+        delete row[rawType];
+      }
+    }
+    const total = uniqueTypes.reduce(
+      (sum: number, t: string) => sum + (Number(row[t]) || 0),
       0
     );
     return {
-      ...d,
+      ...row,
       dateLabel: formatChartLabel(String(d.date || ""), granularity),
       _total: total,
     };
@@ -427,7 +453,7 @@ export default function RequestsPage() {
                     if (!active || !payload || !payload[0]) return null;
                     const data = payload[0].payload;
                     const rawDate = data.date;
-                    const types = stats?.types || [];
+                    const types = uniqueTypes;
                     const totalCount = data._total || 0;
 
                     // 格式化日期为 YYYY/M/D
@@ -545,10 +571,11 @@ export default function RequestsPage() {
                   </TableHeader>
                   <TableBody>
                     {logs.map((log) => {
-                      const badgeStyle = TYPE_BADGE_STYLES[log.request_type] || "bg-muted text-muted-foreground";
+                      const displayType = normalizeType(log.request_type);
+                      const badgeStyle = TYPE_BADGE_STYLES[displayType] || "bg-muted text-muted-foreground";
                       const isSuccess = log.status_code >= 200 && log.status_code < 400;
                       // 判断事件类型：添加类型显示 +1，其他显示 —
-                      const eventDisplay = log.request_type === "添加" ? (
+                      const eventDisplay = displayType === "添加" ? (
                         <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground border rounded-md px-2 py-0.5">
                           + 1
                         </span>
@@ -574,7 +601,7 @@ export default function RequestsPage() {
                           {/* Type */}
                           <TableCell>
                             <span className={`inline-flex items-center rounded px-2.5 py-1 text-xs font-semibold ${badgeStyle}`}>
-                              {log.request_type}
+                              {displayType}
                             </span>
                           </TableCell>
                           {/* Entities */}
