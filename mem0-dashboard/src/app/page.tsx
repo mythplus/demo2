@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   Brain,
@@ -19,11 +20,21 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AddMemoryDialog } from "@/components/memories/add-memory-dialog";
 import { CategoryBadges } from "@/components/memories/category-badge";
 import { useUIStore } from "@/store";
 import { useDashboardData } from "@/hooks/use-dashboard-data";
-import { StatsCharts } from "@/components/dashboard/stats-charts";
+
+// 懒加载重型组件：图表库 recharts 体积较大，首屏只需统计卡片
+const StatsCharts = dynamic(
+  () => import("@/components/dashboard/stats-charts").then((m) => ({ default: m.StatsCharts })),
+  { ssr: false, loading: () => <div className="h-[300px] animate-pulse rounded-lg bg-muted" /> }
+);
+
+// 懒加载弹窗组件：用户点击时才需要
+const AddMemoryDialog = dynamic(
+  () => import("@/components/memories/add-memory-dialog").then((m) => ({ default: m.AddMemoryDialog })),
+  { ssr: false }
+);
 
 /* ============================================================
  * 统计卡片 — 简约风格

@@ -41,7 +41,7 @@ interface MemoryTableProps {
   onToggleAll?: (checked: boolean) => void;
 }
 
-export function MemoryTable({
+export const MemoryTable = React.memo(function MemoryTable({
   memories,
   onView,
   onEdit,
@@ -189,4 +189,4 @@ export function MemoryTable({
       </div>
     </TooltipProvider>
   );
-}
+});

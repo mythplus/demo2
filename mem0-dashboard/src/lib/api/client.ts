@@ -85,15 +85,10 @@ async function request<T>(
     "Content-Type": "application/json",
   };
 
-  // 自动携带 API Key 认证头（从环境变量 NEXT_PUBLIC_MEM0_API_KEY 读取）
-  const apiKey = process.env.NEXT_PUBLIC_MEM0_API_KEY;
-  if (apiKey) {
-    headers["Authorization"] = `Bearer ${apiKey}`;
-  }
-
   // 超时控制 + 外部取消信号合并
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
+
 
   // 如果有外部 signal，监听其 abort 事件来联动取消
   const externalSignal = options?.externalSignal;
@@ -140,11 +135,16 @@ async function request<T>(
 
     return JSON.parse(text) as T;
   } catch (err) {
+    const abortedByExternal = !!externalSignal?.aborted;
     if (err instanceof DOMException && err.name === "AbortError") {
+      if (abortedByExternal) {
+        throw err;
+      }
       throw new Error(`请求超时（${timeout / 1000}秒），请检查网络连接或服务状态`);
     }
     throw err;
   } finally {
+
     clearTimeout(timeoutId);
     if (onExternalAbort && externalSignal) {
       externalSignal.removeEventListener("abort", onExternalAbort);
@@ -197,7 +197,7 @@ export const mem0Api = {
    * 获取记忆列表（支持多维筛选；传 page/page_size 时返回分页结果）
    * @param filters 可选的筛选参数
    */
-  async getMemories(filters?: FilterParams | string): Promise<Memory[] | PaginatedMemoriesResponse> {
+  async getMemories(filters?: FilterParams | string, signal?: AbortSignal): Promise<Memory[] | PaginatedMemoriesResponse> {
     const params = new URLSearchParams();
 
     if (typeof filters === "string") {
@@ -218,15 +218,18 @@ export const mem0Api = {
     }
 
     const query = params.toString();
-    const response = await request<Memory[] | PaginatedMemoriesResponse>(`/v1/memories/${query ? `?${query}` : ""}`);
+    const response = await request<Memory[] | PaginatedMemoriesResponse>(`/v1/memories/${query ? `?${query}` : ""}`, {
+      externalSignal: signal,
+    });
     return response;
   },
+
 
   /**
    * 获取当前筛选条件下的所有记忆 ID（用于全选功能）
    * @param filters 筛选参数（不含分页）
    */
-  async getAllMemoryIds(filters?: FilterParams): Promise<{ ids: string[]; total: number }> {
+  async getAllMemoryIds(filters?: FilterParams, signal?: AbortSignal): Promise<{ ids: string[]; total: number }> {
     const params = new URLSearchParams();
     if (filters) {
       if (filters.user_id) params.set("user_id", filters.user_id);
@@ -238,15 +241,21 @@ export const mem0Api = {
       if (filters.search) params.set("search", filters.search);
     }
     const query = params.toString();
-    return request<{ ids: string[]; total: number }>(`/v1/memories/ids/${query ? `?${query}` : ""}`);
+    return request<{ ids: string[]; total: number }>(`/v1/memories/ids/${query ? `?${query}` : ""}`, {
+      externalSignal: signal,
+    });
   },
+
 
   /**
    * 获取用户汇总列表（供用户页、筛选器、搜索页和导出页复用）
    */
-  async getMemoryUsers(): Promise<{ user_id: string; memory_count: number; last_active?: string }[]> {
-    return request<{ user_id: string; memory_count: number; last_active?: string }[]>('/v1/memories/users/');
+  async getMemoryUsers(signal?: AbortSignal): Promise<{ user_id: string; memory_count: number; last_active?: string }[]> {
+    return request<{ user_id: string; memory_count: number; last_active?: string }[]>('/v1/memories/users/', {
+      externalSignal: signal,
+    });
   },
+
 
   /**
    * 获取首页摘要（最近记忆 + 活跃用户）
@@ -330,13 +339,16 @@ export const mem0Api = {
    * @param data 搜索参数
    */
   async searchMemories(
-    data: SearchMemoryRequest
+    data: SearchMemoryRequest,
+    signal?: AbortSignal
   ): Promise<SearchMemoryResponse> {
     return request<SearchMemoryResponse>("/v1/memories/search/", {
       method: "POST",
       body: JSON.stringify(data),
+      externalSignal: signal,
     });
   },
+
 
   // ============ 历史记录 ============
 
@@ -382,7 +394,10 @@ export const mem0Api = {
   /**
    * 获取请求日志列表
    */
-  async getRequestLogs(params?: { request_type?: string; since?: string; until?: string; limit?: number; offset?: number }): Promise<RequestLogsResponse> {
+  async getRequestLogs(
+    params?: { request_type?: string; since?: string; until?: string; limit?: number; offset?: number },
+    signal?: AbortSignal
+  ): Promise<RequestLogsResponse> {
     const qs = new URLSearchParams();
     if (params?.request_type) qs.set("request_type", params.request_type);
     if (params?.since) qs.set("since", params.since);
@@ -390,19 +405,24 @@ export const mem0Api = {
     if (params?.limit) qs.set("limit", String(params.limit));
     if (params?.offset) qs.set("offset", String(params.offset));
     const q = qs.toString();
-    return request<RequestLogsResponse>(`/v1/request-logs/${q ? `?${q}` : ""}`);
+    return request<RequestLogsResponse>(`/v1/request-logs/${q ? `?${q}` : ""}`, {
+      externalSignal: signal,
+    });
   },
 
   /**
    * 获取请求日志统计
    */
-  async getRequestLogsStats(since?: string, until?: string): Promise<RequestLogsStats> {
+  async getRequestLogsStats(since?: string, until?: string, signal?: AbortSignal): Promise<RequestLogsStats> {
     const qs = new URLSearchParams();
     if (since) qs.set("since", since);
     if (until) qs.set("until", until);
     const q = qs.toString();
-    return request<RequestLogsStats>(`/v1/request-logs/stats/${q ? `?${q}` : ""}`);
+    return request<RequestLogsStats>(`/v1/request-logs/stats/${q ? `?${q}` : ""}`, {
+      externalSignal: signal,
+    });
   },
+
 
   // ============ 健康检查 ============
 
@@ -436,38 +456,49 @@ export const mem0Api = {
   /**
    * 获取实体列表
    */
-  async getGraphEntities(params?: {
-    user_id?: string;
-    search?: string;
-    limit?: number;
-    offset?: number;
-  }): Promise<GraphEntitiesResponse> {
+  async getGraphEntities(
+    params?: {
+      user_id?: string;
+      search?: string;
+      limit?: number;
+      offset?: number;
+    },
+    signal?: AbortSignal
+  ): Promise<GraphEntitiesResponse> {
     const qs = new URLSearchParams();
     if (params?.user_id) qs.set("user_id", params.user_id);
     if (params?.search) qs.set("search", params.search);
     if (params?.limit) qs.set("limit", String(params.limit));
     if (params?.offset) qs.set("offset", String(params.offset));
     const q = qs.toString();
-    return request<GraphEntitiesResponse>(`/v1/graph/entities${q ? `?${q}` : ""}`);
+    return request<GraphEntitiesResponse>(`/v1/graph/entities${q ? `?${q}` : ""}`, {
+      externalSignal: signal,
+    });
   },
 
   /**
    * 获取关系三元组列表
    */
-  async getGraphRelations(params?: {
-    user_id?: string;
-    search?: string;
-    limit?: number;
-    offset?: number;
-  }): Promise<GraphRelationsResponse> {
+  async getGraphRelations(
+    params?: {
+      user_id?: string;
+      search?: string;
+      limit?: number;
+      offset?: number;
+    },
+    signal?: AbortSignal
+  ): Promise<GraphRelationsResponse> {
     const qs = new URLSearchParams();
     if (params?.user_id) qs.set("user_id", params.user_id);
     if (params?.search) qs.set("search", params.search);
     if (params?.limit) qs.set("limit", String(params.limit));
     if (params?.offset) qs.set("offset", String(params.offset));
     const q = qs.toString();
-    return request<GraphRelationsResponse>(`/v1/graph/relations${q ? `?${q}` : ""}`);
+    return request<GraphRelationsResponse>(`/v1/graph/relations${q ? `?${q}` : ""}`, {
+      externalSignal: signal,
+    });
   },
+
 
   /**
    * 图谱搜索
@@ -582,13 +613,8 @@ export const mem0Api = {
       "Content-Type": "application/json",
     };
 
-    // 自动携带 API Key 认证头
-    const apiKey = process.env.NEXT_PUBLIC_MEM0_API_KEY;
-    if (apiKey) {
-      headers["Authorization"] = `Bearer ${apiKey}`;
-    }
-
     const response = await fetch(url, {
+
       method: "POST",
       headers,
       body: JSON.stringify(data),
@@ -605,6 +631,8 @@ export const mem0Api = {
 
     const decoder = new TextDecoder();
     let buffer = "";
+    const DATA_PREFIX = "data: ";
+    const DATA_PREFIX_LEN = DATA_PREFIX.length;
 
     try {
       while (true) {
@@ -612,17 +640,21 @@ export const mem0Api = {
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
 
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const eventData = JSON.parse(line.slice(6));
-              onEvent(eventData as PlaygroundSSEEvent);
-            } catch {
-              // 忽略解析失败的行
-            }
+        // 逐行扫描：避免 split("\n") 创建大量临时数组
+        let newlineIdx: number;
+        while ((newlineIdx = buffer.indexOf("\n")) !== -1) {
+          const line = buffer.slice(0, newlineIdx);
+          buffer = buffer.slice(newlineIdx + 1);
+
+          // 跳过空行和非 data 行（快速路径）
+          if (line.length <= DATA_PREFIX_LEN || line.charCodeAt(0) !== 100 /* 'd' */) continue;
+          if (!line.startsWith(DATA_PREFIX)) continue;
+
+          try {
+            onEvent(JSON.parse(line.slice(DATA_PREFIX_LEN)) as PlaygroundSSEEvent);
+          } catch {
+            // 忽略解析失败的行
           }
         }
       }

@@ -115,10 +115,11 @@ export function useMemoriesPage() {
     }
   }, [filters, debouncedSearchText, currentPage, pageSize, sortOrder]);
 
+  // 搜索防抖：400ms（兼顾中文 IME 输入法组合延迟，减少无效 API 请求）
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchText(searchText);
-    }, 300);
+    }, 400);
     return () => clearTimeout(timer);
   }, [searchText]);
 

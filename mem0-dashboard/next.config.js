@@ -8,6 +8,13 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
 
+  // 优化大型图标库的 tree-shaking，避免将 1000+ 个图标全部打包
+  modularizeImports: {
+    'lucide-react': {
+      transform: 'lucide-react/dist/esm/icons/{{kebabCase member}}',
+    },
+  },
+
   // 允许跨域请求 Mem0 API
   async rewrites() {
     return [

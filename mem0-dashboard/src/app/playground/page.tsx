@@ -47,9 +47,9 @@ function generateId(): string {
   return `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// ============ 消息气泡组件 ============
+// ============ 消息气泡组件（React.memo 避免流式输出时兄弟消息不必要的重渲染） ============
 
-function MessageBubble({
+const MessageBubble = React.memo(function MessageBubble({
   message,
   onShowMemories,
 }: {
@@ -121,11 +121,11 @@ function MessageBubble({
       </div>
     </div>
   );
-}
+});
 
-// ============ 记忆侧边栏组件 ============
+// ============ 记忆侧边栏组件（React.memo 避免对话消息变化时侧边栏不必要的重渲染） ============
 
-function MemorySidebar({
+const MemorySidebar = React.memo(function MemorySidebar({
   open,
   onToggle,
   userMemories,
@@ -227,7 +227,7 @@ function MemorySidebar({
       )}
     </div>
   );
-}
+});
 
 // ============ 主页面 ============
 
@@ -237,7 +237,7 @@ export default function PlaygroundPage() {
   const [users, setUsers] = useState<string[]>([]);
 
   // 对话状态（IndexedDB 持久化）
-  const { messages, loaded: chatLoaded, updateMessages, clearMessages, flushSave } = usePlaygroundChat(userId);
+  const { messages, loaded: chatLoaded, updateMessages, clearMessages, flushSave, pausePersist, resumePersist } = usePlaygroundChat(userId);
   const [inputValue, setInputValue] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -255,6 +255,10 @@ export default function PlaygroundPage() {
 
   // 中止控制器
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // RAF 节流：流式输出时将多个 SSE content 事件合并到一帧内更新，避免逐 token 触发 re-render
+  const pendingContentRef = useRef("");
+  const rafIdRef = useRef<number | null>(null);
 
   // 加载用户列表
   useEffect(() => {
@@ -293,13 +297,16 @@ export default function PlaygroundPage() {
   }, [loadUserMemories]);
 
   // 自动滚动到底部
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  // 流式生成期间使用 instant 滚动，避免 smooth 动画堆积导致滚动卡顿
+  const scrollToBottom = useCallback((instant?: boolean) => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: instant ? "instant" : "smooth",
+    });
   }, []);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+    scrollToBottom(isGenerating);
+  }, [messages, scrollToBottom, isGenerating]);
 
   // 监听滚动位置
   useEffect(() => {
@@ -343,6 +350,9 @@ export default function PlaygroundPage() {
 
     updateMessages((prev) => [...prev, userMsg, aiMsg]);
 
+    // 流式输出期间暂停自动持久化，减少 IndexedDB IO 开销
+    pausePersist();
+
     const history: PlaygroundMessage[] = messages.map((m) => ({
       role: m.role,
       content: m.content,
@@ -375,16 +385,44 @@ export default function PlaygroundPage() {
               break;
 
             case "content":
-              updateMessages((prev) =>
-                prev.map((m) =>
-                  m.id === aiMsgId
-                    ? { ...m, content: m.content + event.content }
-                    : m
-                )
-              );
+              // RAF 节流：将同一帧内的多个 token 累积后一次性更新 state，
+              // 避免每个 SSE chunk 都触发 re-render，显著提升流式输出流畅度
+              pendingContentRef.current += event.content;
+              if (!rafIdRef.current) {
+                rafIdRef.current = requestAnimationFrame(() => {
+                  const accumulated = pendingContentRef.current;
+                  pendingContentRef.current = "";
+                  rafIdRef.current = null;
+                  updateMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === aiMsgId
+                        ? { ...m, content: m.content + accumulated }
+                        : m
+                    )
+                  );
+                });
+              }
               break;
 
             case "done":
+              // 刷新 RAF 中残留的内容，确保最后一批 token 不丢失
+              if (rafIdRef.current) {
+                cancelAnimationFrame(rafIdRef.current);
+                rafIdRef.current = null;
+              }
+              if (pendingContentRef.current) {
+                const remaining = pendingContentRef.current;
+                pendingContentRef.current = "";
+                updateMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === aiMsgId
+                      ? { ...m, content: m.content + remaining }
+                      : m
+                  )
+                );
+              }
+              // 恢复自动持久化
+              resumePersist();
               updateMessages((prev) => {
                 const updated = prev.map((m) =>
                   m.id === aiMsgId
@@ -404,6 +442,14 @@ export default function PlaygroundPage() {
               break;
 
             case "error":
+              // 清理 RAF 残留
+              if (rafIdRef.current) {
+                cancelAnimationFrame(rafIdRef.current);
+                rafIdRef.current = null;
+              }
+              pendingContentRef.current = "";
+              // 恢复自动持久化
+              resumePersist();
               updateMessages((prev) =>
                 prev.map((m) =>
                   m.id === aiMsgId
@@ -442,6 +488,14 @@ export default function PlaygroundPage() {
         );
       }
     } finally {
+      // 清理 RAF 残留（兜底）
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      pendingContentRef.current = "";
+      // 兜底恢复自动持久化（防止异常路径遗漏）
+      resumePersist();
       setIsGenerating(false);
       abortControllerRef.current = null;
     }
@@ -602,7 +656,7 @@ export default function PlaygroundPage() {
                     variant="secondary"
                     size="sm"
                     className="rounded-full shadow-lg pointer-events-auto"
-                    onClick={scrollToBottom}
+                    onClick={() => scrollToBottom(false)}
                   >
                     <ArrowDown className="mr-1 h-3.5 w-3.5" />
                     回到底部

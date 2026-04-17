@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   Brain,
@@ -34,15 +35,29 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { AddMemoryDialog } from "@/components/memories/add-memory-dialog";
-import { EditMemoryDialog } from "@/components/memories/edit-memory-dialog";
-import { DeleteConfirmDialog } from "@/components/memories/delete-confirm-dialog";
-import { MemoryDetailPanel } from "@/components/memories/memory-detail-panel";
 import { MemoryFilters } from "@/components/memories/memory-filters";
 import { MemoryTable } from "@/components/memories/memory-table";
 import { ViewToggle } from "@/components/memories/view-toggle";
 import { PageSizeSelector } from "@/components/memories/page-size-selector";
 import { CategoryBadges } from "@/components/memories/category-badge";
+
+// 懒加载弹窗组件：用户点击时才需要，减少首屏 JS 体积
+const AddMemoryDialog = dynamic(
+  () => import("@/components/memories/add-memory-dialog").then((m) => ({ default: m.AddMemoryDialog })),
+  { ssr: false }
+);
+const EditMemoryDialog = dynamic(
+  () => import("@/components/memories/edit-memory-dialog").then((m) => ({ default: m.EditMemoryDialog })),
+  { ssr: false }
+);
+const DeleteConfirmDialog = dynamic(
+  () => import("@/components/memories/delete-confirm-dialog").then((m) => ({ default: m.DeleteConfirmDialog })),
+  { ssr: false }
+);
+const MemoryDetailPanel = dynamic(
+  () => import("@/components/memories/memory-detail-panel").then((m) => ({ default: m.MemoryDetailPanel })),
+  { ssr: false }
+);
 
 
 import { Checkbox } from "@/components/ui/checkbox";

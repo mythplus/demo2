@@ -32,7 +32,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
   // 启动全局健康检查轮询（整个应用生命周期内只有一个定时器）
   useEffect(() => {
-    const stopPolling = startHealthPolling(30000);
+    const stopPolling = startHealthPolling();
     return stopPolling;
   }, [startHealthPolling]);
 

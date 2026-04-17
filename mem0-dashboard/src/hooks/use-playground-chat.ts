@@ -78,6 +78,9 @@ export function usePlaygroundChat(userId: string) {
   // 标记是否正在从 DB 加载（避免加载时触发保存）
   const isLoadingRef = useRef(false);
 
+  // 标记是否正在流式输出（流式期间暂停自动持久化，减少 IO 开销）
+  const isStreamingRef = useRef(false);
+
   // 当 userId 变化时，从 IndexedDB 加载对话记录
   useEffect(() => {
     isLoadingRef.current = true;
@@ -111,10 +114,10 @@ export function usePlaygroundChat(userId: string) {
       });
   }, [userId]);
 
-  // 持久化保存（防抖，300ms）
+  // 持久化保存（防抖，300ms；流式输出期间自动跳过，由 flushSave 统一保存）
   const persistMessages = useCallback(
     (msgs: ChatMessage[]) => {
-      if (isLoadingRef.current) return;
+      if (isLoadingRef.current || isStreamingRef.current) return;
       const uid = userIdRef.current;
       if (!uid) return;
 
@@ -210,17 +213,40 @@ export function usePlaygroundChat(userId: string) {
     };
   }, []);
 
+  /**
+   * 暂停自动持久化（流式输出开始时调用）
+   */
+  const pausePersist = useCallback(() => {
+    isStreamingRef.current = true;
+    // 清除可能已排队的防抖保存
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+  }, []);
+
+  /**
+   * 恢复自动持久化（流式输出结束时调用）
+   */
+  const resumePersist = useCallback(() => {
+    isStreamingRef.current = false;
+  }, []);
+
   return {
     /** 当前对话消息列表 */
     messages,
     /** 是否已从 IndexedDB 加载完成 */
     loaded,
-    /** 更新消息列表（自动持久化） */
+    /** 更新消息列表（自动持久化，流式期间自动跳过） */
     updateMessages,
     /** 清空当前用户的对话记录 */
     clearMessages,
     /** 强制立即保存 */
     flushSave,
+    /** 暂停自动持久化（流式输出期间调用） */
+    pausePersist,
+    /** 恢复自动持久化（流式输出结束后调用） */
+    resumePersist,
     /** 直接设置消息（不触发持久化，用于内部加载） */
     setMessages,
   };

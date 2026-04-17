@@ -31,13 +31,17 @@ interface UIState {
   connectionStatus: ConnectionStatus;
   setConnectionStatus: (status: ConnectionStatus) => void;
   checkConnection: () => Promise<boolean>;
-  /** 启动定时健康检查（返回清理函数） */
-  startHealthPolling: (intervalMs?: number) => () => void;
+  /** 启动定时健康检查（动态间隔：连接正常 60s，断开 10s），返回清理函数 */
+  startHealthPolling: () => () => void;
 }
 
 // 轮询引用计数，确保多个组件共享同一个定时器
 let pollingRefCount = 0;
-let pollingTimer: ReturnType<typeof setInterval> | null = null;
+let pollingTimer: ReturnType<typeof setTimeout> | null = null;
+
+// 动态间隔常量（毫秒）
+const POLL_INTERVAL_CONNECTED = 60_000;    // 连接正常：60 秒
+const POLL_INTERVAL_DISCONNECTED = 10_000; // 连接断开：10 秒
 
 export const useUIStore = create<UIState>((set, get) => ({
   hydrated: false,
@@ -101,20 +105,31 @@ export const useUIStore = create<UIState>((set, get) => ({
     return isConnected;
   },
 
-  startHealthPolling: (intervalMs = 30000) => {
+  startHealthPolling: () => {
     void get().checkConnection();
 
     pollingRefCount++;
     if (pollingRefCount === 1) {
-      pollingTimer = setInterval(() => {
-        void get().checkConnection();
-      }, intervalMs);
+      // 使用 setTimeout 递归实现动态间隔：连接正常 60s，断开 10s
+      const scheduleNext = () => {
+        const interval = get().connectionStatus === "connected"
+          ? POLL_INTERVAL_CONNECTED
+          : POLL_INTERVAL_DISCONNECTED;
+        pollingTimer = setTimeout(async () => {
+          await get().checkConnection();
+          // 仍有订阅者时继续调度
+          if (pollingRefCount > 0) {
+            scheduleNext();
+          }
+        }, interval);
+      };
+      scheduleNext();
     }
 
     return () => {
       pollingRefCount--;
       if (pollingRefCount <= 0 && pollingTimer) {
-        clearInterval(pollingTimer);
+        clearTimeout(pollingTimer);
         pollingTimer = null;
         pollingRefCount = 0;
       }
