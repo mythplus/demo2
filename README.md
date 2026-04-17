@@ -1,6 +1,6 @@
 # 🧠 Mem0 Dashboard — 记忆管理可视化平台
 
-> 基于 [Mem0](https://github.com/mem0ai/mem0) 构建的**全功能记忆管理可视化平台**，集成向量记忆 + 图谱记忆双引擎，支持记忆的增删改查、AI 智能分类、语义搜索、知识图谱可视化、数据导入导出、请求日志监控等功能。
+> 基于 [Mem0](https://github.com/mem0ai/mem0) 构建的**全功能记忆管理可视化平台**，集成向量记忆 + 图谱记忆双引擎，支持记忆的增删改查、AI 智能分类、语义搜索、知识图谱可视化、AI 记忆增强对话（Playground）、Webhook 事件推送、数据导入导出、请求日志监控等功能。
 
 ---
 
@@ -14,15 +14,17 @@
 | 👥 **用户管理** | 用户列表、记忆数统计、用户详情页、按用户删除记忆 |
 | 📋 **请求日志** | 全量 API 请求记录、类型分布统计、延迟监控、趋势图表 |
 | 🕸️ **图谱记忆** | Neo4j 知识图谱可视化（力导向图）、实体/关系管理、图谱搜索 |
+| 🤖 **Playground** | AI 记忆增强对话调试，基于 LangGraph 状态图，支持流式/非流式输出 |
+| 🔔 **Webhook 管理** | Webhook 事件推送配置（CRUD + 测试），支持企业微信群机器人，secret 加密存储 |
 | 📦 **数据导出** | 记忆数据 JSON 导出，支持按用户/分类/状态筛选 |
-| ⚙️ **系统设置** | 后端连接状态检测、配置信息展示 |
+| ⚙️ **系统设置** | 后端连接状态检测、配置信息展示、深度健康检查 |
 
 ---
 
 ## 📋 系统架构
 
 ```
-本地电脑 (Windows)                                  云服务器 (Linux + GPU)
+本地电脑 (Windows) / Docker 容器                     云服务器 (Linux + GPU)
 ┌──────────────────────────────────────────┐       ┌──────────────────────────────────┐
 │                                          │       │  Ollama 服务 (:11434)            │
 │  Next.js 前端 (:3000)                    │       │  ├── qwen2.5:7b (LLM)           │
@@ -32,13 +34,20 @@
 │  ├── 用户管理                             │                       │ HTTP
 │  ├── 请求日志                             │       ┌──────────────────────────────────┐
 │  ├── 图谱记忆（力导向图可视化）             │       │  Neo4j 图数据库 (:7687)          │
-│  ├── 数据导出                             │       │  └── 知识图谱存储                 │
-│  └── 系统设置                             │       └──────────────────────────────────┘
-│           ↓                              │                       ▲
-│  FastAPI 后端 (:8080)                    │───── HTTP/Bolt ───────┘
+│  ├── Playground（AI 记忆增强对话）         │       │  └── 知识图谱存储                 │
+│  ├── Webhook 管理                        │       └──────────────────────────────────┘
+│  ├── 数据导出                             │                       ▲
+│  └── 系统设置                             │                       │
+│           ↓                              │                       │
+│  Nginx 反向代理 (:80/:443)  ←── Docker ──│── HTTP/Bolt ──────────┘
+│           ↓                              │
+│  FastAPI 后端 (:8080)                    │
 │  ├── Mem0 记忆引擎（向量记忆）             │
 │  ├── Qdrant 向量数据库（本地文件模式）      │
 │  ├── Neo4j Driver（图谱记忆）             │
+│  ├── LangGraph 状态图（Playground 对话）   │
+│  ├── Webhook 事件推送引擎                 │
+│  ├── SQLAlchemy ORM（记忆元数据）          │
 │  └── SQLite（访问日志 + 请求日志 + 历史）  │
 └──────────────────────────────────────────┘
 ```
@@ -51,35 +60,55 @@ demo2/
 ├── server/                    # 后端 Python 包（模块化架构）
 │   ├── __init__.py                # 包入口 & 向后兼容导出层
 │   ├── app.py                     # FastAPI 应用组装（生命周期、中间件、路由注册）
-│   ├── config.py                  # 配置中心（加载 config.yaml、常量、AI Prompt）
+│   ├── config.py                  # 配置中心（加载 config.yaml + .env 环境变量替换）
 │   ├── main.py                    # uvicorn 启动入口（开发/生产模式）
 │   ├── middleware/                # 中间件
-│   │   ├── auth.py                    # API Key 认证
+│   │   ├── auth.py                    # API Key 认证（Bearer Token）
 │   │   ├── rate_limit.py              # 速率限制
 │   │   └── request_log.py             # 请求日志记录
 │   ├── models/                    # 数据模型
+│   │   ├── database.py                # SQLAlchemy 数据库初始化（记忆元数据库）
+│   │   ├── models.py                  # ORM 模型定义（MemoryMeta 等）
 │   │   └── schemas.py                 # Pydantic 请求/响应模型
 │   ├── routes/                    # API 路由
 │   │   ├── graph.py                   # 图谱记忆接口
-│   │   ├── health.py                  # 健康检查接口
+│   │   ├── health.py                  # 健康检查 + 配置信息 + 连接测试
 │   │   ├── logs.py                    # 日志查询接口
 │   │   ├── memories.py                # 记忆 CRUD 接口
+│   │   ├── playground.py              # Playground AI 对话接口（LangGraph）
 │   │   ├── search.py                  # 语义搜索接口
-│   │   └── stats.py                   # 统计接口
+│   │   ├── stats.py                   # 统计接口
+│   │   └── webhooks.py                # Webhook 管理接口
+│   ├── scripts/                   # 脚本工具
+│   │   └── migrate_to_relational_db.py    # Qdrant → 关系库迁移脚本
 │   └── services/                  # 业务逻辑层
+│       ├── background_tasks.py        # 后台任务托管（优雅关闭时等待完成）
 │       ├── graph_service.py           # Neo4j 图谱服务
 │       ├── log_service.py             # 日志服务（SQLite）
-│       └── memory_service.py          # 记忆服务（Mem0 + Qdrant）
-├── config.yaml                # 后端配置文件（LLM、Embedder、Neo4j 等）
+│       ├── memory_service.py          # 记忆服务（Mem0 + Qdrant）
+│       ├── meta_service.py            # 记忆元数据服务（SQLAlchemy ORM）
+│       └── webhook_service.py         # Webhook 服务（加密存储 + 事件推送）
+├── config.yaml                # 后端配置文件（支持 ${ENV_VAR} 环境变量替换）
 ├── config.yaml.example        # 配置文件模板
+├── .env                       # 环境变量文件（本地开发 + Docker 部署共用）
+├── .env.example               # 环境变量模板
+├── requirements.txt           # Python 依赖清单（含版本锁定）
+├── Dockerfile                 # 后端 Docker 镜像（多阶段构建）
+├── docker-compose.yml         # Docker Compose 一键部署（后端 + 前端 + Nginx + Neo4j）
+├── nginx/                     # Nginx 反向代理配置
+│   ├── nginx.conf                 # HTTPS 终止 + API 转发 + 静态资源缓存
+│   └── ssl/                       # SSL 证书目录
 ├── start_server.bat           # 后端一键启动脚本 (Windows)
 ├── tests/                     # 后端测试
-├── access_logs.db             # SQLite 数据库（访问日志、请求日志、修改历史）
+├── access_logs.db             # SQLite 数据库（访问日志、请求日志）
+├── memory_meta.db             # SQLite 数据库（记忆元数据，SQLAlchemy 管理）
 ├── qdrant_data/               # Qdrant 向量数据库本地存储（自动生成）
 ├── .venv/                     # Python 虚拟环境
 ├── README.md                  # 本文档
 └── mem0-dashboard/            # Next.js 前端项目
     ├── .env.local             # 前端环境变量
+    ├── .env.example           # 前端环境变量模板
+    ├── Dockerfile             # 前端 Docker 镜像（多阶段构建）
     ├── package.json           # 前端依赖
     ├── next.config.js         # Next.js 配置（含 API 代理 & webpack 缓存修复）
     └── src/
@@ -92,6 +121,8 @@ demo2/
         │   ├── users/[userId]/    # 用户详情页
         │   ├── requests/          # 请求日志页
         │   ├── graph-memory/      # 图谱记忆页
+        │   ├── playground/        # Playground AI 对话页
+        │   ├── webhooks/          # Webhook 管理页
         │   ├── data-transfer/     # 数据导出页
         │   └── settings/          # 系统设置页
         ├── components/        # UI 组件
@@ -99,7 +130,7 @@ demo2/
         │   ├── memories/          # 记忆相关组件（表格、筛选、编辑、导入等）
         │   ├── dashboard/         # 仪表盘图表组件
         │   ├── graph/             # 图谱可视化组件（力导向图）
-        │   ├── shared/            # 共享组件（访问日志、关联记忆）
+        │   ├── shared/            # 共享组件（访问日志、关联记忆、用户选择器）
         │   └── ui/                # 基础 UI 组件（Radix UI 封装）
         ├── hooks/             # 自定义 Hooks
         ├── lib/               # 工具库
@@ -107,6 +138,8 @@ demo2/
         │   ├── constants.ts       # 分类/状态常量（20 种分类 + 3 种状态）
         │   └── utils.ts           # 工具函数
         ├── store/             # Zustand 状态管理
+        │   ├── ui-store.ts        # UI 状态（侧边栏、面板等）
+        │   └── preferences-store.ts   # 用户偏好设置
         └── types/             # TypeScript 类型声明
 ```
 
@@ -121,6 +154,7 @@ demo2/
 | **npm** 或 **Bun** | 最新版 | 前端包管理器 |
 | **Ollama** | 最新版 | 部署在云服务器，提供 LLM 和 Embedding 服务 |
 | **Neo4j** | ≥ 5.x（可选） | 部署在云服务器，提供图谱记忆存储 |
+| **Docker** + **Docker Compose** | 最新版（可选） | 一键部署全部服务 |
 
 ### 云服务器要求
 
@@ -135,7 +169,9 @@ demo2/
 
 ## 🚀 快速启动
 
-### 1. 克隆项目 & 创建虚拟环境
+### 方式一：本地开发
+
+#### 1. 克隆项目 & 创建虚拟环境
 
 ```powershell
 cd d:\Users\V_grhe\Desktop\ai-demo\demo2
@@ -147,63 +183,49 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-### 2. 安装后端依赖
+#### 2. 安装后端依赖
 
 ```powershell
-pip install fastapi uvicorn mem0ai qdrant-client ollama neo4j requests
+pip install -r requirements.txt
 ```
 
-| 包名 | 用途 |
-|------|------|
-| `fastapi` + `uvicorn` | Web 框架 & ASGI 服务器 |
-| `mem0ai` | Mem0 记忆管理引擎 |
-| `qdrant-client` | Qdrant 向量数据库客户端 |
-| `ollama` | Ollama Python SDK |
-| `neo4j` | Neo4j 图数据库驱动（图谱记忆） |
-| `requests` | HTTP 客户端（AI 自动分类调用） |
+#### 3. 配置环境变量
 
-### 3. 配置后端
-
-复制配置模板并编辑 `config.yaml`，修改以下地址为你的云服务器 IP：
+复制环境变量模板并填入实际值：
 
 ```powershell
-# 复制配置模板
+copy .env.example .env
+```
+
+编辑 `.env`：
+
+```env
+# Ollama 服务地址
+OLLAMA_BASE_URL=http://<你的云服务器IP>:11434
+
+# Neo4j 图数据库
+NEO4J_URL=bolt://<你的云服务器IP>:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=<你的Neo4j密码>
+
+# API 认证密钥（可选，为空则不启用认证）
+MEM0_API_KEY=
+
+# CORS 允许的来源
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+```
+
+#### 4. 配置后端
+
+复制配置模板（配置文件通过 `${ENV_VAR}` 语法引用 `.env` 中的环境变量）：
+
+```powershell
 copy config.yaml.example config.yaml
 ```
 
-编辑 `config.yaml`：
+> 💡 `config.yaml` 中的 `${OLLAMA_BASE_URL}`、`${NEO4J_URL}` 等占位符会自动从 `.env` 文件读取，通常无需手动修改 `config.yaml`。
 
-```yaml
-llm:
-  provider: ollama
-  config:
-    model: qwen2.5:7b
-    ollama_base_url: http://<你的云服务器IP>:11434    # ← 修改
-    temperature: 0.1
-
-embedder:
-  provider: ollama
-  config:
-    model: nomic-embed-text
-    ollama_base_url: http://<你的云服务器IP>:11434    # ← 修改
-
-graph_store:
-  provider: neo4j
-  config:
-    url: bolt://<你的云服务器IP>:7687                 # ← 修改
-    username: neo4j
-    password: <你的Neo4j密码>                          # ← 修改
-
-# 安全配置（可选）
-security:
-  api_key: ""              # 设置后所有接口需携带 API Key
-  rate_limit: 60           # 每分钟最大请求数，0 为不限制
-  cors_origins: "*"        # 允许的跨域来源
-```
-
-> 💡 配置文件支持 `${ENV_VAR}` 语法引用环境变量，适合生产环境部署。
-
-### 4. 启动后端服务
+#### 5. 启动后端服务
 
 ```powershell
 # 方式一：直接运行
@@ -228,29 +250,31 @@ curl http://localhost:8080/
 # 返回: {"status":"ok","message":"Mem0 Dashboard API 运行中"}
 ```
 
-### 5. 安装前端依赖
+#### 6. 安装前端依赖
 
 > ⚠️ 前端命令必须在 `mem0-dashboard` 子目录下执行！
 
 ```powershell
-cd d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard
+cd mem0-dashboard
 npm install
 ```
 
-### 6. 配置前端环境变量
+#### 7. 配置前端环境变量
 
 确认 `mem0-dashboard/.env.local` 文件：
 
 ```env
+# 后端 API 地址
 NEXT_PUBLIC_MEM0_API_URL=http://localhost:8080
+
+# API Key 认证密钥（需与后端 .env 中 MEM0_API_KEY 保持一致）
+# 如果后端未配置 api_key，此项留空即可
+NEXT_PUBLIC_MEM0_API_KEY=
 ```
 
-> 默认指向本地后端 8080 端口，通常无需修改。
-
-### 7. 启动前端服务
+#### 8. 启动前端服务
 
 ```powershell
-cd d:\Users\V_grhe\Desktop\ai-demo\demo2\mem0-dashboard
 npm run dev
 ```
 
@@ -258,9 +282,67 @@ npm run dev
 
 ---
 
+### 方式二：Docker Compose 一键部署
+
+适用于生产环境或快速体验，一条命令启动全部服务（后端 + 前端 + Nginx + Neo4j）。
+
+#### 1. 准备配置文件
+
+```bash
+# 复制环境变量模板
+cp .env.example .env
+
+# 复制后端配置模板
+cp config.yaml.example config.yaml
+```
+
+编辑 `.env`，填入实际值（特别是 `OLLAMA_BASE_URL` 和 `MEM0_API_KEY`）。
+
+> ⚠️ **生产环境必须设置 `MEM0_API_KEY`**，否则后端将拒绝启动。
+
+#### 2. 生成 SSL 证书
+
+```bash
+# 使用自签名证书（开发/测试）
+cd nginx/ssl
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout key.pem -out cert.pem \
+  -subj "/CN=localhost"
+cd ../..
+```
+
+#### 3. 启动服务
+
+```bash
+docker-compose up -d
+```
+
+#### 4. 访问
+
+- **HTTPS 入口**：`https://localhost`（Nginx 反向代理）
+- **HTTP 自动跳转**：`http://localhost` → `https://localhost`
+
+#### 5. 查看日志
+
+```bash
+# 查看所有服务日志
+docker-compose logs -f
+
+# 查看单个服务
+docker-compose logs -f backend
+```
+
+#### 6. 停止服务
+
+```bash
+docker-compose down
+```
+
+---
+
 ## 📡 API 接口一览
 
-后端共提供 **25 个 RESTful API** 端点：
+后端共提供 **35+ 个 RESTful API** 端点：
 
 ### 记忆管理（8 个）
 
@@ -268,19 +350,20 @@ npm run dev
 |------|------|------|
 | `POST` | `/v1/memories/` | 添加记忆（支持 AI 自动分类） |
 | `POST` | `/v1/memories/batch` | 批量导入记忆 |
-| `GET` | `/v1/memories/` | 获取记忆列表（支持多维筛选） |
+| `GET` | `/v1/memories/` | 获取记忆列表（支持多维筛选 + 分页） |
 | `GET` | `/v1/memories/{id}/` | 获取单条记忆详情 |
 | `PUT` | `/v1/memories/{id}/` | 更新记忆（内容/分类/状态） |
 | `DELETE` | `/v1/memories/{id}/` | 删除单条记忆 |
-| `DELETE` | `/v1/memories/` | 删除用户全部记忆 |
+| `DELETE` | `/v1/memories/` | 删除用户全部记忆（同步清理关系库） |
 | `GET` | `/v1/memories/{id}/related/` | 获取语义关联记忆 |
 
-### 搜索 & 历史（2 个）
+### 搜索 & 历史（3 个）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | `POST` | `/v1/memories/search/` | 语义搜索记忆 |
 | `GET` | `/v1/memories/history/{id}/` | 获取记忆修改历史 |
+| `GET` | `/v1/memories/{id}/summary` | 获取记忆摘要信息 |
 
 ### 统计 & 日志（5 个）
 
@@ -306,11 +389,34 @@ npm run dev
 | `DELETE` | `/v1/graph/relations` | 删除指定关系 |
 | `GET` | `/v1/graph/health` | Neo4j 连接健康检查 |
 
-### 健康检查（1 个）
+### Playground AI 对话（2 个）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `POST` | `/v1/playground/chat` | 非流式对话（LangGraph 全流程） |
+| `POST` | `/v1/playground/chat/stream` | 流式对话（SSE，混合 LangGraph + 手动流式） |
+
+### Webhook 管理（7 个）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/v1/webhooks/` | 获取所有 Webhook 配置 |
+| `GET` | `/v1/webhooks/{id}` | 获取单个 Webhook 配置 |
+| `POST` | `/v1/webhooks/` | 创建 Webhook（含 URL 安全校验） |
+| `PUT` | `/v1/webhooks/{id}` | 更新 Webhook |
+| `DELETE` | `/v1/webhooks/{id}` | 删除 Webhook |
+| `POST` | `/v1/webhooks/{id}/toggle` | 启用/禁用 Webhook |
+| `POST` | `/v1/webhooks/{id}/test` | 发送测试推送 |
+
+### 系统 & 健康检查（5 个）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | `GET` | `/` | API 健康检查 |
+| `GET` | `/v1/health/deep` | 深度健康检查（Qdrant + Ollama + Neo4j） |
+| `GET` | `/v1/config/info` | 获取系统配置信息 |
+| `GET` | `/v1/config/test-llm` | 测试 LLM 连接 |
+| `GET` | `/v1/config/test-embedder` | 测试 Embedder 连接 |
 
 ---
 
@@ -345,38 +451,74 @@ npm run dev
 
 ---
 
+## 🔒 安全特性
+
+| 特性 | 说明 |
+|------|------|
+| **API Key 认证** | 支持 Bearer Token 认证，生产环境强制启用 |
+| **Webhook Secret 加密** | Webhook secret 使用 Fernet 对称加密存储，不再明文保存 |
+| **URL 安全校验** | Webhook URL 创建/更新时校验目标主机，防止 SSRF 攻击 |
+| **CORS 配置** | 可配置允许的跨域来源，生产环境建议限制为实际域名 |
+| **速率限制** | 可配置每分钟最大请求数，防止滥用 |
+| **HTTPS 终止** | Nginx 反向代理提供 SSL/TLS 加密 |
+| **生产环境脱敏** | 生产环境下 IP 地址、错误详情自动脱敏 |
+| **非 root 运行** | Docker 容器内以非 root 用户运行服务 |
+
+---
+
 ## ⚙️ 配置说明
+
+### 环境变量（`.env`）
+
+| 变量名 | 默认值 | 说明 |
+|--------|--------|------|
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama 服务地址 |
+| `OLLAMA_MODEL` | `qwen2.5:7b` | LLM 模型名称 |
+| `EMBED_MODEL` | `nomic-embed-text` | 嵌入模型名称 |
+| `NEO4J_URL` | `bolt://localhost:7687` | Neo4j 连接地址 |
+| `NEO4J_USER` | `neo4j` | Neo4j 用户名 |
+| `NEO4J_PASSWORD` | — | Neo4j 密码 |
+| `MEM0_API_KEY` | `""` | API 认证密钥（生产环境必须设置） |
+| `WEBHOOK_SECRET_KEY` | — | Webhook secret 加密密钥（可选，未设置时回退使用 api_key 派生） |
+| `CORS_ORIGINS` | `*` | 允许的 CORS 来源（逗号分隔） |
+| `MEM0_PORT` | `8080` | 后端监听端口 |
+| `MEM0_ENV` | `development` | 运行环境（`production` / `development`） |
+| `MEM0_WORKERS` | `2` | 生产环境 Worker 数量 |
+| `HTTP_PORT` | `80` | Docker Nginx HTTP 端口 |
+| `HTTPS_PORT` | `443` | Docker Nginx HTTPS 端口 |
 
 ### 后端配置（`config.yaml`）
 
-| 配置项 | 默认值 | 说明 |
-|--------|--------|------|
-| `MEM0_PORT`（环境变量） | `8080` | 后端监听端口 |
-| `MEM0_ENV`（环境变量） | `development` | 运行环境（`production` 启用多 Worker） |
-| `llm.provider` | `ollama` | LLM 提供商 |
-| `llm.config.model` | `qwen2.5:7b` | LLM 模型名称 |
-| `llm.config.ollama_base_url` | `http://localhost:11434` | Ollama 服务地址 |
-| `embedder.provider` | `ollama` | 嵌入模型提供商 |
-| `embedder.config.model` | `nomic-embed-text` | 嵌入模型名称 |
-| `vector_store.config.embedding_model_dims` | `768` | 嵌入向量维度（需与模型匹配） |
-| `graph_store.config.url` | `bolt://localhost:7687` | Neo4j 连接地址 |
-| `graph_store.config.username` | `neo4j` | Neo4j 用户名 |
-| `graph_store.config.password` | — | Neo4j 密码 |
-| `security.api_key` | `""` | API Key（为空则不启用认证） |
-| `security.rate_limit` | `60` | 每分钟最大请求数（0 为不限制） |
-| `security.cors_origins` | `*` | 允许的 CORS 来源 |
+配置文件支持 `${ENV_VAR}` 语法引用环境变量，适合生产环境部署。
+
+| 配置项 | 说明 |
+|--------|------|
+| `llm.provider` | LLM 提供商（`ollama` / `openai`） |
+| `llm.config.model` | LLM 模型名称 |
+| `llm.config.ollama_base_url` | Ollama 服务地址 |
+| `embedder.provider` | 嵌入模型提供商 |
+| `embedder.config.model` | 嵌入模型名称 |
+| `vector_store.config.embedding_model_dims` | 嵌入向量维度（需与模型匹配，默认 768） |
+| `graph_store.config.url` | Neo4j 连接地址 |
+| `security.api_key` | API Key 认证密钥 |
+| `security.webhook_secret_key` | Webhook secret 加密密钥 |
+| `security.cors_origins` | CORS 允许来源 |
+| `security.rate_limit` | 每分钟最大请求数（0 为不限制） |
 
 ### 前端配置（`mem0-dashboard/.env.local`）
 
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
 | `NEXT_PUBLIC_MEM0_API_URL` | `http://localhost:8080` | 后端 API 地址 |
+| `NEXT_PUBLIC_MEM0_API_KEY` | `""` | API Key（需与后端保持一致） |
+
+> 💡 **生产环境（Docker 部署）**：前端通过 Nginx 同源反向代理访问后端，`NEXT_PUBLIC_MEM0_API_URL` 留空即可，无需将 API Key 暴露到浏览器。Nginx 会自动注入 `X-API-Key` 请求头。
 
 ---
 
 ## 🛑 停止服务
 
-在各终端中按 `Ctrl + C` 优雅退出。
+在各终端中按 `Ctrl + C` 优雅退出。后端会自动等待后台任务（如 Playground 记忆存储）完成后再关闭。
 
 端口被占用时排查：
 
@@ -403,19 +545,23 @@ taskkill /PID <PID> /F
 
 `config.yaml` 中的 LLM/Embedder 配置仍在使用 OpenAI 提供商，请确认已正确配置为 `ollama`。
 
-### 3. 添加记忆时响应很慢
+### 3. 生产环境启动报 `RuntimeError: 生产环境必须配置 security.api_key`
+
+生产环境（`MEM0_ENV=production`）强制要求设置 API Key。请在 `.env` 文件中设置 `MEM0_API_KEY`。
+
+### 4. 添加记忆时响应很慢
 
 - 检查 Ollama 服务：`curl http://<云服务器IP>:11434/api/tags`
 - 确认本地能访问云服务器 11434 端口
 - Ollama 首次加载模型到 GPU 需要几秒，后续请求会快很多
 
-### 4. 图谱记忆页面显示"Neo4j 未连接"
+### 5. 图谱记忆页面显示"Neo4j 未连接"
 
-- 确认 `config.yaml` 中 `graph_store` 配置正确
+- 确认 `.env` 中 `NEO4J_URL`、`NEO4J_PASSWORD` 配置正确
 - 检查 Neo4j 服务是否运行：`curl http://<IP>:7474`
 - 确认防火墙已放行 7687 端口（Bolt 协议）
 
-### 5. 切换 Embedding 模型后数据异常
+### 6. 切换 Embedding 模型后数据异常
 
 不同模型的向量维度不同，切换后需要：
 
@@ -427,9 +573,19 @@ Remove-Item -Recurse -Force .\qdrant_data
 # 然后重启后端服务
 ```
 
-### 6. `watchfiles` 不断输出 `change detected`
+### 7. Docker 部署时 Ollama 连接失败
 
-这是 uvicorn 热重载监控日志，不影响使用。开发环境下默认启用热重载，可通过设置环境变量 `MEM0_ENV=production` 切换到生产模式来关闭。
+Docker 容器内无法直接访问宿主机的 `localhost`，需要使用 `host.docker.internal`：
+
+```env
+# .env 中设置
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+```
+
+### 8. 前端请求返回 401 Unauthorized
+
+- 确认前端 `.env.local` 中的 `NEXT_PUBLIC_MEM0_API_KEY` 与后端 `.env` 中的 `MEM0_API_KEY` 一致
+- Docker 部署时，Nginx 会自动注入 API Key，前端无需配置
 
 ---
 
@@ -496,14 +652,53 @@ sudo ufw reload
 | 记忆引擎 | Mem0 | 向量记忆管理 |
 | 向量数据库 | Qdrant（本地文件模式） | 嵌入向量存储与检索 |
 | 图数据库 | Neo4j | 知识图谱存储（实体-关系） |
-| 日志存储 | SQLite | 访问日志、请求日志、修改历史 |
+| ORM | SQLAlchemy | 记忆元数据管理（对齐 OpenMemory 官方架构） |
+| 日志存储 | SQLite | 访问日志、请求日志 |
+| AI 对话框架 | LangGraph | Playground 状态图驱动的对话流程 |
+| Webhook 引擎 | 自研 | 事件推送 + Fernet 加密 + SSRF 防护 |
 | LLM 服务 | Ollama (qwen2.5:7b) | 记忆提取与智能分类 |
 | 嵌入模型 | Ollama (nomic-embed-text) | 768 维向量嵌入 |
+| 异步 HTTP | httpx | 全局异步 HTTP 客户端 |
+| 加密 | cryptography (Fernet) | Webhook secret 加密存储 |
+| 反向代理 | Nginx | HTTPS 终止 + API 转发 + 静态资源缓存 |
+| 容器化 | Docker + Docker Compose | 一键部署全部服务 |
 | 运行环境 | Python 3.10+ / Node.js 18+ | 后端 / 前端 |
 
 ---
 
 ## 📝 更新日志
+
+### v1.2.0（2026-04-17）— 功能增强 + 安全加固 + Docker 部署
+
+**🤖 新功能**
+
+| 功能 | 说明 |
+|------|------|
+| **Playground AI 对话** | 基于 LangGraph StateGraph 的记忆增强对话，支持流式/非流式输出，自动检索记忆 → LLM 生成 → 存储新记忆 |
+| **Webhook 管理** | 完整的 Webhook CRUD + 测试推送，支持企业微信群机器人，secret 加密存储 |
+| **深度健康检查** | `/v1/health/deep` 一次性检测 Qdrant / Ollama / Neo4j 连通性，适用于 K8s readinessProbe |
+| **记忆元数据库** | 基于 SQLAlchemy ORM 的关系型元数据存储，对齐 OpenMemory 官方架构 |
+| **后台任务托管** | 统一追踪 fire-and-forget 任务，应用关闭时优雅等待完成 |
+| **Docker Compose 部署** | 一键部署后端 + 前端 + Nginx + Neo4j，支持 HTTPS |
+
+**🔒 安全加固**
+
+| 改进 | 说明 |
+|------|------|
+| 生产环境强制 API Key | `MEM0_ENV=production` 时必须配置 `security.api_key`，禁止无鉴权启动 |
+| Webhook secret 加密 | 使用 Fernet 对称加密存储，旧明文 secret 自动迁移 |
+| URL 安全校验 | Webhook URL 创建/更新时校验目标主机，防止内网/元数据服务 SSRF 攻击 |
+| Nginx 注入 API Key | Docker 部署时 Nginx 自动注入认证头，前端无需暴露密钥 |
+| 环境变量配置 | `config.yaml` 支持 `${ENV_VAR}` 语法，敏感信息不再硬编码 |
+
+**🏗️ 架构改进**
+
+| 改进 | 说明 |
+|------|------|
+| 双写一致性 | 记忆增删改操作同步写入 Qdrant + 关系库，`delete_all_memories` 同步清理关系库 |
+| 前端 API 客户端重构 | 动态解析 API 基础地址，生产环境自动走同源反向代理 |
+| Bearer Token 认证 | 前端认证头从 `X-API-Key` 统一为 `Authorization: Bearer` |
+| 配置热加载 | `/v1/config/info` 实时从 `config.yaml` 读取，修改配置后刷新即可同步 |
 
 ### v1.1.0（2026-04-07）— 后端模块化重构
 
