@@ -110,7 +110,7 @@ class MemoryChangeLog(Base):
 
     id = Column(String(36), primary_key=True, default=_new_uuid)
     memory_id = Column(String(36), ForeignKey("memories_meta.id", ondelete="CASCADE"), nullable=False, index=True)
-    event = Column(String(50), nullable=False, comment="事件类型: create/update/delete/import/restore")
+    event = Column(String(50), nullable=False, comment="事件类型: create/update/delete/import")
     old_content = Column(Text, nullable=True, comment="变更前内容")
     new_content = Column(Text, nullable=True, comment="变更后内容")
     old_categories = Column(JSON, default=list, comment="变更前分类列表")

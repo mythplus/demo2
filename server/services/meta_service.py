@@ -489,15 +489,8 @@ def compute_stats_from_db() -> dict:
             ~MemoryMeta.id.in_(db.query(categorized_ids)),
         ).scalar() or 0
 
-        # 状态分布（metadata.state 未设置时默认视为 active）
-        state_distribution = {"active": 0, "paused": 0, "deleted": 0}
-        metadata_rows = db.query(MemoryMeta.metadata_).all()
-        for (metadata_value,) in metadata_rows:
-            metadata = metadata_value or {}
-            state = metadata.get("state", "active") if isinstance(metadata, dict) else "active"
-            if state not in state_distribution:
-                state = "active"
-            state_distribution[state] += 1
+        # 状态分布（对齐 mem0 云平台：无 state 概念，全部视为 active）
+        state_distribution = {"active": total_memories, "paused": 0, "deleted": 0}
 
         # 每日趋势
         daily_rows = db.query(
@@ -637,7 +630,6 @@ def hard_delete_user_memory_meta(user_id: str) -> int:
 
 
 def memory_exists_in_db(memory_id: str) -> bool:
-
     """检查记忆是否存在于关系库"""
     db = _get_db()
     try:
@@ -646,9 +638,7 @@ def memory_exists_in_db(memory_id: str) -> bool:
         db.close()
 
 
-def count_memories(
-    user_id: str = None,
-) -> int:
+def count_memories(user_id: str = None) -> int:
     """统计记忆数量"""
     db = _get_db()
     try:

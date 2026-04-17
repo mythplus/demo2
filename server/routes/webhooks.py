@@ -81,7 +81,7 @@ async def create_webhook(request: WebhookCreateRequest):
     if not validation["valid"]:
         raise HTTPException(status_code=400, detail=f"Webhook URL 验证失败: {validation['message']}，请检查URL的正确性")
 
-    data = request.dict()
+    data = request.model_dump()
     result = webhook_service.create_webhook(data)
     # 脱敏 secret
     if result.get("secret"):

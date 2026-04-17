@@ -9,6 +9,9 @@ import time
 import sqlite3
 import logging
 import threading
+from collections import defaultdict
+from typing import Deque, Dict
+from collections import deque
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
@@ -29,6 +32,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._local = threading.local()
         self._cleanup_lock = threading.Lock()
         self._last_cleanup_at = 0.0
+
+        # 内存 fallback 计数器：当 SQLite 异常时降级到进程级限流，保留基本防护能力
+        # 结构：{client_ip: deque([timestamp1, timestamp2, ...])}
+        self._fallback_counts: Dict[str, Deque[float]] = defaultdict(deque)
+        self._fallback_lock = threading.Lock()
+        self._fallback_warn_at = 0.0  # 上次告警时间，避免日志洪水
+
         self._init_table()
 
 
@@ -136,7 +146,40 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
 
         except Exception as e:
-            # 限流组件异常不应阻塞正常请求，降级放行并记录警告
-            logger.warning(f"速率限制检查异常（降级放行）: {e}")
+            # SQLite 异常时降级到进程级内存限流，保留基本防护能力（不完全放行）
+            # 注意：多 Worker 模式下降级期间限流精度下降，但仍优于完全放行
+            if now - self._fallback_warn_at > 10:  # 每 10s 最多告警一次，避免日志洪水
+                logger.warning(f"速率限制 SQLite 异常，降级到内存限流: {e}")
+                self._fallback_warn_at = now
+
+            denied = False
+            retry_after = 1
+            with self._fallback_lock:
+                bucket = self._fallback_counts[client_ip]
+                # 剔除窗口外的旧时间戳
+                while bucket and bucket[0] <= window_start:
+                    bucket.popleft()
+                if len(bucket) >= self.rpm:
+                    denied = True
+                    earliest = bucket[0]
+                    retry_after = max(int((earliest - window_start) + 1), 1)
+                else:
+                    bucket.append(now)
+
+                # 顺便清理长时间无活动的 key，避免内存膨胀
+                if len(self._fallback_counts) > 10000:
+                    stale_keys = [
+                        k for k, v in self._fallback_counts.items()
+                        if not v or v[-1] <= window_start
+                    ]
+                    for k in stale_keys:
+                        self._fallback_counts.pop(k, None)
+
+            if denied:
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": f"请求过于频繁（降级限流），每分钟最多 {self.rpm} 次请求，请稍后重试"},
+                    headers={"Retry-After": str(retry_after)},
+                )
 
         return await call_next(request)

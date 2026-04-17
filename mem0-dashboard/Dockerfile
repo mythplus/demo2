@@ -9,9 +9,9 @@ FROM node:18-alpine AS deps
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --only=production && \
-    cp -R node_modules /prod_node_modules && \
-    npm ci
+# 直接安装全量依赖（含 devDependencies），供 stage 2 构建使用
+# 注：此前存在 /prod_node_modules 拷贝逻辑，但后续 stage 从未引用，已简化
+RUN npm ci
 
 # ---- 阶段 2：构建 ----
 FROM node:18-alpine AS builder

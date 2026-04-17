@@ -24,7 +24,7 @@ def get_real_states() -> dict:
 
 
 def _format_mem0_search_results(result) -> list[dict]:
-    """统一格式化 Mem0 SDK 返回结果，并过滤已删除记忆。"""
+    """统一格式化 Mem0 SDK 返回结果。"""
     if isinstance(result, dict) and "results" in result:
         raw_results = result["results"]
     elif isinstance(result, list):
@@ -35,13 +35,6 @@ def _format_mem0_search_results(result) -> list[dict]:
     formatted = []
     for item in raw_results:
         formatted_item = format_mem0_result(item)
-        state = (
-            formatted_item.get("state")
-            or (formatted_item.get("metadata") or {}).get("state")
-            or "active"
-        )
-        if state == "deleted":
-            continue
         if "score" in item:
             formatted_item["score"] = item["score"]
         formatted.append(formatted_item)

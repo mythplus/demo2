@@ -15,7 +15,6 @@ from langgraph.graph import StateGraph, START, END
 
 from server.config import MEM0_CONFIG, _safe_error_detail
 from server.services import memory_service
-from server.services.background_tasks import create_background_task
 from server.services.memory_service import auto_categorize_memory
 
 
@@ -406,29 +405,31 @@ async def playground_chat_stream(request: PlaygroundChatRequest):
                     except json.JSONDecodeError:
                         continue
 
-            # 先发送 done 事件让前端立即解锁
-            yield f"data: {json.dumps({'type': 'done', 'new_memories': []}, ensure_ascii=False)}\n\n"
+            # 先发送 done 事件让前端立即解锁 UI（标记对话文本已完整）
+            yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
 
-            # 第3步：后台异步存储记忆（复用 LangGraph 节点逻辑）
-            async def _save_memories_background():
-                store_state: PlaygroundState = {
-                    "message": request.message,
-                    "user_id": user_id,
-                    "history": [],
-                    "memory_limit": 5,
-                    "retrieved_memories": [],
-                    "memories_str": "",
-                    "llm_messages": [],
-                    "reply": full_reply,
-                    "new_memories": [],
-                }
-                await store_memories_node(store_state)
+            # 第3步：在 SSE 连接内同步等待存储完成，随后补发 memories_saved 事件
+            # 说明：相比之前的"后台 fire-and-forget"，这里 await 会让前端能准确拿到本轮新增记忆；
+            #      由于 done 已先发，用户感知到的"回答完成"时间不变，仅记忆提示略延迟。
+            store_state: PlaygroundState = {
+                "message": request.message,
+                "user_id": user_id,
+                "history": [],
+                "memory_limit": 5,
+                "retrieved_memories": [],
+                "memories_str": "",
+                "llm_messages": [],
+                "reply": full_reply,
+                "new_memories": [],
+            }
+            try:
+                store_result = await store_memories_node(store_state)
+                saved = store_result.get("new_memories", []) or []
+            except Exception as se:
+                logger.warning(f"流式存储记忆失败: {se}")
+                saved = []
 
-            create_background_task(
-                _save_memories_background(),
-                name=f"playground:save_memories:{user_id}",
-            )
-
+            yield f"data: {json.dumps({'type': 'memories_saved', 'new_memories': saved}, ensure_ascii=False)}\n\n"
 
         except Exception as e:
             logger.error(f"流式对话失败: {e}", exc_info=True)

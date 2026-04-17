@@ -484,16 +484,29 @@ export default function PlaygroundPage() {
               updateMessages((prev) => {
                 const updated = prev.map((m) =>
                   m.id === aiMsgId
-                    ? { ...m, loading: false, newMemories: event.new_memories }
+                    ? { ...m, loading: false }
                     : m
                 );
                 // AI 回复完成，立即强制保存到 IndexedDB
                 flushSave(updated);
                 return updated;
               });
-              // 收到 done 事件后立即解锁输入框，不等待 SSE 流关闭
+              // 收到 done 事件后立即解锁输入框，不等待记忆存储完成
               setIsGenerating(false);
               abortControllerRef.current = null;
+              break;
+
+            case "memories_saved":
+              // 记忆存储已完成（在 done 之后异步推送），更新消息附带的新记忆并刷新侧边栏
+              updateMessages((prev) => {
+                const updated = prev.map((m) =>
+                  m.id === aiMsgId
+                    ? { ...m, newMemories: event.new_memories }
+                    : m
+                );
+                flushSave(updated);
+                return updated;
+              });
               if (event.new_memories && event.new_memories.length > 0) {
                 loadUserMemories();
               }

@@ -39,10 +39,12 @@ VALID_WEBHOOK_EVENTS = {
     "memory.added",
     "memory.updated",
     "memory.deleted",
+    "memory.hard_deleted",
     "memory.searched",
     "user.hard_deleted",
     "memory.batch_imported",
     "memory.batch_deleted",
+    "memory.batch_hard_deleted",
 }
 
 _SECRET_PREFIX = "enc:v1:"
@@ -498,11 +500,13 @@ def _build_wecom_payload(event_type: str, data: dict) -> dict:
     event_config = {
         "memory.added": {"label": "新增记忆", "color": "info"},
         "memory.updated": {"label": "更新记忆", "color": "info"},
-        "memory.deleted": {"label": "删除记忆", "color": "warning"},
+    "memory.deleted": {"label": "删除记忆", "color": "warning"},
+    "memory.hard_deleted": {"label": "永久删除记忆", "color": "error"},
         "memory.searched": {"label": "语义检索", "color": "info"},
         "user.hard_deleted": {"label": "用户删除", "color": "warning"},
         "memory.batch_imported": {"label": "批量导入", "color": "info"},
-        "memory.batch_deleted": {"label": "批量删除", "color": "warning"},
+    "memory.batch_deleted": {"label": "批量删除", "color": "warning"},
+    "memory.batch_hard_deleted": {"label": "批量永久删除", "color": "error"},
     }
     config = event_config.get(event_type, {"label": event_type, "color": "info"})
 

@@ -225,14 +225,6 @@ async def semantic_search_memories(
         if point_id in excluded:
             continue
 
-        state = (
-            formatted.get("state")
-            or (formatted.get("metadata") or {}).get("state")
-            or "active"
-        )
-        if state == "deleted":
-            continue
-
         formatted["score"] = point.score
         results.append(formatted)
         if len(results) >= limit:
@@ -279,7 +271,6 @@ def build_memory_filter(
 ):
     """构建 Qdrant 过滤条件，将可下推的筛选尽量下推到存储层。"""
     must = []
-    must_not = []
 
     if user_id:
         must.append(FieldCondition(key="user_id", match=MatchValue(value=user_id)))
@@ -298,9 +289,9 @@ def build_memory_filter(
             )
         )
 
-    if not must and not must_not:
+    if not must:
         return None
-    return Filter(must=must or None, must_not=must_not or None)
+    return Filter(must=must)
 
 
 def _client_side_matches(memory: dict, search: str | None = None) -> bool:
@@ -496,7 +487,7 @@ def _qdrant_get_memories_page(
             collection_name, qdrant_client = _get_qdrant_collection_and_client()
             count_result = qdrant_client.count(
                 collection_name=collection_name,
-            count_filter=build_memory_filter(
+                count_filter=build_memory_filter(
                     user_id=user_id, categories=categories,
                     date_from=date_from, date_to=date_to,
                 ),

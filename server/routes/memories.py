@@ -4,6 +4,7 @@
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
 from fastapi import APIRouter, HTTPException, Query
@@ -629,7 +630,7 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
 
 @router.delete("/v1/memories/{memory_id}/")
 async def delete_memory_by_id(memory_id: str):
-    """物理删除单条记忆 — 从 Qdrant 和关系库中彻底删除，不可恢复"""
+    """物理删除单条记忆 — 从 Qdrant 与关系库中彻底抹除，**不可恢复**。"""
     try:
         from qdrant_client.models import PointIdsList
 
@@ -655,6 +656,65 @@ async def delete_memory_by_id(memory_id: str):
             logger.warning(f"获取记忆信息失败: {e}")
 
         # 2. 物理删除 Qdrant 中的向量
+        try:
+            qdrant_client.delete(
+                collection_name=collection_name,
+                points_selector=PointIdsList(points=[memory_id]),
+            )
+        except Exception as e:
+            logger.error(f"Qdrant 物理删除失败: {e}")
+            raise HTTPException(status_code=500, detail=_safe_error_detail(e))
+
+        # 3. 关系库物理删除（带重试）
+        await _retry_db_write(
+            meta_service.hard_delete_memory_meta, memory_id,
+            desc=f"物理删除记忆 {memory_id} 关系库",
+        )
+
+        # 4. 记录 DELETE 事件到修改历史
+        try:
+            save_change_log(memory_id, "DELETE", old_memory_text, old_categories)
+        except Exception as log_err:
+            logger.warning(f"记录删除日志失败（不影响主流程）: {log_err}")
+
+        # 5. 触发 Webhook（托管到统一后台任务管理器）
+        _wh_data = {"memory_id": memory_id, "memory": old_memory_text[:200] if old_memory_text else "", "user_id": user_id}
+        webhook_service.schedule_webhook_delivery("memory.deleted", _wh_data, _mem_svc.http_client)
+
+        invalidate_stats_cache()
+        return {"message": "记忆已删除（不可恢复）"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"删除记忆失败: {e}")
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
+
+
+@router.delete("/v1/memories/{memory_id}/hard-delete")
+async def hard_delete_memory_by_id(memory_id: str):
+    """物理删除单条记忆 — 从 Qdrant 和关系库中彻底删除，不可恢复。
+    （与 DELETE /v1/memories/{memory_id}/ 等效，保留此端点用于外部显式调用场景。）"""
+    try:
+        from qdrant_client.models import PointIdsList
+
+        collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+        qdrant_client = get_memory().vector_store.client
+
+        # 1. 先从 Qdrant 获取记忆信息（用于日志和 Webhook）
+        old_memory_text = ""
+        old_categories: list = []
+        user_id = ""
+        try:
+            points = qdrant_client.retrieve(collection_name=collection_name, ids=[memory_id], with_payload=True)
+            if points:
+                payload = points[0].payload or {}
+                old_memory_text = payload.get("data", "")
+                old_categories = (payload.get("metadata", {}) or {}).get("categories", [])
+                user_id = payload.get("user_id", "")
+        except Exception as e:
+            logger.warning(f"获取记忆信息失败: {e}")
+
+        # 2. 物理删除 Qdrant 中的向量
         qdrant_client.delete(
             collection_name=collection_name,
             points_selector=PointIdsList(points=[memory_id]),
@@ -663,14 +723,13 @@ async def delete_memory_by_id(memory_id: str):
         # 3. 物理删除关系库中的元数据（带重试）
         await _retry_db_write(
             meta_service.hard_delete_memory_meta, memory_id,
-            desc=f"删除记忆 {memory_id} 关系库物理删除",
+            desc=f"硬删除记忆 {memory_id} 关系库物理删除",
         )
 
         # 4. 清理 Neo4j 中与该记忆相关的孤儿实体（尽力清理，不阻塞主流程）
         if user_id:
             try:
                 from server.services.graph_service import neo4j_query
-                # 删除该用户下没有任何关系的孤立实体（记忆删除后可能留下的残留）
                 neo4j_query(
                     "MATCH (n {user_id: $user_id}) WHERE NOT (n)-[]-() DELETE n",
                     {"user_id": user_id},
@@ -678,23 +737,22 @@ async def delete_memory_by_id(memory_id: str):
             except Exception as graph_err:
                 logger.warning(f"清理 Neo4j 孤儿实体失败（不影响主流程）: {graph_err}")
 
-        # 5. 记录 DELETE 事件到修改历史
+        # 5. 记录 HARD_DELETE 事件
         try:
-            save_change_log(memory_id, "DELETE", old_memory_text, old_categories)
+            save_change_log(memory_id, "HARD_DELETE", old_memory_text, old_categories)
         except Exception as log_err:
-            logger.warning(f"记录删除日志失败（不影响主流程）: {log_err}")
+            logger.warning(f"记录硬删除日志失败（不影响主流程）: {log_err}")
 
-        # 6. 触发 Webhook（托管到统一后台任务管理器）
+        # 6. 触发 Webhook
         _wh_data = {"memory_id": memory_id, "memory": old_memory_text[:200] if old_memory_text else "", "user_id": user_id}
-        webhook_service.schedule_webhook_delivery("memory.deleted", _wh_data, _mem_svc.http_client)
-
+        webhook_service.schedule_webhook_delivery("memory.hard_deleted", _wh_data, _mem_svc.http_client)
 
         invalidate_stats_cache()
-        return {"message": "记忆已永久删除"}
+        return {"message": "记忆已永久删除（不可恢复）"}
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"删除记忆失败: {e}")
+        logger.error(f"硬删除记忆失败: {e}")
         raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
@@ -703,106 +761,78 @@ async def delete_all_memories(
     user_id: Optional[str] = Query(None),
     confirm: bool = Query(False, description="清空全部记忆时必须传 confirm=true 以防误操作"),
 ):
-    """删除用户的所有记忆（清空全部需要 confirm=true 确认）— 物理删除，不可恢复"""
+    """物理删除用户的所有记忆（或全部记忆）— **不可恢复**，直接从 Qdrant 和关系库中抹除。
+    清空全部时需要 confirm=true 确认。仅适用于开发调试或明确的数据清理需求。"""
     try:
         from qdrant_client.models import Filter, FieldCondition, MatchValue, PointIdsList
         m = get_memory()
         collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
         qdrant_client = m.vector_store.client
 
-        if user_id:
-            # 分页滚动物理删除该用户的所有记忆
-            total_deleted = 0
-            next_offset = None
-            while True:
-                records, next_offset = qdrant_client.scroll(
-                    collection_name=collection_name,
-                    scroll_filter=Filter(
-                        must=[
-                            FieldCondition(key="user_id", match=MatchValue(value=user_id)),
-                        ],
-                    ),
-                    limit=100,
-                    offset=next_offset,
-                    with_payload=True,
-                    with_vectors=False,
-                )
-                if not records:
-                    break
-                ids = [str(record.id) for record in records]
+        # 无 user_id 时必须显式确认
+        if not user_id and not confirm:
+            raise HTTPException(
+                status_code=400,
+                detail="清空全部记忆是危险操作，请传入 confirm=true 参数以确认执行",
+            )
 
-                # 记录删除日志
-                for point in records:
-                    mid = str(point.id)
-                    payload = point.payload or {}
+        scroll_filter = None
+        if user_id:
+            scroll_filter = Filter(
+                must=[FieldCondition(key="user_id", match=MatchValue(value=user_id))],
+            )
+
+        total_deleted = 0
+        next_offset = None
+        while True:
+            records, next_offset = qdrant_client.scroll(
+                collection_name=collection_name,
+                scroll_filter=scroll_filter,
+                limit=100,
+                offset=next_offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            if not records:
+                break
+            ids = [str(record.id) for record in records]
+
+            # 记录删除日志
+            for point in records:
+                mid = str(point.id)
+                payload = point.payload or {}
+                try:
                     old_memory_text = payload.get("data", "")
                     old_categories = (payload.get("metadata", {}) or {}).get("categories", [])
-                    try:
-                        save_change_log(mid, "DELETE", old_memory_text, old_categories)
-                    except Exception:
-                        pass
-                # 物理删除 Qdrant 向量
+                    save_change_log(mid, "DELETE", old_memory_text, old_categories)
+                except Exception:
+                    pass
+
+            # 物理删除 Qdrant 向量
+            try:
                 qdrant_client.delete(
                     collection_name=collection_name,
                     points_selector=PointIdsList(points=ids),
                 )
-                # 物理删除关系库记录（带重试）
-                await _retry_db_write(
-                    meta_service.batch_hard_delete_memory_meta, ids,
-                    desc=f"用户 {user_id} 关系库批量物理删除",
-                )
-                total_deleted += len(ids)
-                if next_offset is None:
-                    break
-            invalidate_stats_cache()
-            return {"message": f"用户 {user_id} 的所有记忆已永久删除（共 {total_deleted} 条）"}
+            except Exception as e:
+                logger.error(f"Qdrant 批量删除失败: {e}")
+                raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
-        else:
-            # 无 user_id 时必须显式确认，防止误删全部数据
-            if not confirm:
-                raise HTTPException(
-                    status_code=400,
-                    detail="清空全部记忆是危险操作，请传入 confirm=true 参数以确认执行"
-                )
-            # 复用 Mem0 内部的 Qdrant 客户端清空集合（分页滚动删除，确保全部清空）
-            try:
-                from qdrant_client.models import PointIdsList
-                collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
-                qdrant_client = m.vector_store.client
-                total_deleted = 0
-                next_offset = None
-                while True:
-                    records, next_offset = qdrant_client.scroll(
-                        collection_name=collection_name,
-                        limit=100,
-                        offset=next_offset,
-                        with_payload=False,
-                        with_vectors=False,
-                    )
-                    if not records:
-                        break
-                    ids = [record.id for record in records]
+            # 关系库批量物理删除（带重试）
+            await _retry_db_write(
+                meta_service.batch_hard_delete_memory_meta, ids,
+                desc=f"{'用户 ' + user_id if user_id else '全部'} 关系库批量物理删除",
+            )
+            total_deleted += len(ids)
+            if next_offset is None:
+                break
 
-                    qdrant_client.delete(
-                        collection_name=collection_name,
-                        points_selector=PointIdsList(points=ids),
-                    )
-                    total_deleted += len(ids)
-                    if next_offset is None:
-                        break
-
-                # 同步清空关系库中的所有记忆元数据（带重试）
-
-                await _retry_db_write(
-                    meta_service.delete_all_memory_meta,
-                    desc="清空全部记忆时关系库清理",
-                )
-
-                invalidate_stats_cache()
-                return {"message": f"所有记忆已删除（共 {total_deleted} 条，关系库已同步清空）"}
-            except Exception as qdrant_err:
-                logger.error(f"Qdrant 直接删除失败: {qdrant_err}")
-                raise HTTPException(status_code=500, detail=_safe_error_detail(qdrant_err))
+        invalidate_stats_cache()
+        scope_label = f"用户 {user_id}" if user_id else "所有"
+        return {
+            "message": f"{scope_label}的记忆已永久删除（共 {total_deleted} 条，不可恢复）",
+            "deleted": total_deleted,
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -903,7 +933,7 @@ async def hard_delete_user(user_id: str):
 
 @router.post("/v1/memories/batch-delete")
 async def batch_delete_memories(request: BatchDeleteRequest):
-    """批量物理删除记忆 — 从 Qdrant 和关系库中彻底删除，不可恢复"""
+    """批量物理删除记忆 — 从 Qdrant 和关系库中彻底删除，**不可恢复**。"""
     if not request.memory_ids:
         raise HTTPException(status_code=400, detail="memory_ids 不能为空")
 
@@ -930,7 +960,7 @@ async def batch_delete_memories(request: BatchDeleteRequest):
             logger.error(f"批量查询记忆失败: {e}")
             raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
-        # 逐条处理
+        # 逐条删除
         for idx, mid in enumerate(request.memory_ids):
             point = points_map.get(mid)
             if not point:
@@ -943,12 +973,6 @@ async def batch_delete_memories(request: BatchDeleteRequest):
                 old_memory_text = payload.get("data", "")
                 old_categories = (payload.get("metadata", {}) or {}).get("categories", [])
 
-                # 物理删除 Qdrant 向量
-                qdrant_client.delete(
-                    collection_name=collection_name,
-                    points_selector=PointIdsList(points=[mid]),
-                )
-
                 # 记录删除日志
                 try:
                     save_change_log(mid, "DELETE", old_memory_text, old_categories)
@@ -959,7 +983,110 @@ async def batch_delete_memories(request: BatchDeleteRequest):
                 success_count += 1
                 deleted_ids.append(mid)
             except Exception as e:
-                logger.error(f"批量物理删除单条失败 memory_id={mid}: {e}")
+                logger.error(f"批量删除单条处理失败 memory_id={mid}: {e}")
+                results[idx] = {"id": mid, "success": False, "error": "删除失败"}
+                failed_count += 1
+
+        final_results = [
+            item if item is not None else {"id": request.memory_ids[idx], "success": False, "error": "删除结果未知"}
+            for idx, item in enumerate(results)
+        ]
+
+        if deleted_ids:
+            # 物理删除 Qdrant 向量
+            try:
+                qdrant_client.delete(
+                    collection_name=collection_name,
+                    points_selector=PointIdsList(points=deleted_ids),
+                )
+            except Exception as e:
+                logger.error(f"Qdrant 批量物理删除失败: {e}")
+                raise HTTPException(status_code=500, detail=_safe_error_detail(e))
+
+            invalidate_stats_cache()
+
+            # 关系库批量物理删除（带重试）
+            await _retry_db_write(
+                meta_service.batch_hard_delete_memory_meta,
+                memory_ids=deleted_ids,
+                desc="批量删除关系库物理删除",
+            )
+
+        # 触发 Webhook（批量删除汇总通知，托管到统一后台任务管理器）
+        _id_summary = ", ".join(deleted_ids[:5])
+        if len(deleted_ids) > 5:
+            _id_summary += f" ...等共 {len(deleted_ids)} 条"
+        _wh_data = {
+            "memory": f"批量删除 {len(request.memory_ids)} 条记忆（不可恢复），成功 {success_count} 条，失败 {failed_count} 条",
+            "memory_id": _id_summary,
+        }
+        webhook_service.schedule_webhook_delivery("memory.batch_deleted", _wh_data, _mem_svc.http_client)
+
+
+        return BatchDeleteResponse(
+            total=len(request.memory_ids),
+            success=success_count,
+            failed=failed_count,
+            results=final_results,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"批量删除记忆失败: {e}")
+        raise HTTPException(status_code=500, detail=_safe_error_detail(e))
+
+
+@router.post("/v1/memories/batch-hard-delete")
+async def batch_hard_delete_memories(request: BatchDeleteRequest):
+    """批量物理删除记忆 — 从 Qdrant 和关系库中彻底删除，**不可恢复**。
+    （与 /v1/memories/batch-delete 等效，保留此端点用于外部显式调用场景。）"""
+    if not request.memory_ids:
+        raise HTTPException(status_code=400, detail="memory_ids 不能为空")
+
+    try:
+        from qdrant_client.models import PointIdsList
+        m = get_memory()
+        collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
+        qdrant_client = m.vector_store.client
+
+        results: List[Optional[Dict[str, Any]]] = [None] * len(request.memory_ids)
+        success_count = 0
+        failed_count = 0
+        deleted_ids: List[str] = []
+        points_map: Dict[str, Any] = {}
+
+        try:
+            points = qdrant_client.retrieve(
+                collection_name=collection_name,
+                ids=request.memory_ids,
+                with_payload=True,
+            )
+            points_map = {str(p.id): p for p in points}
+        except Exception as e:
+            logger.warning(f"批量硬删查询记忆失败（继续尝试）: {e}")
+
+        for idx, mid in enumerate(request.memory_ids):
+            try:
+                point = points_map.get(mid)
+                payload = (point.payload if point else {}) or {}
+                old_memory_text = payload.get("data", "")
+                old_categories = (payload.get("metadata", {}) or {}).get("categories", [])
+
+                qdrant_client.delete(
+                    collection_name=collection_name,
+                    points_selector=PointIdsList(points=[mid]),
+                )
+
+                try:
+                    save_change_log(mid, "HARD_DELETE", old_memory_text, old_categories)
+                except Exception as log_err:
+                    logger.warning(f"记录批量硬删历史失败 memory_id={mid}: {log_err}")
+
+                results[idx] = {"id": mid, "success": True}
+                success_count += 1
+                deleted_ids.append(mid)
+            except Exception as e:
+                logger.error(f"批量硬删单条失败 memory_id={mid}: {e}")
                 results[idx] = {"id": mid, "success": False, "error": "删除失败"}
                 failed_count += 1
 
@@ -970,15 +1097,12 @@ async def batch_delete_memories(request: BatchDeleteRequest):
 
         if success_count > 0:
             invalidate_stats_cache()
-
-            # 物理删除关系库记录（带重试）
             await _retry_db_write(
                 meta_service.batch_hard_delete_memory_meta,
                 memory_ids=deleted_ids,
-                desc="批量删除关系库物理删除",
+                desc="批量硬删关系库物理删除",
             )
-
-            # 清理 Neo4j 中的孤儿实体（收集被删除记忆涉及的 user_id）
+            # 清理 Neo4j 孤儿实体
             try:
                 deleted_user_ids = set()
                 for mid in deleted_ids:
@@ -997,16 +1121,14 @@ async def batch_delete_memories(request: BatchDeleteRequest):
             except Exception as graph_err:
                 logger.warning(f"清理 Neo4j 孤儿实体失败（不影响主流程）: {graph_err}")
 
-        # 触发 Webhook（批量删除汇总通知，托管到统一后台任务管理器）
         _id_summary = ", ".join(deleted_ids[:5])
         if len(deleted_ids) > 5:
             _id_summary += f" ...等共 {len(deleted_ids)} 条"
         _wh_data = {
-            "memory": f"批量删除 {len(request.memory_ids)} 条记忆，成功 {success_count} 条，失败 {failed_count} 条",
+            "memory": f"批量硬删除 {len(request.memory_ids)} 条记忆，成功 {success_count} 条，失败 {failed_count} 条（不可恢复）",
             "memory_id": _id_summary,
         }
-        webhook_service.schedule_webhook_delivery("memory.batch_deleted", _wh_data, _mem_svc.http_client)
-
+        webhook_service.schedule_webhook_delivery("memory.batch_hard_deleted", _wh_data, _mem_svc.http_client)
 
         return BatchDeleteResponse(
             total=len(request.memory_ids),
@@ -1017,7 +1139,7 @@ async def batch_delete_memories(request: BatchDeleteRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"批量删除记忆失败: {e}")
+        logger.error(f"批量硬删记忆失败: {e}")
         raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 

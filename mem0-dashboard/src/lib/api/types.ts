@@ -462,11 +462,17 @@ export interface PlaygroundChatResponse {
   new_memories: PlaygroundNewMemory[];
 }
 
-/** Playground SSE 事件类型 */
+/** Playground SSE 事件类型
+ *
+ * 流式事件顺序：memories → content(多次) → done → memories_saved → [DONE]
+ *  - done：AI 文本已完整，前端可立即解锁输入框
+ *  - memories_saved：记忆存储完成，携带本轮新增/更新的记忆列表（可能为空）
+ */
 export type PlaygroundSSEEvent =
   | { type: "memories"; retrieved_memories: PlaygroundRetrievedMemory[] }
   | { type: "content"; content: string }
-  | { type: "done"; new_memories: PlaygroundNewMemory[] }
+  | { type: "done" }
+  | { type: "memories_saved"; new_memories: PlaygroundNewMemory[] }
   | { type: "error"; error: string };
 
 // ============ Webhooks ============

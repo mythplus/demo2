@@ -117,7 +117,8 @@ async def global_exception_handler(request: Request, exc: Exception):
 # ============ 中间件注册 ============
 
 # CORS 配置（从 config.yaml 读取允许的来源）
-_cors_origins_str = MEM0_CONFIG.get("security", {}).get("cors_origins", "*")
+# 注意：必须 strip 一次，避免配置值为 " *"（带空格）时 != "*" 判断失败导致 allow_origins 为空
+_cors_origins_str = str(MEM0_CONFIG.get("security", {}).get("cors_origins", "*")).strip()
 _cors_origins = [o.strip() for o in _cors_origins_str.split(",") if o.strip()] if _cors_origins_str != "*" else ["*"]
 _local_origin_regex = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$" if not IS_PRODUCTION else None
 app.add_middleware(
