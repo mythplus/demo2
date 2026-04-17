@@ -85,6 +85,12 @@ async function request<T>(
     "Content-Type": "application/json",
   };
 
+  // 自动携带 API Key 认证头（从环境变量 NEXT_PUBLIC_MEM0_API_KEY 读取）
+  const apiKey = process.env.NEXT_PUBLIC_MEM0_API_KEY;
+  if (apiKey) {
+    headers["Authorization"] = `Bearer ${apiKey}`;
+  }
+
   // 超时控制 + 外部取消信号合并
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
