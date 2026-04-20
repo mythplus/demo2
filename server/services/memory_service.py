@@ -19,7 +19,7 @@ from qdrant_client.http.models import (
 )
 
 from server.config import (
-    MEM0_CONFIG, QDRANT_DATA_PATH, VALID_CATEGORIES,
+    MEM0_CONFIG, VALID_CATEGORIES,
     CATEGORY_DESCRIPTIONS, MEMORY_CATEGORIZATION_PROMPT,
 )
 
@@ -37,7 +37,11 @@ def get_memory():
     global memory_instance
     if memory_instance is None:
         from mem0 import Memory
-        logger.info(f"正在初始化 Mem0，Qdrant 数据目录: {QDRANT_DATA_PATH}")
+        _vs_cfg = MEM0_CONFIG.get("vector_store", {}).get("config", {})
+        logger.info(
+            f"正在初始化 Mem0，Qdrant 远程服务: "
+            f"{_vs_cfg.get('host', 'unknown')}:{_vs_cfg.get('port', 'unknown')}"
+        )
         memory_instance = Memory.from_config(MEM0_CONFIG)
         logger.info("Mem0 初始化完成")
     return memory_instance

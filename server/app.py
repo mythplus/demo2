@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from server.config import (
-    MEM0_CONFIG, QDRANT_DATA_PATH, ACCESS_LOG_DB_PATH,
+    MEM0_CONFIG, ACCESS_LOG_DB_PATH,
     IS_PRODUCTION, IS_TESTING, _safe_error_detail, setup_logging,
 )
 from server.services import memory_service
@@ -44,8 +44,10 @@ async def lifespan(app: FastAPI):
     """应用启动时初始化 Mem0"""
     logger.info("=" * 50)
     logger.info("Mem0 Dashboard 后端服务启动中...")
-    logger.info(f"Qdrant 存储模式: 本地文件模式 (on_disk)")
-    logger.info(f"Qdrant 数据目录: {QDRANT_DATA_PATH}")
+    _vs_cfg = MEM0_CONFIG.get("vector_store", {}).get("config", {})
+    _qdrant_host = _vs_cfg.get("host", "unknown")
+    _qdrant_port = _vs_cfg.get("port", "unknown")
+    logger.info(f"Qdrant 存储模式: 远程服务模式 ({_qdrant_host}:{_qdrant_port})")
     logger.info("=" * 50)
     # 初始化全局异步 HTTP 客户端
     memory_service.http_client = httpx.AsyncClient(timeout=30.0)

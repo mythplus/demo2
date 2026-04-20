@@ -90,10 +90,8 @@ def setup_logging():
     for noisy_logger in ("httpx", "httpcore", "uvicorn.access", "neo4j", "qdrant_client"):
         logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 
-# ============ Qdrant 本地文件存储路径 ============
-# 使用项目根目录下的 qdrant_data 文件夹，基于 server 包的父目录动态计算
+# ============ 项目根目录 ============
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-QDRANT_DATA_PATH = os.path.join(_PROJECT_ROOT, "qdrant_data")
 
 # ============ 配置文件路径 ============
 CONFIG_FILE_PATH = os.path.join(_PROJECT_ROOT, "config.yaml")
@@ -163,12 +161,15 @@ def load_config_from_yaml() -> dict:
                 "config": yaml_config["embedder"].get("config", {}),
             }
 
-        # 向量数据库配置（补充 path 和 on_disk，这些不放在 yaml 中）
+        # 向量数据库配置（远程 Qdrant 服务模式，host/port/api_key 由 yaml 提供）
         if "vector_store" in yaml_config:
             vs_config = yaml_config["vector_store"].get("config", {})
-            vs_config["path"] = QDRANT_DATA_PATH
-            if "on_disk" not in vs_config:
-                vs_config["on_disk"] = True
+            # port 可能被 ${ENV_VAR} 解析为字符串，强制转为 int
+            if "port" in vs_config and isinstance(vs_config["port"], str):
+                try:
+                    vs_config["port"] = int(vs_config["port"])
+                except ValueError:
+                    logger.warning(f"Qdrant port 值无法转为整数: {vs_config['port']}，将保持原值")
             config["vector_store"] = {
                 "provider": yaml_config["vector_store"].get("provider", "qdrant"),
                 "config": vs_config,
@@ -211,8 +212,9 @@ MEM0_CONFIG = _yaml_config if _yaml_config else {
         "config": {
             "collection_name": "mem0",
             "embedding_model_dims": 768,
-            "path": QDRANT_DATA_PATH,
-            "on_disk": True,
+            "host": os.environ.get("QDRANT_HOST", "localhost"),
+            "port": int(os.environ.get("QDRANT_PORT", "6333")),
+            "api_key": os.environ.get("QDRANT_API_KEY", "") or None,
         },
     },
     "llm": {
