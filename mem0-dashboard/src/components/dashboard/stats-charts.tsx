@@ -225,7 +225,7 @@ export function StatsCharts({ stats, requestStats }: StatsChartsProps) {
               暂无请求数据
             </div>
           )}
-          {/* 底部：类型标签 + 查看细分开关 */}
+          {/* 底部：类型标签 + 视图明细开关 */}
           <div className="flex items-center justify-between mt-2 pt-2 border-t">
             <div className="flex items-center gap-3 flex-wrap">
               {showRequestDetail && requestTypes.map((type) => (
@@ -245,7 +245,7 @@ export function StatsCharts({ stats, requestStats }: StatsChartsProps) {
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs text-muted-foreground">查看细分</span>
+              <span className="text-xs text-muted-foreground">视图明细</span>
               <Switch
                 checked={showRequestDetail}
                 onCheckedChange={setShowRequestDetail}
