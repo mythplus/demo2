@@ -49,6 +49,7 @@ import {
 import { mem0Api } from "@/lib/api";
 import type { Memory } from "@/lib/api";
 import { usePreferences } from "@/hooks/use-preferences";
+import { formatDateTime } from "@/lib/utils";
 
 const EditMemoryDialog = dynamic(
   () => import("@/components/memories/edit-memory-dialog").then((m) => ({ default: m.EditMemoryDialog })),

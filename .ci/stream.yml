@@ -1,0 +1,195 @@
+# ============================================
+# Mem0 Dashboard 工蜂流水线（Git@Work）
+# 文件位置：.ci/stream.yml
+# 文档参考：https://stream.iwiki.woa.com/（或 stream help）
+#
+# 阶段：
+#   1) test          后端 pytest + 前端 lint/build（并行）
+#   2) build-image   构建后端/前端 Docker 镜像并推送到 CSIGHUB
+#   3) deploy-prod   仅在打 tag 或手动触发时执行，走蓝盾/远程部署
+#
+# 触发条件：
+#   - push / PR：跑 test
+#   - push main：额外跑 build-image，tag latest + git-sha
+#   - 打 vX.Y.Z tag：额外推 semver tag，并可选触发 deploy-prod
+# ============================================
+
+# Stream 版本（固定）
+version: v2.0
+
+# 全局变量（敏感信息通过工蜂"流水线参数"或"凭据管理"注入，禁止硬编码）
+variables:
+  # CSIGHUB 镜像仓库前缀（按实际项目替换）
+  IMAGE_REGISTRY: "csighub.tencentyun.com/your-team"
+  IMAGE_NAME_BACKEND: "mem0-dashboard-backend"
+  IMAGE_NAME_FRONTEND: "mem0-dashboard-frontend"
+
+  # Python 版本与 Node 版本与 Dockerfile 保持一致
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "18.20.4"
+
+# ============================================
+# Stage 1：测试（PR / push 都触发）
+# ============================================
+stages:
+  - name: test
+    jobs:
+      # ---- 后端 pytest ----
+      - name: backend-test
+        runs-on:
+          pool-name: docker
+          container:
+            image: mirrors.tencent.com/library/python:3.12-slim
+        steps:
+          - checkout: self
+          - name: "安装依赖（含 dev）"
+            run: |
+              set -eux
+              python -m pip install --upgrade pip
+              pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
+          - name: "运行 pytest"
+            run: |
+              # tests/conftest.py 已 mock 掉 Mem0/Qdrant/Neo4j/log_service
+              # CI 里不连任何真实外部服务，秒级出结果
+              pytest tests -v --tb=short --maxfail=5
+        # 失败不阻塞前端 job（但整个 stage 会失败）
+        continueOnError: false
+
+      # ---- 前端 lint + build ----
+      - name: frontend-test
+        runs-on:
+          pool-name: docker
+          container:
+            image: mirrors.tencent.com/library/node:18.20.4-alpine
+        steps:
+          - checkout: self
+          - name: "安装前端依赖"
+            run: |
+              set -eux
+              cd mem0-dashboard
+              # Alpine 下编译 sharp 等原生模块偶尔需要，先装基础工具
+              apk add --no-cache python3 make g++ || true
+              npm ci --no-audit --no-fund
+          - name: "ESLint 检查"
+            run: |
+              cd mem0-dashboard
+              npm run lint
+          - name: "Next.js 生产构建（同源反代模式）"
+            run: |
+              cd mem0-dashboard
+              # 与 Dockerfile 保持一致：留空走 window.location.origin
+              NEXT_PUBLIC_MEM0_API_URL= NEXT_TELEMETRY_DISABLED=1 npm run build
+          - name: "Jest 单元测试"
+            run: |
+              cd mem0-dashboard
+              npm test -- --passWithNoTests
+
+# ============================================
+# Stage 2：构建并推送镜像（仅 main 分支 / tag）
+# ============================================
+  - name: build-image
+    # 只在 main 分支 push 或打 tag 时触发
+    if: "${{ ci.event == 'push' && (ci.branch == 'main' || ci.tag != '') }}"
+    jobs:
+      - name: build-backend
+        runs-on:
+          pool-name: docker
+        steps:
+          - checkout: self
+          - name: "登录 CSIGHUB"
+            # 凭据建议在工蜂控制台的"凭据管理"里配置 csighub-user / csighub-password
+            env:
+              REGISTRY_USER: ${{ settings.CSIGHUB_USER }}
+              REGISTRY_PASS: ${{ settings.CSIGHUB_PASSWORD }}
+            run: |
+              echo "$REGISTRY_PASS" | docker login csighub.tencentyun.com -u "$REGISTRY_USER" --password-stdin
+          - name: "构建并推送后端镜像"
+            run: |
+              set -eux
+              SHA=$(git rev-parse --short HEAD)
+              IMG="${IMAGE_REGISTRY}/${IMAGE_NAME_BACKEND}"
+              docker build \
+                --pull \
+                --cache-from ${IMG}:latest \
+                -t ${IMG}:${SHA} \
+                -t ${IMG}:latest \
+                -f Dockerfile .
+              docker push ${IMG}:${SHA}
+              docker push ${IMG}:latest
+              # 打 tag 时额外推 semver
+              if [ -n "${CI_TAG:-}" ]; then
+                docker tag ${IMG}:${SHA} ${IMG}:${CI_TAG}
+                docker push ${IMG}:${CI_TAG}
+              fi
+
+      - name: build-frontend
+        runs-on:
+          pool-name: docker
+        steps:
+          - checkout: self
+          - name: "登录 CSIGHUB"
+            env:
+              REGISTRY_USER: ${{ settings.CSIGHUB_USER }}
+              REGISTRY_PASS: ${{ settings.CSIGHUB_PASSWORD }}
+            run: |
+              echo "$REGISTRY_PASS" | docker login csighub.tencentyun.com -u "$REGISTRY_USER" --password-stdin
+          - name: "构建并推送前端镜像"
+            run: |
+              set -eux
+              SHA=$(git rev-parse --short HEAD)
+              IMG="${IMAGE_REGISTRY}/${IMAGE_NAME_FRONTEND}"
+              docker build \
+                --pull \
+                --cache-from ${IMG}:latest \
+                -t ${IMG}:${SHA} \
+                -t ${IMG}:latest \
+                -f mem0-dashboard/Dockerfile mem0-dashboard
+              docker push ${IMG}:${SHA}
+              docker push ${IMG}:latest
+              if [ -n "${CI_TAG:-}" ]; then
+                docker tag ${IMG}:${SHA} ${IMG}:${CI_TAG}
+                docker push ${IMG}:${CI_TAG}
+              fi
+
+# ============================================
+# Stage 3：部署（仅 tag 或手动触发）
+# 方式 A：本阶段直接 SSH 到服务器 docker compose pull/up
+# 方式 B：把 CI_TAG 推给蓝盾流水线由蓝盾接管部署（推荐生产）
+# ============================================
+  - name: deploy-prod
+    if: "${{ ci.event == 'push' && ci.tag != '' }}"
+    needs: [build-image]
+    jobs:
+      - name: deploy-ssh
+        runs-on:
+          pool-name: docker
+        steps:
+          - name: "SSH 到目标机器 pull 新镜像并重启"
+            env:
+              DEPLOY_HOST: ${{ settings.DEPLOY_HOST }}
+              DEPLOY_USER: ${{ settings.DEPLOY_USER }}
+              # 私钥放在工蜂凭据管理 → 类型 ssh-key
+              SSH_PRIVATE_KEY: ${{ settings.DEPLOY_SSH_KEY }}
+            run: |
+              set -eux
+              mkdir -p ~/.ssh
+              echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+              chmod 600 ~/.ssh/id_rsa
+              ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} bash -s <<'REMOTE'
+                set -eux
+                cd /opt/mem0-dashboard
+                # compose.prod.yml 使用 image: 而非 build:，拉取最新 latest
+                docker compose -f docker-compose.prod.yml pull
+                docker compose -f docker-compose.prod.yml up -d
+                # 健康校验：60s 内 /health 必须 200
+                for i in $(seq 1 12); do
+                  if curl -fsS http://localhost/healthz; then
+                    echo "✅ 部署健康检查通过"
+                    exit 0
+                  fi
+                  sleep 5
+                done
+                echo "❌ 健康检查失败，触发回滚"
+                docker compose -f docker-compose.prod.yml rollback || true
+                exit 1
+              REMOTE
