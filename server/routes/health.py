@@ -65,6 +65,12 @@ async def health_check():
     return {"status": "ok", "message": "Mem0 Dashboard API 运行中"}
 
 
+@router.get("/health")
+async def health_check_alias():
+    """健康检查别名端点（兼容 LB/K8s/监控系统常用的 /health 路径）"""
+    return {"status": "ok", "message": "Mem0 Dashboard API 运行中"}
+
+
 @router.get("/v1/config/info")
 async def get_config_info():
     """获取当前系统配置信息（实时从 config.yaml 读取，修改配置文件后刷新即可同步）"""

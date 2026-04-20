@@ -15,7 +15,7 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
     """API Key 认证中间件：如果配置了 api_key，则所有非健康检查请求都需要携带有效的 API Key"""
 
     # 免认证的路径（健康检查、OPTIONS 预检请求）
-    SKIP_PATHS = {"/", "/docs", "/redoc", "/openapi.json"}
+    SKIP_PATHS = {"/", "/health", "/docs", "/redoc", "/openapi.json"}
 
     def __init__(self, app, api_key: str = ""):
         super().__init__(app)

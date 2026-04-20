@@ -4,21 +4,23 @@
 # ============================================
 
 # ---- 阶段 1：安装依赖 ----
-FROM node:18-alpine AS deps
+# 锁定到 minor 版本，避免不同 CI/机器拉到不一致的 npm 造成 lockfile 报错
+FROM node:18.20.4-alpine AS deps
 
 WORKDIR /app
 
 COPY package.json package-lock.json ./
 # 直接安装全量依赖（含 devDependencies），供 stage 2 构建使用
-# 注：此前存在 /prod_node_modules 拷贝逻辑，但后续 stage 从未引用，已简化
+# Next.js 构建需要 typescript / eslint 等 dev 依赖，无法简单用 --omit=dev
 RUN npm ci
 
 # ---- 阶段 2：构建 ----
-FROM node:18-alpine AS builder
+FROM node:18.20.4-alpine AS builder
 
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
+# 注意：配合 .dockerignore 可避免把 .env.local / .next / node_modules 等带进构建上下文
 COPY . .
 
 # 禁用 Next.js 遥测数据上报
@@ -30,7 +32,7 @@ ENV NEXT_PUBLIC_MEM0_API_URL=
 RUN npm run build
 
 # ---- 阶段 3：运行时镜像 ----
-FROM node:18-alpine AS runner
+FROM node:18.20.4-alpine AS runner
 
 WORKDIR /app
 

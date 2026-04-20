@@ -9,7 +9,7 @@
 #   5. 访问：https://localhost
 # ============================================
 
-version: "3.8"
+# 注：Compose v2 已忽略 version 字段，这里不再声明
 
 services:
   # ---- 后端 API 服务 ----
@@ -22,7 +22,9 @@ services:
     environment:
       - MEM0_ENV=production
       - MEM0_PORT=8080
-      - MEM0_WORKERS=${MEM0_WORKERS:-2}
+      # 生产默认单 Worker：项目依赖多个 SQLite 文件（access_logs / rate_limit / memory_meta），
+      # 多进程会产生锁竞争与吞吐抖动。确需扩容时，再显式在 .env 中设置 MEM0_WORKERS。
+      - MEM0_WORKERS=${MEM0_WORKERS:-1}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
       - EMBED_MODEL=${EMBED_MODEL:-nomic-embed-text}
@@ -42,7 +44,8 @@ services:
       neo4j:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/')"]
+      # 打到 /health 别名（轻量、不触发深度检查），并校验 HTTP 200
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/health', timeout=3).status == 200 else 1)"]
       interval: 30s
       timeout: 5s
       start_period: 15s

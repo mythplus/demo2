@@ -1,5 +1,7 @@
 # ============================================
-# Mem0 Dashboard Docker 构建排除文件
+# Mem0 Dashboard 后端 Docker 构建排除文件
+# 作用域：后端镜像（./Dockerfile）的构建上下文
+# 说明：前端有独立的 mem0-dashboard/.dockerignore，不会污染这里
 # ============================================
 
 # Git
@@ -22,16 +24,24 @@ build
 tests/
 .pytest_cache/
 pytest.ini
+requirements-dev.txt
 
 # 本地数据（生产环境使用 Docker Volume 挂载）
 qdrant_data/
 access_logs.db
 access_logs.db-shm
 access_logs.db-wal
+memory_meta.db
+memory_meta.db-shm
+memory_meta.db-wal
+rate_limit.db
+rate_limit.db-shm
+rate_limit.db-wal
+webhooks.json
+webhooks.json.bak
 
-# 前端 node_modules（前端有独立 Dockerfile）
-mem0-dashboard/node_modules/
-mem0-dashboard/.next/
+# 前端整体（前端有独立 Dockerfile，不应进入后端镜像构建上下文）
+mem0-dashboard/
 
 # 编辑器与系统文件
 .vscode/
@@ -43,16 +53,18 @@ Thumbs.db
 *.swo
 *.log
 
-# 敏感配置（通过环境变量注入）
+# 敏感配置（通过环境变量 / volume 注入，禁止进镜像）
 .env
 .env.local
 .env.*.local
 config.yaml
+nginx/ssl/*.pem
+nginx/ssl/*.key
+nginx/ssl/*.crt
 
-# Docker 自身
+# 与编排/部署相关的文件不进镜像
 docker-compose.yml
-Dockerfile
-Dockerfile.*
+docker-compose.*.yml
 nginx/
 
 # 文档

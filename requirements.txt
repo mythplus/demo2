@@ -1,6 +1,8 @@
 # ============================================
-# Mem0 Dashboard 后端 Python 依赖
+# Mem0 Dashboard 后端 Python 运行时依赖
 # 使用 pip install -r requirements.txt 安装
+#
+# 开发额外依赖（pytest 等）见 requirements-dev.txt
 # ============================================
 
 # Web 框架
@@ -36,8 +38,3 @@ PyYAML==6.0.3
 python-dotenv==1.2.2
 pydantic==2.12.5
 cryptography==45.0.4
-
-
-# 测试（仅开发环境需要，生产可跳过）
-pytest==9.0.2
-pytest-asyncio==1.3.0

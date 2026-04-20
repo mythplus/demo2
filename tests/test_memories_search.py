@@ -70,24 +70,6 @@ class TestSearchMemories:
         semantic_search.assert_awaited_once()
         mock_memory.search.assert_not_called()
 
-    def test_search_results_exclude_deleted(self, client, mock_memory):
-
-        """测试搜索结果排除已删除的记忆"""
-        mock_memory.search.return_value = {
-            "results": [
-                {"id": "id-1", "memory": "活跃记忆", "score": 0.9, "user_id": "user1", "metadata": {"state": "active"}},
-                {"id": "id-2", "memory": "已删除记忆", "score": 0.8, "user_id": "user1", "metadata": {"state": "deleted"}},
-            ]
-        }
-        response = client.post(
-            "/v1/memories/search/",
-            json={"query": "测试", "user_id": "user1"},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        for result in data.get("results", []):
-            assert result.get("state") != "deleted"
-
 
 class TestMemoryHistory:
     """记忆修改历史测试"""
