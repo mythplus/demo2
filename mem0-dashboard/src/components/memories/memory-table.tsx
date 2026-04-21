@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import { Eye, Pencil, Trash2, MoreHorizontal, Archive, Pause, Play, ExternalLink } from "lucide-react";
+import { Pencil, Trash2, MoreHorizontal, ExternalLink } from "lucide-react";
 import {
   Table,
   TableBody,

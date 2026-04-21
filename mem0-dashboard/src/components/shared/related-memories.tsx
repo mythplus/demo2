@@ -62,6 +62,8 @@ export function RelatedMemories({ memoryId, className }: RelatedMemoriesProps) {
     <Card className={className}>
       <CardHeader className="px-4 py-3">
         <CardTitle className="flex items-center gap-2 text-base">
+          <Link2 className="h-4 w-4" />
+          关联记忆
         </CardTitle>
         <CardDescription>语义相关的记忆推荐</CardDescription>
       </CardHeader>

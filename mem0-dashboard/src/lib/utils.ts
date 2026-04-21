@@ -8,6 +8,10 @@ export function cn(...inputs: ClassValue[]) {
 /**
  * 将 ISO 时间字符串或时间戳格式化为北京时间（UTC+8）
  * 输出格式：YYYY-MM-DD HH:mm:ss
+ * 
+ * 注意：此函数硬编码为 UTC+8（中国标准时间），不会跟随浏览器本地时区。
+ * 如果需要支持多时区，请改用 Intl.DateTimeFormat({ timeZone: 'Asia/Shanghai' })。
+ * 
  * @example formatDateTime("2026-04-17T06:10:19.184898+00:00") → "2026-04-17 14:10:19"
  * @example formatDateTime(1713340219184) → "2026-04-17 14:10:19"
  */

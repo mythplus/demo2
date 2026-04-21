@@ -60,7 +60,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     handleChange(mql);
     mql.addEventListener("change", handleChange);
     return () => mql.removeEventListener("change", handleChange);
-  }, []);
+  }, [setSidebarCollapsed]);
 
   // 主题模式切换（在 header 中切换：light <-> dark）
   const handleCycleTheme = () => {

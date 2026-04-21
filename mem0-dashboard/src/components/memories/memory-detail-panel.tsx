@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { X, Clock, FileText, History, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn, formatDateTime } from "@/lib/utils";
 import { mem0Api } from "@/lib/api";
-import type { Memory, MemoryHistory } from "@/lib/api";
+import type { Memory, MemoryHistory, Category } from "@/lib/api";
 import { CategoryBadge, CategoryBadges } from "./category-badge";
 import { getCategoryInfo } from "@/lib/constants";
 
@@ -26,25 +26,40 @@ export function MemoryDetailPanel({
 }: MemoryDetailPanelProps) {
   const [history, setHistory] = useState<MemoryHistory[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const loadHistory = useCallback(async (memoryId: string) => {
+    // 取消上一次请求，避免快速切换记忆时竞态覆盖
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    setLoadingHistory(true);
+    try {
+      const data = await mem0Api.getMemoryHistory(memoryId);
+      if (!controller.signal.aborted) {
+        setHistory(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      if (!controller.signal.aborted) {
+        console.error("获取历史记录失败:", err);
+        setHistory([]);
+      }
+    } finally {
+      if (!controller.signal.aborted) {
+        setLoadingHistory(false);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (memory && open) {
       loadHistory(memory.id);
     }
-  }, [memory, open]);
-
-  const loadHistory = async (memoryId: string) => {
-    setLoadingHistory(true);
-    try {
-      const data = await mem0Api.getMemoryHistory(memoryId);
-      setHistory(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("获取历史记录失败:", err);
-      setHistory([]);
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, [memory, open, loadHistory]);
 
   if (!memory) return null;
 
@@ -54,7 +69,7 @@ export function MemoryDetailPanel({
       {open && (
         <div
           className="fixed left-0 right-0 bottom-0 z-40 bg-black/50"
-          style={{ top: "2rem" }}
+          style={{ top: "3rem" }}
           onClick={onClose}
         />
       )}
@@ -65,7 +80,7 @@ export function MemoryDetailPanel({
           "fixed right-0 bottom-0 z-50 w-full sm:w-[480px] transform border-l bg-background shadow-xl transition-transform duration-300",
           open ? "translate-x-0" : "translate-x-full"
         )}
-        style={{ top: "2rem" }}
+        style={{ top: "3rem" }}
       >
         {/* 头部 */}
         <div className="flex items-center justify-between border-b p-4">
@@ -298,9 +313,9 @@ export function MemoryDetailPanel({
                       {item.event !== "DELETE" && (() => {
                         const oldCats = (item.old_categories || []) as string[];
                         const newCats = (item.categories || []) as string[];
-                        const added = newCats.filter((c) => !oldCats.includes(c)) as import("@/lib/api").Category[];
-                        const removed = oldCats.filter((c) => !newCats.includes(c)) as import("@/lib/api").Category[];
-                        const unchanged = newCats.filter((c) => oldCats.includes(c)) as import("@/lib/api").Category[];
+                        const added = newCats.filter((c) => !oldCats.includes(c)) as Category[];
+                        const removed = oldCats.filter((c) => !newCats.includes(c)) as Category[];
+                        const unchanged = newCats.filter((c) => oldCats.includes(c)) as Category[];
                         const hasChange = added.length > 0 || removed.length > 0;
 
                         if (item.event === "ADD") {
@@ -308,7 +323,7 @@ export function MemoryDetailPanel({
                           return newCats.length > 0 ? (
                             <div className="pt-1">
                               <p className="text-xs text-muted-foreground mb-1">标签：</p>
-                              <CategoryBadges categories={newCats as import("@/lib/api").Category[]} />
+                              <CategoryBadges categories={newCats as Category[]} />
                             </div>
                           ) : null;
                         }
@@ -318,7 +333,7 @@ export function MemoryDetailPanel({
                           return (
                             <div className="pt-1">
                               <p className="text-xs text-muted-foreground mb-1">标签：</p>
-                              <CategoryBadges categories={newCats as import("@/lib/api").Category[]} />
+                              <CategoryBadges categories={newCats as Category[]} />
                             </div>
                           );
                         }

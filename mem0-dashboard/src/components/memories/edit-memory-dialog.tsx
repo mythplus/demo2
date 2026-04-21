@@ -44,14 +44,16 @@ export function EditMemoryDialog({
   const [showMetadata, setShowMetadata] = useState(false);
   const [aiCategorizing, setAiCategorizing] = useState(false);
 
-  // 当 memory 变化时更新内容
+  // 当 memory 或弹窗打开状态变化时更新内容（加 open 依赖避免快速切换时闭包旧值）
   React.useEffect(() => {
-    if (memory) {
+    if (memory && open) {
       setContent(memory.memory);
       setSelectedCategories((memory.categories as Category[]) || []);
       setMetadata((memory.metadata as Record<string, unknown>) || {});
+      setError("");
+      setShowMetadata(false);
     }
-  }, [memory]);
+  }, [memory, open]);
 
   const toggleCategory = (cat: Category) => {
     setSelectedCategories((prev) =>

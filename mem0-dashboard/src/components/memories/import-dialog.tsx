@@ -94,8 +94,7 @@ const PROGRESS_SEGMENTS = 10; // 进度条固定切分为 10 份（每份 10%）
 const MAX_BATCH_SIZE = 100;   // 后端单次最多接受 100 条
 const FRONT_CONCURRENCY = 2;  // 前端同时并行提交的批次数
 
-// 用于生成全局唯一的导入任务 ID
-let importTaskCounter = 0;
+// （已移除模块级 importTaskCounter，改用 crypto.randomUUID 生成唯一 ID）
 
 export function ImportDialog({
   open,
@@ -156,7 +155,8 @@ export function ImportDialog({
       reset();
       onOpenChange(false);
     }
-  }, [open, isBackgroundRunning, step]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reset 是组件内函数，加入依赖会导致无限循环
+  }, [open, isBackgroundRunning, step, onOpenChange]);
 
   /** 解析文件内容 */
   const processFile = useCallback(async (file: File) => {
@@ -257,7 +257,9 @@ export function ImportDialog({
     isImportingRef.current = true;
     setHasLocalProgress(true);
     // 注册全局导入任务（用于区分 SPA 切换 vs 页面刷新）
-    const taskId = `import-${Date.now()}-${++importTaskCounter}`;
+    const taskId = typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `import-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     importTaskIdRef.current = taskId;
     registerImportTask(taskId);
     onImportingChange?.(true);

@@ -13,7 +13,6 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   Card,
   CardContent,
@@ -79,7 +78,9 @@ export function StatsCharts({ stats, requestStats }: StatsChartsProps) {
   // 去重归一化：将旧英文类型映射为中文后去重
   const requestTypes = Array.from(new Set(rawTypes.map(normalizeType)));
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const requestTrend = (requestStats?.daily_trend ?? []).map((d: any) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const row: any = { date: formatDate(d.date || d.time || "") };
     // 将旧英文 key 的值合并到中文 key 上
     for (const rawKey of Object.keys(d)) {
@@ -139,7 +140,9 @@ export function StatsCharts({ stats, requestStats }: StatsChartsProps) {
                   axisLine={{ stroke: "hsl(var(--border))" }}
                 />
                 <Tooltip
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   formatter={(value: any) => [`${value} 条`, "新增"]}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   labelFormatter={(label: any) => `日期: ${label}`}
                   contentStyle={tooltipStyle}
                 />

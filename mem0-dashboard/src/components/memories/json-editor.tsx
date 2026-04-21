@@ -22,11 +22,13 @@ export function JsonEditor({
   const [error, setError] = useState<string | null>(null);
   const [isFormatted, setIsFormatted] = useState(true);
 
-  // 当外部 value 变化时同步
+  // 当外部 value 变化时同步（使用序列化字符串作为依赖，避免对象引用变化导致无限触发）
+  const valueStr = JSON.stringify(value);
   React.useEffect(() => {
     setText(JSON.stringify(value, null, 2));
     setError(null);
-  }, [value]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [valueStr]);
 
   const handleChange = useCallback(
     (newText: string) => {
