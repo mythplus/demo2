@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import {
   Users,
@@ -44,22 +44,34 @@ export default function UsersPage() {
   const [deleteUserId, setDeleteUserId] = useState<string>("");
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const fetchUsers = async () => {
+  const usersAbortRef = useRef<AbortController | null>(null);
+
+  const fetchUsers = useCallback(async () => {
+    usersAbortRef.current?.abort();
+    const controller = new AbortController();
+    usersAbortRef.current = controller;
+
     setLoading(true);
     setError("");
     try {
-      const data = await mem0Api.getMemoryUsers();
+      const data = await mem0Api.getMemoryUsers(controller.signal);
+      if (usersAbortRef.current !== controller) return;
       setUsers(Array.isArray(data) ? (data as UserInfo[]) : []);
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setError(err instanceof Error ? err.message : "获取用户列表失败");
     } finally {
-      setLoading(false);
+      if (usersAbortRef.current === controller) {
+        usersAbortRef.current = null;
+        setLoading(false);
+      }
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+    return () => { usersAbortRef.current?.abort(); };
+  }, [fetchUsers]);
 
   // 搜索过滤 + 前缀匹配优先排序
   const filteredUsers = users

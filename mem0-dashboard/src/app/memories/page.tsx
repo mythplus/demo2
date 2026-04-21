@@ -293,11 +293,6 @@ export default function MemoriesPage() {
                   <div
                     key={memory.id}
                     className={`group flex items-start justify-between rounded-lg border p-4 transition-colors hover:bg-accent/50 ${selectionMode && selectedIds.has(memory.id) ? "bg-accent/30 border-primary/30" : ""}`}
-                    onClick={() => {
-                      if (selectionMode) {
-                        handleToggleSelect(memory.id);
-                      }
-                    }}
                   >
                     {/* 多选复选框 */}
                     {selectionMode && (

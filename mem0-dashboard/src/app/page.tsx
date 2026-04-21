@@ -271,6 +271,9 @@ export default function DashboardPage() {
                 <p className="mt-1 text-xs text-muted-foreground/70">
                   通过 API 添加记忆后，数据将显示在这里
                 </p>
+                <Button className="mt-3" size="sm" onClick={() => setAddDialogOpen(true)}>
+                  添加记忆
+                </Button>
               </div>
             )}
           </CardContent>

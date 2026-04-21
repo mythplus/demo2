@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 
@@ -50,6 +50,7 @@ interface SearchHistoryItem {
 
 const SEARCH_HISTORY_KEY = "mem0-search-history";
 const MAX_HISTORY = 10;
+const MAX_HISTORY_BYTES = 50 * 1024; // 50KB localStorage 上限保护
 
 const MemoryDetailPanel = dynamic(
   () => import("@/components/memories/memory-detail-panel").then((m) => ({ default: m.MemoryDetailPanel })),
@@ -121,15 +122,25 @@ export default function SearchPage() {
     loadUsers();
   }, [loadUsers]);
 
-  // 保存搜索历史
-  const saveHistory = (item: SearchHistoryItem) => {
-    const updated = [
+  // 用 ref 追踪最新 searchHistory，避免 saveHistory 依赖 state 导致 handleSearch 每次重建
+  const searchHistoryRef = useRef(searchHistory);
+  searchHistoryRef.current = searchHistory;
+
+  // 保存搜索历史（稳定引用，不依赖 searchHistory state）
+  const saveHistory = useCallback((item: SearchHistoryItem) => {
+    let updated = [
       item,
-      ...searchHistory.filter((h) => h.query !== item.query),
+      ...searchHistoryRef.current.filter((h) => h.query !== item.query),
     ].slice(0, MAX_HISTORY);
+    // 字节大小保护：超过上限时逐条移除最旧的记录
+    let json = JSON.stringify(updated);
+    while (json.length > MAX_HISTORY_BYTES && updated.length > 1) {
+      updated = updated.slice(0, -1);
+      json = JSON.stringify(updated);
+    }
     setSearchHistory(updated);
-    localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(updated));
-  };
+    localStorage.setItem(SEARCH_HISTORY_KEY, json);
+  }, []);
 
   // 清除搜索历史
   const clearHistory = () => {
@@ -186,7 +197,7 @@ export default function SearchPage() {
         setLoading(false);
       }
     }
-  }, [limit, query, saveHistory, userId]);
+  }, [limit, query, userId, saveHistory]);
 
   // 从历史记录搜索
   const handleHistorySearch = (item: SearchHistoryItem) => {

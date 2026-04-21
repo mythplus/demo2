@@ -423,7 +423,8 @@ export default function PlaygroundPage() {
     // 流式输出期间暂停自动持久化，减少 IndexedDB IO 开销
     pausePersist();
 
-    const history: PlaygroundMessage[] = messages.map((m) => ({
+    // 构建历史消息（包含当前用户消息，确保 LLM 能看到完整上下文）
+    const history: PlaygroundMessage[] = [...messages, userMsg].map((m) => ({
       role: m.role,
       content: m.content,
     }));
@@ -644,7 +645,7 @@ export default function PlaygroundPage() {
 
   return (
 
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4" style={{ height: "calc(100vh - 6rem)" }}>
       {/* 页面标题区域 — 与其他页面统一 */}
       <div>
         <h2 className="text-xl font-bold tracking-tight">Playground</h2>
@@ -654,8 +655,8 @@ export default function PlaygroundPage() {
       </div>
 
       {/* 对话主体区域 — Card 包裹 */}
-      <Card className="overflow-hidden">
-        <div className="flex" style={{ height: "calc(100vh - 11rem)" }}>
+      <Card className="overflow-hidden flex-1 min-h-0">
+        <div className="flex h-full">
           {/* 对话区域 */}
           <div className="flex flex-1 flex-col min-w-0">
             {/* 用户选择栏 */}

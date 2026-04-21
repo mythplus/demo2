@@ -30,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
 import { mem0Api } from "@/lib/api";
 import type { WebhookConfig } from "@/lib/api";
 import { DeleteConfirmDialog } from "@/components/memories/delete-confirm-dialog";
@@ -175,7 +176,10 @@ export default function WebhooksPage() {
     try {
       await mem0Api.deleteWebhook(deleteTargetId);
       fetchWebhooks();
-    } catch {} finally {
+      toast({ title: "删除成功", description: "Webhook 已删除", variant: "success" });
+    } catch (err) {
+      toast({ title: "删除失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
+    } finally {
       setDeleteLoading(false);
       setDeleteDialogOpen(false);
       setDeleteTargetId(null);
@@ -188,7 +192,9 @@ export default function WebhooksPage() {
     try {
       await mem0Api.toggleWebhook(id);
       fetchWebhooks();
-    } catch {}
+    } catch (err) {
+      toast({ title: "切换失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
+    }
     setTogglingId(null);
   };
 

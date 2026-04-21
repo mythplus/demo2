@@ -55,7 +55,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 
 // 旧英文类型名 → 中文映射（兼容数据库中未归并的历史数据）
 const LEGACY_TYPE_MAP: Record<string, string> = {
@@ -263,8 +264,8 @@ export default function RequestsPage() {
   const uniqueTypes = Array.from(new Set(normalizedTypes));
 
 
-  const chartData = stats?.daily_trend?.map((d: any) => {
-    // 将旧类型 key 的值归并到中文 key 上
+  const chartData = stats?.daily_trend?.map((d: Record<string, unknown>) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const row: any = { ...d };
     for (const rawType of stats.types || []) {
       const mapped = normalizeType(rawType);
@@ -446,6 +447,7 @@ export default function RequestsPage() {
                 />
                 <RechartsTooltip
                   cursor={{ fill: "hsl(var(--muted))", opacity: 0.3 }}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   content={({ active, payload }: any) => {
                     if (!active || !payload || !payload[0]) return null;
                     const data = payload[0].payload;
@@ -453,11 +455,14 @@ export default function RequestsPage() {
                     const types = uniqueTypes;
                     const totalCount = data._total || 0;
 
-                    // 格式化日期为 YYYY/M/D
+                    // 格式化日期为 YYYY/M/D（用字符串 split 解析，避免 Safari 对 "YYYY-MM-DD HH:MM" 格式返回 Invalid Date）
                     let formattedDate = rawDate;
                     try {
-                      const d = new Date(rawDate);
-                      formattedDate = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+                      const datePart = String(rawDate).split(" ")[0]; // "2026-04-02" 或 "2026-04-02 14:00" → "2026-04-02"
+                      const [y, m, d] = datePart.split("-");
+                      if (y && m && d) {
+                        formattedDate = `${y}/${Number(m)}/${Number(d)}`;
+                      }
                     } catch { /* keep raw */ }
 
                     return (

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -34,13 +34,14 @@ import { getCategoryInfo } from "@/lib/constants";
 import { EditMemoryDialog } from "@/components/memories/edit-memory-dialog";
 import { DeleteConfirmDialog } from "@/components/memories/delete-confirm-dialog";
 import { mem0Api } from "@/lib/api";
-import type { Memory, MemoryHistory } from "@/lib/api";
+import type { Memory, MemoryHistory, Category } from "@/lib/api";
 import { RelatedMemories } from "@/components/shared/related-memories";
 import { AccessLogList } from "@/components/shared/access-log-list";
 import { DetailPageSkeleton } from "@/components/ui/skeleton";
 
 export default function MemoryDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const memoryId = params.id as string;
 
   const [memory, setMemory] = useState<Memory | null>(null);
@@ -93,15 +94,15 @@ export default function MemoryDetailPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // 删除
+  // 删除（物理删除，不可恢复）
   const handleDelete = async () => {
     setDeleteLoading(true);
     try {
       await mem0Api.deleteMemory(memoryId);
       setDeleteDialogOpen(false);
-      // 软删除后刷新数据，让用户看到状态变为"已删除"
-      fetchMemory();
-      fetchHistory();
+      toast({ title: "删除成功", description: "记忆已永久删除", variant: "success" });
+      // 物理删除后跳转回列表页（记忆已不存在，留在详情页会显示 404）
+      router.push("/memories");
     } catch (err) {
       console.error("删除失败:", err);
       toast({ title: "删除失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
@@ -307,16 +308,16 @@ export default function MemoryDetailPage() {
                         {item.event !== "DELETE" && (() => {
                           const oldCats = (item.old_categories || []) as string[];
                           const newCats = (item.categories || []) as string[];
-                          const added = newCats.filter((c) => !oldCats.includes(c)) as import("@/lib/api").Category[];
-                          const removed = oldCats.filter((c) => !newCats.includes(c)) as import("@/lib/api").Category[];
-                          const unchanged = newCats.filter((c) => oldCats.includes(c)) as import("@/lib/api").Category[];
+const added = newCats.filter((c) => !oldCats.includes(c)) as Category[];
+                          const removed = oldCats.filter((c) => !newCats.includes(c)) as Category[];
+                          const unchanged = newCats.filter((c) => oldCats.includes(c)) as Category[];
                           const hasChange = added.length > 0 || removed.length > 0;
 
                           if (item.event === "ADD") {
                             return newCats.length > 0 ? (
                               <div className="pt-1">
                                 <p className="text-xs text-muted-foreground mb-1">标签：</p>
-                                <CategoryBadges categories={newCats as import("@/lib/api").Category[]} />
+<CategoryBadges categories={newCats as Category[]} />
                               </div>
                             ) : null;
                           }
@@ -325,7 +326,7 @@ export default function MemoryDetailPage() {
                             return (
                               <div className="pt-1">
                                 <p className="text-xs text-muted-foreground mb-1">标签：</p>
-                                <CategoryBadges categories={newCats as import("@/lib/api").Category[]} />
+<CategoryBadges categories={newCats as Category[]} />
                               </div>
                             );
                           }

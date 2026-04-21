@@ -24,14 +24,20 @@ export default function RootLayout({
 }) {
   // 阻塞式主题初始化脚本：在浏览器第一帧渲染前同步读取 localStorage，
   // 立即设置 dark class，避免"先浅色再闪回深色"的 FOUC 问题
+  // 注意：内联脚本在启用 CSP 的生产环境中需要配置 nonce 或 hash，否则会被拦截
   const themeInitScript = `
     (function() {
       try {
         var saved = localStorage.getItem('mem0-preferences');
         if (saved) {
           var prefs = JSON.parse(saved);
-          if (prefs.themeMode === 'dark') {
+          var mode = prefs.themeMode;
+          if (mode === 'dark') {
             document.documentElement.classList.add('dark');
+          } else if (mode === 'system') {
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+              document.documentElement.classList.add('dark');
+            }
           }
         }
       } catch(e) {}

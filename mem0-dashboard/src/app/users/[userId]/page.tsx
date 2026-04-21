@@ -176,12 +176,13 @@ export default function UserDetailPage() {
     }
   };
 
-  // 删除所有记忆
+  // 删除所有记忆（物理删除，不可恢复）
   const handleDeleteAll = async () => {
     setDeleteLoading(true);
     try {
       await mem0Api.deleteAllMemories(userId);
       setDeleteAllDialogOpen(false);
+      toast({ title: "删除成功", description: `用户 "${truncateId(userId, 20)}" 的所有记忆已永久删除`, variant: "success" });
       router.push("/users");
     } catch (err) {
       console.error("删除失败:", err);

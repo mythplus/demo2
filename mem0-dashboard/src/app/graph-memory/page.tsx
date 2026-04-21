@@ -159,6 +159,11 @@ export default function GraphMemoryPage() {
   const [entitySearch, setEntitySearch] = useState("");
   const [relationSearch, setRelationSearch] = useState("");
 
+  // 实体/关系分页
+  const GRAPH_PAGE_SIZE = 50;
+  const [entitiesPage, setEntitiesPage] = useState(0);
+  const [relationsPage, setRelationsPage] = useState(0);
+
   // 删除确认弹窗状态
   const [deleteEntityDialogOpen, setDeleteEntityDialogOpen] = useState(false);
   const [deleteEntityName, setDeleteEntityName] = useState("");
@@ -176,23 +181,38 @@ export default function GraphMemoryPage() {
   const graphContainerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // 监听全屏状态变化
+  // 监听全屏状态变化（兼容 Safari webkitfullscreenchange）
   useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      setIsFullscreen(!!(document.fullscreenElement || (document as any).webkitFullscreenElement));
     };
     document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+    };
   }, []);
 
-  // 全屏切换
+  // 全屏切换（兼容 Safari webkitRequestFullscreen / webkitExitFullscreen）
   const toggleFullscreen = useCallback(async () => {
     if (!graphContainerRef.current) return;
     try {
-      if (!document.fullscreenElement) {
-        await graphContainerRef.current.requestFullscreen();
+      const el = graphContainerRef.current as any;
+      const doc = document as any;
+      const isFs = !!(document.fullscreenElement || doc.webkitFullscreenElement);
+      if (!isFs) {
+        if (el.requestFullscreen) {
+          await el.requestFullscreen();
+        } else if (el.webkitRequestFullscreen) {
+          el.webkitRequestFullscreen();
+        }
       } else {
-        await document.exitFullscreen();
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if (doc.webkitExitFullscreen) {
+          doc.webkitExitFullscreen();
+        }
       }
     } catch (e) {
       console.error("全屏切换失败:", e);
@@ -240,9 +260,9 @@ export default function GraphMemoryPage() {
     }
   }, []);
 
-  const fetchEntities = useCallback(async (userId?: string, search?: string) => {
+  const fetchEntities = useCallback(async (userId?: string, search?: string, offset = 0) => {
     try {
-      const params: any = { limit: 100 };
+      const params: any = { limit: GRAPH_PAGE_SIZE, offset };
       if (userId) params.user_id = userId;
       if (search) params.search = search;
       const res = await mem0Api.getGraphEntities(params);
@@ -253,9 +273,9 @@ export default function GraphMemoryPage() {
     }
   }, []);
 
-  const fetchRelations = useCallback(async (userId?: string, search?: string) => {
+  const fetchRelations = useCallback(async (userId?: string, search?: string, offset = 0) => {
     try {
-      const params: any = { limit: 100 };
+      const params: any = { limit: GRAPH_PAGE_SIZE, offset };
       if (userId) params.user_id = userId;
       if (search) params.search = search;
       const res = await mem0Api.getGraphRelations(params);
@@ -277,7 +297,7 @@ export default function GraphMemoryPage() {
       setLoading(false);
     };
     init();
-  }, []);
+  }, [fetchHealth, fetchStats]);
 
   // 用户筛选变化时重新加载（仅在选择了具体用户后才加载）
   useEffect(() => {
@@ -766,6 +786,20 @@ export default function GraphMemoryPage() {
                   <p className="text-sm">暂无实体数据</p>
                 </div>
               )}
+              {/* 实体分页 */}
+              {entitiesTotalCount > GRAPH_PAGE_SIZE && (
+                <div className="flex items-center justify-end gap-2 pt-4 border-t mt-4">
+                  <span className="text-sm text-muted-foreground">
+                    {entitiesPage * GRAPH_PAGE_SIZE + 1}-{Math.min((entitiesPage + 1) * GRAPH_PAGE_SIZE, entitiesTotalCount)} / {entitiesTotalCount}
+                  </span>
+                  <Button variant="outline" size="sm" disabled={entitiesPage <= 0} onClick={() => { const p = entitiesPage - 1; setEntitiesPage(p); fetchEntities(selectedUserId || undefined, entitySearch || undefined, p * GRAPH_PAGE_SIZE); }}>
+                    上一页
+                  </Button>
+                  <Button variant="outline" size="sm" disabled={(entitiesPage + 1) * GRAPH_PAGE_SIZE >= entitiesTotalCount} onClick={() => { const p = entitiesPage + 1; setEntitiesPage(p); fetchEntities(selectedUserId || undefined, entitySearch || undefined, p * GRAPH_PAGE_SIZE); }}>
+                    下一页
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -839,6 +873,20 @@ export default function GraphMemoryPage() {
                 <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
                   <ArrowRightLeft className="mb-2 h-8 w-8 opacity-50" />
                   <p className="text-sm">暂无关系数据</p>
+                </div>
+              )}
+              {/* 关系分页 */}
+              {relationsTotalCount > GRAPH_PAGE_SIZE && (
+                <div className="flex items-center justify-end gap-2 pt-4 border-t mt-4">
+                  <span className="text-sm text-muted-foreground">
+                    {relationsPage * GRAPH_PAGE_SIZE + 1}-{Math.min((relationsPage + 1) * GRAPH_PAGE_SIZE, relationsTotalCount)} / {relationsTotalCount}
+                  </span>
+                  <Button variant="outline" size="sm" disabled={relationsPage <= 0} onClick={() => { const p = relationsPage - 1; setRelationsPage(p); fetchRelations(selectedUserId || undefined, relationSearch || undefined, p * GRAPH_PAGE_SIZE); }}>
+                    上一页
+                  </Button>
+                  <Button variant="outline" size="sm" disabled={(relationsPage + 1) * GRAPH_PAGE_SIZE >= relationsTotalCount} onClick={() => { const p = relationsPage + 1; setRelationsPage(p); fetchRelations(selectedUserId || undefined, relationSearch || undefined, p * GRAPH_PAGE_SIZE); }}>
+                    下一页
+                  </Button>
                 </div>
               )}
             </CardContent>
