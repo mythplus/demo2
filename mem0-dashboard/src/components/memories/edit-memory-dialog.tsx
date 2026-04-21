@@ -97,7 +97,7 @@ export function EditMemoryDialog({
         <DialogHeader>
           <DialogTitle>编辑记忆</DialogTitle>
           <DialogDescription>
-            修改记忆内容，ID: {memory?.id?.slice(0, 8)}...
+            修改记忆内容，ID: {memory?.id}
           </DialogDescription>
         </DialogHeader>
 
