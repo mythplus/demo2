@@ -105,44 +105,19 @@ def _write_categories_to_qdrant(m, memory_id: str, categories: list):
 
 
 def _build_system_prompt(memories_str: str) -> str:
-    """构建带记忆的系统提示词。
-
-    【抗幻觉 · 方案 C】
-    小参数量 LLM（如 qwen2.5:7b）在记忆召回不足时容易脑补用户信息，
-    这些脑补又会通过 store_memories_node 写回记忆库造成污染。
-    这里用明确指令约束模型：
-      1. 只能用记忆里写到的事实；
-      2. 没有的事实必须承认"不知道"，禁止编造/推断/常识补充；
-      3. 不确定时用"您之前没有提到过"这样的话术对齐用户，让用户主动补充。
-    """
-    anti_hallucination_guard = (
-        "【严格遵守的事实规则】\n"
-        "1. 回答用户关于其个人信息、偏好、计划、经历的问题时，只能使用下面【已有记忆】里\n"
-        "   **明确出现过**的内容。禁止编造、推断、联想，也不要用常识或概率来补全。\n"
-        "2. 如果【已有记忆】里找不到用户问的信息，必须诚实回答：\n"
-        "   例如「我没有关于这方面的记忆，您方便告诉我吗？」\n"
-        "   或「您之前没有告诉过我这件事，可以补充一下吗？」\n"
-        "3. 不要把假设性的话说成肯定句。例如用户没提过籍贯，禁止出现\n"
-        "   「作为深圳人...」这种脑补。\n"
-        "4. 闲聊、知识科普、通用问题可以自由发挥；但只要涉及\"我/您/用户\"的个人事实，\n"
-        "   必须严格遵循上面规则。\n"
-    )
-
+    """构建带记忆的系统提示词"""
     if memories_str:
         return (
             "你是一个有记忆能力的 AI 助手。你能记住用户之前告诉你的信息，并在对话中自然地运用这些记忆。\n\n"
-            "【已有记忆】\n"
+            "以下是你对该用户的已有记忆：\n"
             f"{memories_str}\n\n"
-            f"{anti_hallucination_guard}\n"
-            "请基于【已有记忆】和用户的新消息进行回复，自然地引用相关记忆。"
+            "请基于这些记忆和用户的新消息进行回复。如果记忆中的信息与当前对话相关，请自然地引用它们。"
             "回复时请使用用户的语言（如果用户用中文提问，请用中文回复）。"
         )
     else:
         return (
-            "你是一个有记忆能力的 AI 助手。目前你对该用户还没有任何记忆。\n\n"
-            f"{anti_hallucination_guard}\n"
-            "由于【已有记忆】为空，任何关于用户个人情况的问题都要诚实回答「我还不了解您，"
-            "可以先告诉我一些关于您的信息吗」。回复时请使用用户的语言（如果用户用中文提问，请用中文回复）。"
+            "你是一个有记忆能力的 AI 助手。目前你对该用户还没有任何记忆。\n"
+            "请友好地回复用户的消息。回复时请使用用户的语言（如果用户用中文提问，请用中文回复）。"
         )
 
 
@@ -221,14 +196,7 @@ async def generate_reply_node(state: PlaygroundState) -> dict:
 
 
 async def store_memories_node(state: PlaygroundState) -> dict:
-    """节点3：将本轮对话存入 Mem0 记忆。
-
-    【防污染 · 方案 A】
-    Mem0 默认会把 [user_msg, assistant_reply] 一起喂给 FACT_RETRIEVAL_PROMPT 抽事实，
-    这样 AI 的幻觉回答会被当作"事实"入库，形成"幻觉 → 污染 → 更严重幻觉"的恶性循环。
-    这里只传 user 消息，确保记忆库里落下的都是用户本人陈述过的信息；
-    AI 的推导、联想、常识一律不进记忆库。
-    """
+    """节点3：将本轮对话存入 Mem0 记忆"""
     from server.services import meta_service
 
     m = memory_service.get_memory()
@@ -239,6 +207,7 @@ async def store_memories_node(state: PlaygroundState) -> dict:
             lambda: m.add(
                 messages=[
                     {"role": "user", "content": state["message"]},
+                    {"role": "assistant", "content": state["reply"]},
                 ],
                 user_id=state["user_id"],
                 metadata={},

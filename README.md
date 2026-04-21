@@ -32,7 +32,7 @@
 | 📊 **仪表盘** | 统计概览 / 趋势图表 / 分类分布 | 记忆/用户/请求三维统计 |
 | 📥 **数据导入导出** | JSON / CSV 双向流转 / 筛选导出 | 支持用户/分类/时间多维筛选 |
 | 🪝 **Webhook** | 7 种事件通知 / 企业微信机器人 / Fernet 加密 | 防 SSRF、自动重试、签名验证 |
-| 📝 **审计日志** | 访问日志 / 请求日志 / 速率限制 | SQLite WAL 模式，小时/天双粒度统计 |
+| 📝 **审计日志** | 访问日志 / 请求日志 / 变更历史 / 速率限制 | PostgreSQL 统一存储，小时/天双粒度统计 |
 | 🔐 **认证与安全** | API Key / CORS / 速率限制 / 生产强制鉴权 | 生产环境禁止无鉴权启动 |
 
 ---
@@ -61,14 +61,18 @@
   │ • Radix UI      │             │                 │
   └─────────────────┘             └────────┬────────┘
                                            │
-        ┌──────────────────────────────────┼──────────────────────┐
-        │                                  │                      │
- ┌──────▼───────┐    ┌────────────┐   ┌───▼────────┐    ┌────────▼───────┐
- │   Mem0 SDK   │    │   Ollama   │   │  SQLite    │    │     Neo4j      │
- │              │───▶│   LLM+Emb  │   │ (Meta+Log) │    │  (Graph Mem)   │
- │   Qdrant     │    │ qwen2.5:7b │   │    WAL     │    │   5.15 + APOC  │
- │  向量存储    │    │ nomic-embed│   │            │    │                │
- └──────────────┘    └────────────┘   └────────────┘    └────────────────┘
+     ┌─────────────────┬───────────────────┼──────────────────────┐
+     │                 │                   │                      │
+┌────▼──────┐   ┌──────▼──────┐   ┌───────▼───────┐    ┌────────▼───────┐
+│ Qdrant    │   │   Ollama    │   │  PostgreSQL   │    │     Neo4j      │
+│ (远程)    │   │  LLM + Emb  │   │  (元数据+日志) │    │  (Graph Mem)   │
+│ 向量存储  │   │ qwen2.5:7b  │   │  Alembic 迁移 │    │   5.15 + APOC  │
+│           │   │ nomic-embed │   │               │    │                │
+└───────────┘   └─────────────┘   └───────────────┘    └────────────────┘
+                                  ┌───────────────┐
+                                  │    SQLite     │
+                                  │ (访问日志/限流) │
+                                  └───────────────┘
 ```
 
 ### 核心数据流
@@ -78,8 +82,8 @@ graph LR
     A[用户输入] --> B[Mem0 SDK]
     B --> C[Ollama LLM<br/>提取事实]
     C --> D[Ollama Embedder<br/>向量化]
-    D --> E[Qdrant<br/>向量存储]
-    B --> F[SQLite<br/>元数据+审计]
+    D --> E[Qdrant 远程<br/>向量存储]
+    B --> F[PostgreSQL<br/>元数据+变更日志]
     B --> G[Neo4j<br/>实体关系]
     E & F & G --> H[API 返回]
 ```
@@ -99,8 +103,8 @@ demo2/
 │   │   ├── rate_limit.py         # 速率限制（SQLite 计数器）
 │   │   └── request_log.py        # 请求日志记录
 │   ├── models/                   # ORM 数据模型
-│   │   ├── database.py           # SQLAlchemy 引擎 + 会话
-│   │   ├── models.py             # MemoryMeta / Category / ChangeLog
+│   │   ├── database.py           # SQLAlchemy 引擎 + 会话（PostgreSQL）
+│   │   ├── models.py             # MemoryMeta / Category
 │   │   └── schemas.py            # Pydantic 请求/响应模型
 │   ├── routes/                   # 8 个路由模块（46 个端点）
 │   │   ├── memories.py           # 记忆 CRUD + 批量操作
@@ -112,12 +116,14 @@ demo2/
 │   │   ├── webhooks.py           # Webhook 管理
 │   │   └── health.py             # 健康检查 + 配置信息 + 服务测试
 │   ├── services/                 # 业务服务层
-│   │   ├── memory_service.py     # Mem0 SDK 封装 + 向量检索
-│   │   ├── meta_service.py       # SQLite 关系库聚合查询
+│   │   ├── memory_service.py     # Mem0 SDK 封装 + 向量检索 + 分类归一化
+│   │   ├── meta_service.py       # PostgreSQL 关系库聚合查询
 │   │   ├── graph_service.py      # Neo4j 连接池
-│   │   ├── log_service.py        # 日志异步写入队列
+│   │   ├── log_service.py        # 日志异步写入队列 + 变更历史
 │   │   ├── webhook_service.py    # Webhook 派发 + Fernet 加密
 │   │   └── background_tasks.py   # 后台任务管理
+│   ├── utils/                    # 公共工具
+│   │   └── datetime_utils.py     # UTC/北京时间转换工具
 │   └── scripts/
 │       └── migrate_to_relational_db.py  # 数据迁移脚本
 │
@@ -143,13 +149,23 @@ demo2/
 │   │   │   ├── graph/            # 力导向图组件
 │   │   │   ├── shared/           # 通用组件
 │   │   │   └── ui/               # Radix UI 原子组件
-│   │   ├── hooks/                # 自定义 Hook
+│   │   ├── hooks/                # 自定义 Hook（6 个）
+│   │   │   ├── use-memories-page.ts    # 记忆列表页状态管理
+│   │   │   ├── use-playground-chat.ts  # Playground 对话逻辑
+│   │   │   ├── use-dashboard-data.ts   # 仪表盘数据
+│   │   │   ├── use-operation-records.ts # 操作记录
+│   │   │   ├── use-preferences.ts      # 用户偏好
+│   │   │   └── use-toast.ts            # Toast 通知
 │   │   ├── store/                # Zustand 全局状态
 │   │   └── lib/
 │   │       ├── api/              # API 客户端 + 类型定义
 │   │       ├── utils.ts          # 工具函数（含 UTC+8 时间格式化）
-│   │       ├── constants.ts      # 分类常量（英文→中文映射）
-│   │       └── data-transfer.ts  # 导入导出核心逻辑
+│   │       ├── constants.ts      # 分类常量（英文→中文映射 + 归一化）
+│   │       ├── data-transfer.ts  # 导入导出核心逻辑
+│   │       ├── query-client.ts   # TanStack Query 客户端配置
+│   │       ├── import-task-registry.ts  # 导入任务注册表
+│   │       ├── operation-records-db.ts  # IndexedDB 操作记录
+│   │       └── playground-chat-db.ts    # IndexedDB 对话持久化
 │   ├── package.json
 │   ├── next.config.js
 │   ├── tailwind.config.js
@@ -171,14 +187,20 @@ demo2/
 │   ├── nginx.conf                # Nginx 反代配置（HTTPS + API Key 注入）
 │   └── ssl/                      # SSL 证书目录
 │
-├── qdrant_data/                  # Qdrant 本地文件模式遗留目录（远程模式下不再使用）
-├── access_logs.db                # SQLite 访问日志
+├── alembic/                      # 数据库迁移（Alembic）
+│   ├── env.py                    # 迁移环境配置
+│   ├── versions/                 # 迁移版本脚本
+│   └── README.md                 # 迁移使用说明
+├── access_logs.db                # SQLite 访问日志（轻量级，独立于 PG）
 ├── rate_limit.db                 # SQLite 速率限制
+├── alembic.ini                   # Alembic 配置
 ├── config.yaml / .example        # 主配置文件
 ├── .env / .env.example           # 环境变量
-├── docker-compose.yml            # Docker 一键部署
+├── docker-compose.yml            # Docker 一键部署（开发）
+├── docker-compose.prod.yml       # Docker 生产部署
 ├── Dockerfile                    # 后端镜像
 ├── requirements.txt              # Python 依赖
+├── requirements-dev.txt          # 开发依赖（pytest 等）
 ├── server.py                     # 开发入口
 ├── start_server.bat              # Windows 后端启动脚本
 └── pytest.ini                    # pytest 配置
@@ -194,7 +216,9 @@ demo2/
 |------|------|------|
 | **Python** | 3.10+ | 后端运行时 |
 | **Node.js** | 18+ | 前端运行时 |
+| **PostgreSQL** | 14+ | 元数据 + 变更日志存储 |
 | **Ollama** | 最新版 | LLM + Embedder 推理服务 |
+| **Qdrant** | 1.7+ | 向量数据库（远程模式） |
 | **Neo4j** | 5.x | 图谱数据库（可选，Docker 自动启动） |
 
 **首次安装 Ollama 后拉取模型**：
@@ -326,6 +350,15 @@ docker-compose down -v             # 停止并清除数据卷
 | `OLLAMA_BASE_URL` | Ollama 服务地址 | `http://localhost:11434` |
 | `OLLAMA_MODEL` | LLM 模型 | `qwen2.5:7b` |
 | `EMBED_MODEL` | 嵌入模型 | `nomic-embed-text` |
+| `DATABASE_URL` | PostgreSQL 完整连接串（优先级最高） | `postgresql://user:pass@host:5432/mem0` |
+| `POSTGRES_HOST` | PG 主机 | `localhost` |
+| `POSTGRES_PORT` | PG 端口 | `5432` |
+| `POSTGRES_USER` | PG 用户名 | `postgres` |
+| `POSTGRES_PASSWORD` | PG 密码（**生产必填**） | `your_password` |
+| `POSTGRES_DB` | PG 数据库名 | `mem0` |
+| `QDRANT_HOST` | Qdrant 远程地址 | `localhost` |
+| `QDRANT_PORT` | Qdrant 端口 | `6333` |
+| `QDRANT_API_KEY` | Qdrant API Key（可选） | `your_qdrant_key` |
 | `NEO4J_URL` | Neo4j 连接 | `bolt://localhost:7687` |
 | `NEO4J_USER` / `NEO4J_PASSWORD` | Neo4j 凭据 | `neo4j` / `your_password` |
 | `MEM0_API_KEY` | **API 认证密钥（生产必填）** | `mem0-xxx-yyy` |
@@ -359,7 +392,9 @@ vector_store:
   config:
     collection_name: "mem0"
     embedding_model_dims: 768
-    on_disk: true
+    host: "${QDRANT_HOST}"
+    port: ${QDRANT_PORT}
+    api_key: "${QDRANT_API_KEY}"
 
 graph_store:
   provider: "neo4j"
@@ -443,10 +478,10 @@ NEXT_PUBLIC_MEM0_API_KEY=mem0-xxx-yyy        # 必须与后端一致
 ### 8️⃣ 数据导入导出
 
 - **导出**：JSON（完整备份） / CSV（Excel 可读）
+- **分页导出**：每次拉取 200 条，实时进度显示，避免大数据量超时
 - **筛选导出**：用户 + 时间范围
 - **导入**：支持两种 JSON 格式（标准导出 / 简单数组）
 - 操作记录 IndexedDB 持久化，支持重新下载
-- 进度条实时显示
 
 ### 9️⃣ Webhooks
 
@@ -460,7 +495,7 @@ NEXT_PUBLIC_MEM0_API_KEY=mem0-xxx-yyy        # 必须与后端一致
 
 - 测试 LLM / Embedder 连接
 - 查看完整配置信息（脱敏处理）
-- 深度健康检查（Ollama / Qdrant / Neo4j / SQLite）
+- 深度健康检查（Ollama / Qdrant / Neo4j / PostgreSQL）
 
 ---
 
@@ -684,8 +719,12 @@ npm run test:coverage    # 覆盖率报告
 <summary><strong>Q5: 如何重置全部数据？</strong></summary>
 
 ```bash
-# 本地开发（记忆元数据已迁至 PostgreSQL，需另行在数据库侧清理 memories_meta 等表）
-rm qdrant_data/ access_logs.db* rate_limit.db*
+# 本地开发
+# 1. 清理 PostgreSQL 数据（连接到 PG 后执行）
+#    DROP SCHEMA public CASCADE; CREATE SCHEMA public;
+#    然后重新运行 alembic upgrade head
+# 2. 清理本地 SQLite 文件
+rm access_logs.db* rate_limit.db*
 
 # Docker
 docker-compose down -v
@@ -701,11 +740,11 @@ docker-compose down -v
 
 - **Web 框架**：FastAPI 0.135 + Uvicorn 0.42
 - **记忆引擎**：Mem0 1.0.7
-- **向量存储**：Qdrant 1.17（本地文件模式）
+- **向量存储**：Qdrant 1.17（远程模式）
 - **图数据库**：Neo4j 6.1 + langchain-neo4j 0.9
 - **LLM 推理**：Ollama 0.6 + LiteLLM 1.82
 - **LangGraph**：1.1+（Agent 编排）
-- **ORM**：SQLAlchemy 2.0 + SQLite (WAL)
+- **ORM**：SQLAlchemy 2.0 + PostgreSQL + Alembic 迁移
 - **配置**：PyYAML 6.0 + python-dotenv 1.2
 - **加密**：cryptography 45.0
 
