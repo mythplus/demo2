@@ -39,6 +39,15 @@ interface UIState {
 let pollingRefCount = 0;
 let pollingTimer: ReturnType<typeof setTimeout> | null = null;
 
+// B4 P2-7: HMR 时重置轮询状态，避免开发模式下累积多个定时器
+if (typeof module !== "undefined" && (module as Record<string, unknown>).hot) {
+  pollingRefCount = 0;
+  if (pollingTimer) {
+    clearTimeout(pollingTimer);
+    pollingTimer = null;
+  }
+}
+
 // 动态间隔常量（毫秒）
 const POLL_INTERVAL_CONNECTED = 60_000;    // 连接正常：60 秒
 const POLL_INTERVAL_DISCONNECTED = 10_000; // 连接断开：10 秒

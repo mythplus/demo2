@@ -102,7 +102,21 @@ export function AddMemoryDialog({
       onOpenChange(false);
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "添加失败");
+      // B4 P1-4: 根据错误类型给出友好提示
+      if (err instanceof Error) {
+        const msg = err.message;
+        if (msg.includes("超时")) {
+          setError("请求超时，请检查网络连接或稍后重试");
+        } else if (msg.includes("503") || msg.includes("暂不可用")) {
+          setError("服务暂不可用，请检查后端连接状态");
+        } else if (msg.includes("500") || msg.includes("内部错误")) {
+          setError("添加失败，请稍后重试。如持续出现请联系管理员");
+        } else {
+          setError(msg);
+        }
+      } else {
+        setError("添加失败，请稍后重试");
+      }
     } finally {
       setLoading(false);
     }

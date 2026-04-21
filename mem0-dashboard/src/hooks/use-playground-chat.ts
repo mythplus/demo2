@@ -72,6 +72,10 @@ export function usePlaygroundChat(userId: string) {
   const userIdRef = useRef(userId);
   userIdRef.current = userId;
 
+  // B4 P1-8: 用 ref 追踪最新 messages，避免 flushSave 闭包捕获旧值
+  const messagesRef = useRef<ChatMessage[]>(messages);
+  messagesRef.current = messages;
+
   // 防抖保存定时器
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -176,6 +180,7 @@ export function usePlaygroundChat(userId: string) {
 
   /**
    * 强制立即保存当前消息（用于重要节点，如 AI 回复完成时）
+   * B4 P1-8: 不再依赖 messages state，改用 messagesRef 获取最新值
    */
   const flushSave = useCallback(
     (msgs?: ChatMessage[]) => {
@@ -186,7 +191,7 @@ export function usePlaygroundChat(userId: string) {
       const uid = userIdRef.current;
       if (!uid) return;
 
-      const toSave = (msgs || messages)
+      const toSave = (msgs || messagesRef.current)
         .filter((m) => !m.loading || m.content.length > 0)
         .map(toPersisted);
 
@@ -201,7 +206,7 @@ export function usePlaygroundChat(userId: string) {
         console.error("强制保存对话记录失败:", err);
       });
     },
-    [messages]
+    [] // 不再依赖 messages，通过 messagesRef 获取最新值
   );
 
   // 组件卸载时清理定时器

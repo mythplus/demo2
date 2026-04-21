@@ -70,7 +70,7 @@ export default function MemoriesPage() {
     // 数据
     loading,
     error,
-    paginatedMemories,
+    memories,
 
     uniqueUsers,
     totalCount,
@@ -273,12 +273,12 @@ export default function MemoriesPage() {
         <CardContent>
           {loading ? (
             <MemoryListSkeleton count={pageSize > 5 ? 5 : pageSize} />
-          ) : paginatedMemories.length > 0 ? (
+          ) : memories.length > 0 ? (
             <div className="space-y-2">
               {/* 表格视图 */}
               {viewMode === "table" ? (
                 <MemoryTable
-                  memories={paginatedMemories}
+                    memories={memories}
                   onView={handleViewDetail}
                   onEdit={handleEdit}
                   onDelete={handleDeleteClick}
@@ -289,7 +289,7 @@ export default function MemoriesPage() {
                 />
               ) : (
                 /* 列表视图 */
-                paginatedMemories.map((memory) => (
+                  memories.map((memory) => (
                   <div
                     key={memory.id}
                     className={`group flex items-start justify-between rounded-lg border p-4 transition-colors hover:bg-accent/50 ${selectionMode && selectedIds.has(memory.id) ? "bg-accent/30 border-primary/30" : ""}`}

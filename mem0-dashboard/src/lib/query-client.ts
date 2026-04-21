@@ -20,6 +20,9 @@ export function getQueryClient(): QueryClient {
           retry: 1, // 失败重试 1 次
           refetchOnMount: true,
         },
+        mutations: {
+          retry: false, // B4 P1-7: 写操作不自动重试，避免与后端 _retry_db_write 叠加
+        },
       },
     });
   }

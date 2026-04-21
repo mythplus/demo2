@@ -278,6 +278,8 @@ export default function PlaygroundPage() {
   // RAF 节流：流式输出时将多个 SSE content 事件合并到一帧内更新，避免逐 token 触发 re-render
   const pendingContentRef = useRef("");
   const rafIdRef = useRef<number | null>(null);
+  // B4 P0-3: 防止 error + done 双重解锁
+  const isFinishedRef = useRef(false);
 
   // 加载用户列表
   useEffect(() => {
@@ -428,6 +430,7 @@ export default function PlaygroundPage() {
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
+    isFinishedRef.current = false;
 
     try {
       await mem0Api.playgroundChatStream(
@@ -439,6 +442,10 @@ export default function PlaygroundPage() {
           stream: true,
         },
         (event: PlaygroundSSEEvent) => {
+          // B4 P0-3: 防止 error + done 双重解锁（后端 B3 P1-7 修复后 error 后会补发 done）
+          if (isFinishedRef.current && (event.type === "done" || event.type === "error")) {
+            return;
+          }
           switch (event.type) {
             case "memories":
               updateMessages((prev) =>
@@ -477,6 +484,7 @@ export default function PlaygroundPage() {
               break;
 
             case "done":
+              isFinishedRef.current = true;
               // 刷新 RAF 中残留的内容，确保最后一批 token 不丢失
               if (rafIdRef.current) {
                 cancelAnimationFrame(rafIdRef.current);
@@ -527,6 +535,7 @@ export default function PlaygroundPage() {
               break;
 
             case "error":
+              isFinishedRef.current = true;
               // 清理 RAF 残留
               if (rafIdRef.current) {
                 cancelAnimationFrame(rafIdRef.current);

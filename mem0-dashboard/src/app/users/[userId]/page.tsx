@@ -288,10 +288,9 @@ export default function UserDetailPage() {
           ) : memories.length > 0 ? (
             (() => {
               const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-              const paginatedMemories = memories;
               return (
             <div className="space-y-2">
-              {paginatedMemories.map((memory) => (
+              {memories.map((memory) => (
                 <div
                   key={memory.id}
                   className="group flex items-start justify-between rounded-lg border p-4 transition-colors hover:bg-accent/50"

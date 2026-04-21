@@ -111,7 +111,7 @@ export function useMemoriesPage() {
         search: debouncedSearchText.trim() || undefined,
         page: currentPage,
         page_size: pageSize,
-        sort_by: sortOrder === "oldest" ? "created_at" : "created_at",
+        sort_by: sortOrder === "oldest" ? "created_at" : sortOrder === "updated" ? "updated_at" : "created_at",
         sort_order: sortOrder === "oldest" ? "asc" : "desc",
       };
       const data = await mem0Api.getMemories(apiFilters, controller.signal);
@@ -185,11 +185,7 @@ export function useMemoriesPage() {
     };
   }, []);
 
-  // ============ 派生数据 ============
-
-
-  const filteredMemories = memories;
-  const paginatedMemories = memories;
+  // ============ 派生数据（B4 P2-5: 删除死代码 filteredMemories/paginatedMemories，直接用 memories） ============
 
   // ============ 筛选操作 ============
 
@@ -345,18 +341,18 @@ export function useMemoriesPage() {
   const handleTogglePageAll = useCallback(
     (checked: boolean) => {
       if (checked) {
-        const newIds = new Set(selectedIds);
-        paginatedMemories.forEach((m) => {
+      const newIds = new Set(selectedIds);
+        memories.forEach((m) => {
           newIds.add(m.id);
         });
         setSelectedIds(newIds);
       } else {
         const newIds = new Set(selectedIds);
-        paginatedMemories.forEach((m) => newIds.delete(m.id));
+        memories.forEach((m) => newIds.delete(m.id));
         setSelectedIds(newIds);
       }
     },
-    [selectedIds, paginatedMemories]
+    [selectedIds, memories]
   );
 
   const [invertLoading, setInvertLoading] = useState(false);
@@ -471,8 +467,6 @@ export function useMemoriesPage() {
     memories,
     loading,
     error,
-    filteredMemories,
-    paginatedMemories,
     uniqueUsers,
     totalCount,
     totalIsEstimate,

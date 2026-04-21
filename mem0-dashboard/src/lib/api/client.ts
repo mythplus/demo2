@@ -60,8 +60,13 @@ function resolveApiBase(): string {
     return configured;
   }
 
+  // SSR 阶段返回空串，避免服务端请求 localhost
+  if (typeof window === "undefined") {
+    return "";
+  }
+
   // 生产环境默认走同源反向代理（例如 Nginx /v1 转发），避免把内部服务地址和密钥策略暴露给浏览器。
-  if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+  if (process.env.NODE_ENV === "production") {
     return normalizeApiBase(window.location.origin);
   }
 
@@ -351,7 +356,7 @@ export const mem0Api = {
   },
 
   /**
-   * 删除用户的所有记忆（软删除）
+   * 物理删除用户的所有记忆（不可恢复）
    * @param userId 用户 ID
    */
   async deleteAllMemories(userId: string): Promise<DeleteResponse> {
@@ -471,8 +476,15 @@ export const mem0Api = {
     try {
       const apiBase = resolveApiBase();
       const url = apiBase ? `${apiBase}/` : "/";
+      const headers: Record<string, string> = {};
+      // B4 P1-6: 携带 API Key，避免后端改了免认证路径后永远返回 false
+      const apiKey = process.env.NEXT_PUBLIC_MEM0_API_KEY;
+      if (apiKey) {
+        headers["Authorization"] = `Bearer ${apiKey}`;
+      }
       const response = await fetch(url, {
         method: "GET",
+        headers,
         signal: AbortSignal.timeout(5000),
       });
 
