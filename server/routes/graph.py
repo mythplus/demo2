@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from server.config import _safe_error_detail
 from server.models.schemas import GraphSearchRequest
-from server.services.graph_service import get_neo4j_driver, neo4j_query
+from server.services.graph_service import get_neo4j_driver, neo4j_query, is_graph_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +19,13 @@ router = APIRouter(tags=["图谱记忆"])
 @router.get("/v1/graph/stats")
 async def get_graph_stats():
     """获取图谱统计信息（实体数、关系数、类型分布）"""
+    # B3 P1-10：区分"图谱未启用"和"查询失败返回空"
+    if not is_graph_enabled():
+        return {
+            "entity_count": 0, "relation_count": 0,
+            "relation_type_distribution": {}, "user_entity_distribution": {},
+            "message": "图谱功能未启用（未配置 graph_store）",
+        }
     try:
         # 实体总数
         entity_count_result = neo4j_query("MATCH (n) RETURN count(n) as count")

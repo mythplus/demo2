@@ -34,22 +34,45 @@ router = APIRouter(tags=["记忆管理"])
 
 # ============ 双写重试工具 ============
 
+# B3 P1-9 整改：重试总耗时从 3s（1+2）降到 ~0.6s（0.2+0.4），
+# 避免前端 5s 超时期间后端还在重试导致"前端已 abort、后端继续"的错位。
+_RETRY_BASE_DELAY = 0.2  # 秒
+_RETRY_MAX_DELAY = 1.0   # 秒
+
+
 async def _retry_db_write(func, *args, max_retries: int = 3, desc: str = "关系库双写", **kwargs):
     """带重试的关系库双写操作，避免 Qdrant 与关系库数据不一致。
-    最多重试 max_retries 次，每次间隔递增（1s, 2s, 3s）。
-    全部失败后记录 ERROR 级别日志（而非 WARNING），便于监控告警。"""
-    last_err = None
+
+    B3 P0-2 整改：全部失败后**抛出原始异常**，而不是静默返回 None。
+    这样上层路由的 Qdrant 物理回滚逻辑才能被触发，避免 Qdrant 与关系库数据漂移。
+    调用方若希望"PG 失败不阻断主流程"（如审计日志等非关键路径），应在调用点显式 try/except 包裹。
+
+    B3 P1-9 整改：指数退避从 1s/2s 改为 0.2s/0.4s（上限 1s），
+    3 次重试总等待 ≤ 0.6s，留足时间给前端 5s 超时前收到响应。
+
+    B3 P2-12 整改：注释与实现对齐 —— 重试"之间"只 sleep max_retries-1 次。
+    """
+    last_err: Optional[Exception] = None
     for attempt in range(1, max_retries + 1):
         try:
             return await asyncio.to_thread(func, *args, **kwargs)
         except Exception as e:
             last_err = e
             if attempt < max_retries:
-                logger.warning(f"{desc}第 {attempt} 次失败，{attempt}s 后重试: {e}")
-                await asyncio.sleep(attempt)  # 递增等待
+                delay = min(_RETRY_BASE_DELAY * (2 ** (attempt - 1)), _RETRY_MAX_DELAY)
+                logger.warning(
+                    f"{desc}第 {attempt} 次失败，{delay:.1f}s 后重试: {e}",
+                    exc_info=True,
+                )
+                await asyncio.sleep(delay)
             else:
-                logger.error(f"{desc}经过 {max_retries} 次重试后仍然失败: {e}")
-    return None
+                logger.error(
+                    f"{desc}经过 {max_retries} 次重试后仍然失败: {e}",
+                    exc_info=True,
+                )
+    # B3 P0-2：抛出最后一次的原始异常，由调用方决定如何回滚 / 返回给用户
+    assert last_err is not None  # 至少进入过一次循环，不可能为 None
+    raise last_err
 
 
 class PaginatedMemoriesResponse(BaseModel):
@@ -117,12 +140,15 @@ async def add_memory(request: AddMemoryRequest):
         # graph_memory 会抛 KeyError: 'source' / 'destination' / 'relationship' 等，
         # 导致整个 add 失败。这里做一次降级：图谱抽取异常时自动禁用图谱重试，
         # 保证向量库核心写入不被边缘内容阻塞。
+        # B3 P2-13：降级捕获从 (KeyError, ValueError, TypeError) 扩大到 Exception，
+        # 涵盖 Mem0 自定义异常、AttributeError 等边缘场景，同时记录降级原因便于排查。
         def _add_with_graph_fallback():
             try:
                 return m.add(messages=messages, infer=request.infer, **kwargs)
-            except (KeyError, ValueError, TypeError) as graph_err:
+            except Exception as graph_err:
                 logger.warning(
-                    f"图谱关系抽取失败，降级为仅向量存储后重试：{type(graph_err).__name__}: {graph_err}"
+                    f"图谱关系抽取失败，降级为仅向量存储后重试：{type(graph_err).__name__}: {graph_err}",
+                    exc_info=True,
                 )
                 with disable_graph(m) as m_no_graph:
                     return m_no_graph.add(messages=messages, infer=request.infer, **kwargs)
@@ -135,7 +161,14 @@ async def add_memory(request: AddMemoryRequest):
         elif isinstance(result, list):
             added_items = [r for r in result if r.get("id")]
 
-        added_ids_for_rollback = [str(item.get("id")) for item in added_items if item.get("id")]
+        # B3 P0-1 修复：Mem0 返回的 results 中 event 字段可能是 ADD / UPDATE / NONE / DELETE。
+        # 只有 event=ADD 才代表"真正新增的 Qdrant 点"，回滚时才能安全删除；
+        # UPDATE/NONE/DELETE 事件对应已存在的记忆，误删会造成用户数据丢失。
+        added_ids_for_rollback = [
+            str(item.get("id"))
+            for item in added_items
+            if item.get("id") and str(item.get("event", "")).upper() == "ADD"
+        ]
 
         if added_items:
             collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
@@ -174,7 +207,8 @@ async def add_memory(request: AddMemoryRequest):
 
                 init_cats = current_meta.get("categories", [])
                 memory_text = item.get("memory", "") if isinstance(item, dict) else ""
-                await asyncio.to_thread(save_memory_audit_snapshot, mid, "ADD", memory_text, init_cats)
+                # B3 P2-2: save_memory_audit_snapshot 内部已是队列投递（非阻塞），无需 to_thread
+                save_memory_audit_snapshot(mid, "ADD", memory_text, init_cats)
 
                 # 双写关系库（对齐 OpenMemory 架构，带重试）
                 await _retry_db_write(
@@ -322,7 +356,8 @@ async def batch_import_memories(request: BatchImportRequest):
                         if _pts:
                             init_cats = (_pts[0].payload or {}).get("metadata", {}).get("categories", [])
                         memory_text = added_item.get("memory", "") if isinstance(added_item, dict) else ""
-                        await asyncio.to_thread(save_memory_audit_snapshot, mid, "ADD", memory_text, init_cats)
+                        # B3 P2-2: save_memory_audit_snapshot 内部已是队列投递，无需 to_thread
+                        save_memory_audit_snapshot(mid, "ADD", memory_text, init_cats)
 
                         # 双写关系库（对齐 OpenMemory 架构，带重试）
                         await _retry_db_write(
@@ -336,7 +371,7 @@ async def batch_import_memories(request: BatchImportRequest):
                             desc=f"批量导入第 {idx+1} 条关系库双写",
                         )
                     except Exception as audit_err:
-                        logger.warning(f"批量导入第 {idx+1} 条审计日志写入失败（记忆已成功导入）: {audit_err}")
+                        logger.warning(f"批量导入第 {idx+1} 条审计日志写入失败（记忆已成功导入）: {audit_err}", exc_info=True)
 
                 first_id = None
                 first_memory = None
@@ -348,7 +383,8 @@ async def batch_import_memories(request: BatchImportRequest):
                     index=idx, success=True, id=first_id, memory=first_memory
                 )
             except Exception as e:
-                logger.warning(f"批量导入第 {idx+1} 条失败: {e}")
+                # B3 P1-1: 用 error + exc_info 记录完整堆栈，便于排查"多行添加失败"根因
+                logger.error(f"批量导入第 {idx+1} 条失败: {e}", exc_info=True)
                 if added_ids_for_rollback:
                     try:
                         await _soft_rollback_added_ids(added_ids_for_rollback)
@@ -616,15 +652,36 @@ async def update_memory(memory_id: str, request: UpdateMemoryRequest):
             old_categories,
         )
 
-        # 双写关系库（对齐 OpenMemory 架构，带重试）
-        await _retry_db_write(
-            meta_service.update_memory_meta,
-            memory_id=memory_id,
-            content=new_memory_text if request.text else None,
-            categories=new_cats if (request.categories is not None or request.auto_categorize) else None,
-            metadata=current_metadata,
-            desc=f"更新记忆 {memory_id} 关系库双写",
-        )
+        # B3 P1-5 修复：双写关系库失败时，尝试回滚 Qdrant 到旧状态，
+        # 避免 Qdrant 已更新但 PG 还是旧数据的漂移。
+        try:
+            await _retry_db_write(
+                meta_service.update_memory_meta,
+                memory_id=memory_id,
+                content=new_memory_text if request.text else None,
+                categories=new_cats if (request.categories is not None or request.auto_categorize) else None,
+                metadata=current_metadata,
+                desc=f"更新记忆 {memory_id} 关系库双写",
+            )
+        except Exception as db_err:
+            logger.error(f"更新记忆 {memory_id} 关系库双写失败，尝试回滚 Qdrant: {db_err}", exc_info=True)
+            # 尝试把 Qdrant 的 metadata 恢复到更新前的状态
+            try:
+                qdrant_client.set_payload(
+                    collection_name=collection_name,
+                    payload={"metadata": old_meta},
+                    points=[memory_id],
+                )
+                if request.text:
+                    # 文本也要回滚（通过 Mem0 SDK）
+                    await asyncio.to_thread(m.update, memory_id=memory_id, data=old_memory_text)
+                logger.info(f"Qdrant 回滚成功: {memory_id}")
+            except Exception as rollback_err:
+                logger.error(f"Qdrant 回滚也失败（数据可能不一致）: {rollback_err}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="关系库同步失败，已尝试回滚向量库。请重新保存。",
+            )
 
         invalidate_stats_cache()
 
@@ -653,6 +710,7 @@ async def delete_memory_by_id(memory_id: str):
         qdrant_client = get_memory().vector_store.client
 
         # 1. 先从 Qdrant 获取记忆信息（用于日志和 Webhook）
+        # B3 P1-4 修复：区分"记忆不存在"（404）和"Qdrant 连接失败"（503）
         old_memory_text = ""
         old_categories: list = []
         user_id = ""
@@ -668,7 +726,8 @@ async def delete_memory_by_id(memory_id: str):
         except HTTPException:
             raise
         except Exception as e:
-            logger.warning(f"获取记忆信息失败: {e}")
+            logger.error(f"Qdrant 查询记忆失败（无法确认记忆是否存在）: {e}", exc_info=True)
+            raise HTTPException(status_code=503, detail=f"向量数据库暂不可用: {_safe_error_detail(e)}")
 
         # 2. 物理删除 Qdrant 中的向量
         try:
@@ -690,7 +749,7 @@ async def delete_memory_by_id(memory_id: str):
         try:
             save_change_log(memory_id, "DELETE", old_memory_text, old_categories)
         except Exception as log_err:
-            logger.warning(f"记录删除日志失败（不影响主流程）: {log_err}")
+            logger.warning(f"记录删除日志失败（不影响主流程）: {log_err}", exc_info=True)
 
         # 5. 触发 Webhook（托管到统一后台任务管理器）
         _wh_data = {"memory_id": memory_id, "memory": old_memory_text[:200] if old_memory_text else "", "user_id": user_id}
@@ -715,7 +774,8 @@ async def hard_delete_memory_by_id(memory_id: str):
         collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
         qdrant_client = get_memory().vector_store.client
 
-        # 1. 先从 Qdrant 获取记忆信息（用于日志和 Webhook）
+        # B3 P0-4 修复：区分"记忆不存在"（404）和"Qdrant 连接失败"（503），
+        # 不再把连接异常伪装成"没数据"后继续执行删除。
         old_memory_text = ""
         old_categories: list = []
         user_id = ""
@@ -726,8 +786,13 @@ async def hard_delete_memory_by_id(memory_id: str):
                 old_memory_text = payload.get("data", "")
                 old_categories = (payload.get("metadata", {}) or {}).get("categories", [])
                 user_id = payload.get("user_id", "")
+            else:
+                raise HTTPException(status_code=404, detail="记忆不存在")
+        except HTTPException:
+            raise
         except Exception as e:
-            logger.warning(f"获取记忆信息失败: {e}")
+            logger.error(f"Qdrant 查询记忆失败（无法确认记忆是否存在）: {e}", exc_info=True)
+            raise HTTPException(status_code=503, detail=f"向量数据库暂不可用: {_safe_error_detail(e)}")
 
         # 2. 物理删除 Qdrant 中的向量
         qdrant_client.delete(
@@ -735,13 +800,14 @@ async def hard_delete_memory_by_id(memory_id: str):
             points_selector=PointIdsList(points=[memory_id]),
         )
 
-        # 3. 物理删除关系库中的元数据（带重试）
-        await _retry_db_write(
-            meta_service.hard_delete_memory_meta, memory_id,
-            desc=f"硬删除记忆 {memory_id} 关系库物理删除",
-        )
-
-        # 4. 清理 Neo4j 中与该记忆相关的孤儿实体（尽力清理，不阻塞主流程）
+        # 3. 物理删除关系库中的元数据（带重试；失败不阻断，但记录错误）
+        try:
+            await _retry_db_write(
+                meta_service.hard_delete_memory_meta, memory_id,
+                desc=f"硬删除记忆 {memory_id} 关系库物理删除",
+            )
+        except Exception as db_err:
+            logger.error(f"硬删除记忆 {memory_id} 关系库失败（Qdrant 已删）: {db_err}", exc_info=True)
         if user_id:
             try:
                 from server.services.graph_service import neo4j_query
@@ -797,52 +863,60 @@ async def delete_all_memories(
                 must=[FieldCondition(key="user_id", match=MatchValue(value=user_id))],
             )
 
+        # B3 P0-3 修复：用 try/finally 保证 invalidate_stats_cache 一定执行；
+        # 每页的 PG 删除失败不阻断后续页（记录 warning），但 Qdrant 删除失败立即中止。
         total_deleted = 0
         next_offset = None
-        while True:
-            records, next_offset = qdrant_client.scroll(
-                collection_name=collection_name,
-                scroll_filter=scroll_filter,
-                limit=100,
-                offset=next_offset,
-                with_payload=True,
-                with_vectors=False,
-            )
-            if not records:
-                break
-            ids = [str(record.id) for record in records]
-
-            # 记录删除日志
-            for point in records:
-                mid = str(point.id)
-                payload = point.payload or {}
-                try:
-                    old_memory_text = payload.get("data", "")
-                    old_categories = (payload.get("metadata", {}) or {}).get("categories", [])
-                    save_change_log(mid, "DELETE", old_memory_text, old_categories)
-                except Exception:
-                    pass
-
-            # 物理删除 Qdrant 向量
-            try:
-                qdrant_client.delete(
+        try:
+            while True:
+                records, next_offset = qdrant_client.scroll(
                     collection_name=collection_name,
-                    points_selector=PointIdsList(points=ids),
+                    scroll_filter=scroll_filter,
+                    limit=100,
+                    offset=next_offset,
+                    with_payload=True,
+                    with_vectors=False,
                 )
-            except Exception as e:
-                logger.error(f"Qdrant 批量删除失败: {e}")
-                raise HTTPException(status_code=500, detail=_safe_error_detail(e))
+                if not records:
+                    break
+                ids = [str(record.id) for record in records]
 
-            # 关系库批量物理删除（带重试）
-            await _retry_db_write(
-                meta_service.batch_hard_delete_memory_meta, ids,
-                desc=f"{'用户 ' + user_id if user_id else '全部'} 关系库批量物理删除",
-            )
-            total_deleted += len(ids)
-            if next_offset is None:
-                break
+                # 记录删除日志（非关键路径，失败只 warning）
+                for point in records:
+                    mid = str(point.id)
+                    payload = point.payload or {}
+                    try:
+                        old_memory_text = payload.get("data", "")
+                        old_categories = (payload.get("metadata", {}) or {}).get("categories", [])
+                        save_change_log(mid, "DELETE", old_memory_text, old_categories)
+                    except Exception:
+                        pass
 
-        invalidate_stats_cache()
+                # 物理删除 Qdrant 向量
+                try:
+                    qdrant_client.delete(
+                        collection_name=collection_name,
+                        points_selector=PointIdsList(points=ids),
+                    )
+                except Exception as e:
+                    logger.error(f"Qdrant 批量删除失败: {e}", exc_info=True)
+                    raise HTTPException(status_code=500, detail=_safe_error_detail(e))
+
+                # 关系库批量物理删除（B3 P0-2 改造后失败会抛异常，这里 catch 住避免中断循环）
+                try:
+                    await _retry_db_write(
+                        meta_service.batch_hard_delete_memory_meta, ids,
+                        desc=f"{'用户 ' + user_id if user_id else '全部'} 关系库批量物理删除",
+                    )
+                except Exception as db_err:
+                    logger.error(f"关系库批量删除失败（Qdrant 已删，数据可能不一致）: {db_err}", exc_info=True)
+
+                total_deleted += len(ids)
+                if next_offset is None:
+                    break
+        finally:
+            # B3 P0-3：无论成功/失败/中途异常，都刷新统计缓存
+            invalidate_stats_cache()
         scope_label = f"用户 {user_id}" if user_id else "所有"
         return {
             "message": f"{scope_label}的记忆已永久删除（共 {total_deleted} 条，不可恢复）",
@@ -1206,7 +1280,18 @@ async def get_memory_history(memory_id: str):
 
 @router.post("/v1/memories/migrate-to-db/", tags=["系统"])
 async def migrate_qdrant_to_db():
-    """将 Qdrant 中现有记忆的元数据迁移到关系库（幂等操作，可重复执行）"""
+    """将 Qdrant 中现有记忆的元数据迁移到关系库（幂等操作，可重复执行）
+
+    B3 P1-6 整改：生产环境禁止调用（应通过运维脚本或 alembic 迁移完成），
+    避免任何人通过 API 触发全量扫描拖垮 PG 连接池。
+    """
+    from server.config import IS_PRODUCTION
+    if IS_PRODUCTION:
+        raise HTTPException(
+            status_code=403,
+            detail="生产环境禁止通过 API 触发数据迁移。请使用运维脚本或 alembic 迁移。",
+        )
+
     from server.models.models import MemoryMeta, Category, memory_categories as mc_table
     from server.models.database import get_session_factory
     from server.config import VALID_CATEGORIES as _VALID_CATS

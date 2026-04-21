@@ -460,6 +460,8 @@ def _load_webhooks() -> List[dict]:
 
     WEBHOOK_CACHE_TTL_SECONDS=0 时相当于关闭缓存（适合调试或回归原行为）。
     """
+    global _webhooks_cache, _webhooks_cache_expire
+
     if WEBHOOK_CACHE_TTL_SECONDS <= 0:
         return _load_webhooks_uncached()
 
@@ -470,7 +472,6 @@ def _load_webhooks() -> List[dict]:
 
     fresh = _load_webhooks_uncached()
     with _webhooks_cache_lock:
-        global _webhooks_cache, _webhooks_cache_expire
         _webhooks_cache = list(fresh)
         _webhooks_cache_expire = time.time() + WEBHOOK_CACHE_TTL_SECONDS
     return fresh

@@ -76,8 +76,14 @@ async def search_memories(request: SearchMemoryRequest):
         webhook_service.schedule_webhook_delivery("memory.searched", _wh_data, _mem_svc.http_client)
 
         return {"results": formatted}
+    # B3 P1-3: 区分参数错误（400）、依赖服务不可用（503）和内部错误（500）
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except RuntimeError as re:
+        logger.error(f"搜索依赖服务不可用: {re}", exc_info=True)
+        raise HTTPException(status_code=503, detail=_safe_error_detail(re))
     except Exception as e:
-        logger.error(f"搜索记忆失败: {e}")
+        logger.error(f"搜索记忆失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=_safe_error_detail(e))
 
 
@@ -89,7 +95,8 @@ async def get_related_memories(memory_id: str, limit: int = Query(5, ge=1, le=20
         # 先获取当前记忆内容
         current = await asyncio.to_thread(m.get, memory_id)
 
-        if not current:
+        # B3 P2-5: Mem0 可能返回空字典，不能只用 `not current` 判断
+        if not current or not isinstance(current, dict) or not current.get("memory"):
             raise HTTPException(status_code=404, detail="记忆不存在")
 
         memory_text = current.get("memory", "") if isinstance(current, dict) else ""

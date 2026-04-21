@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from server.config import _safe_error_detail
 from server.services.log_service import get_access_logs, get_request_logs, _get_db_conn, _release_conn
+from server.utils.datetime_utils import parse_iso_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -111,8 +112,13 @@ async def get_request_logs_stats(
         # 判断粒度
         now = datetime.now(timezone.utc)
         if since:
+            # B3 P2-7: 用公共工具解析，避免 AttributeError
             try:
-                since_dt = datetime.fromisoformat(since.replace("Z", "+00:00")).replace(tzinfo=None)
+                since_dt = parse_iso_datetime(since)
+                if since_dt:
+                    since_dt = since_dt.replace(tzinfo=None)
+                else:
+                    since_dt = now - timedelta(days=14)
             except (ValueError, TypeError):
                 since_dt = now - timedelta(days=14)
             hours_diff = (now - since_dt).total_seconds() / 3600

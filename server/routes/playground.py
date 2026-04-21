@@ -413,6 +413,12 @@ async def playground_chat_stream(request: PlaygroundChatRequest):
             # 先发送 done 事件让前端立即解锁 UI（标记对话文本已完整）
             yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
 
+            # B3 P1-8：检查客户端是否已断连。StreamingResponse 在客户端断开后
+            # 会取消生成器协程（抛 CancelledError / GeneratorExit），
+            # 但 store_memories_node 是 await 调用，在 yield 之间不会被自动取消。
+            # 这里用 asyncio.sleep(0) 让出控制权，给 event loop 一个检查取消的机会。
+            await asyncio.sleep(0)
+
             # 第3步：在 SSE 连接内同步等待存储完成，随后补发 memories_saved 事件
             # 说明：相比之前的"后台 fire-and-forget"，这里 await 会让前端能准确拿到本轮新增记忆；
             #      由于 done 已先发，用户感知到的"回答完成"时间不变，仅记忆提示略延迟。
@@ -439,6 +445,8 @@ async def playground_chat_stream(request: PlaygroundChatRequest):
         except Exception as e:
             logger.error(f"流式对话失败: {e}", exc_info=True)
             yield f"data: {json.dumps({'type': 'error', 'error': str(e)}, ensure_ascii=False)}\n\n"
+            # B3 P1-7：异常分支也必须发 done 事件，否则前端 UI 永久卡在"生成中..."
+            yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
         event_stream(),

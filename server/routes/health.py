@@ -486,11 +486,13 @@ async def _check_qdrant() -> dict:
         collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
         info = m.vector_store.client.get_collection(collection_name)
         latency = round((time.time() - start) * 1000, 1)
+        # B3 P2-11：生产环境不暴露真实数据量
+        shown_count = 0 if _is_prod() else info.points_count
         return {
             "status": "ok",
             "latency_ms": latency,
-            "points_count": info.points_count,
-            "message": f"Qdrant 正常，集合 {collection_name} 共 {info.points_count} 条向量",
+            "points_count": shown_count,
+            "message": f"Qdrant 正常，集合 {collection_name}" + (f" 共 {info.points_count} 条向量" if not _is_prod() else ""),
         }
     except Exception as e:
         latency = round((time.time() - start) * 1000, 1)

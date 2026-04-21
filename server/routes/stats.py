@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException
 
 from server.config import _safe_error_detail
 from server.services.memory_service import (
-    compute_memory_stats, get_stats_cache, set_stats_cache, get_all_memories_raw,
+    compute_memory_stats, get_stats_cache, set_stats_cache,
 )
 
 
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["统计"])
 
-_STATS_CACHE_TTL = 30  # 统计数据缓存 30 秒
+# B3 P2-6: 删除死代码 _STATS_CACHE_TTL（真正的 TTL 在 memory_service._STATS_CACHE_TTL 中定义）
 
 
 @router.get("/v1/stats/")
@@ -51,5 +51,5 @@ async def get_stats():
 
         return result
     except Exception as e:
-        logger.error(f"获取统计数据失败: {e}")
+        logger.error(f"获取统计数据失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=_safe_error_detail(e))

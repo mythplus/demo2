@@ -118,7 +118,8 @@ async def update_webhook(webhook_id: str, request: WebhookUpdateRequest):
 
     # 合并更新字段
     update_data = {**existing}
-    for key, value in request.dict(exclude_unset=True).items():
+    # B3 P2-10: pydantic v2 应用 model_dump 替代已废弃的 dict
+    for key, value in request.model_dump(exclude_unset=True).items():
         update_data[key] = value
 
 
