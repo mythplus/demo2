@@ -14,6 +14,7 @@ import logging
 import os
 import socket
 import threading
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qs, urlparse
@@ -21,7 +22,7 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 import psycopg2.extras
 
-from server.config import MEM0_CONFIG, IS_PRODUCTION
+from server.config import MEM0_CONFIG, IS_PRODUCTION, WEBHOOK_CACHE_TTL_SECONDS
 from server.services.log_service import _get_db_conn, _release_conn
 from server.services.background_tasks import create_background_task
 
@@ -73,6 +74,9 @@ def init_webhook_table() -> None:
 
     B2 P0-2 整改：生产环境禁止自动 CREATE TABLE，改为 schema 健康检查，
     由 `alembic upgrade head` 负责真正的建表与迁移；开发/测试环境保持原有快速起服务的行为。
+
+    B2 P2-7 整改：暂保持每次启动走 IF NOT EXISTS（幂等），但后面 _migrate_from_json / 
+    migrate_webhook_secrets 改为“完成标志”模式避免每次启动重复全表扫描。
     """
     conn = None
     try:
@@ -191,10 +195,20 @@ def _decrypt_secret(secret: Optional[str]) -> Optional[str]:
 
 
 def migrate_webhook_secrets() -> int:
-    """将旧明文 Webhook secret 升级为加密存储。"""
+    """将旧明文 Webhook secret 升级为加密存储。
+
+    B2 P2-7：完成后设置进程级标志，后续调用直接返回早退。
+    """
+    global _secrets_migrated
+    if _secrets_migrated:
+        return 0
+
     cipher = _get_secret_cipher()
     if cipher is None:
         logger.info("Webhook secret 加密迁移已跳过：当前无可用加密密钥")
+        # 仍然标记为完成，避免每次启动重复走此分支。比如从配置补上密钥后再重启
+        # 服务会自然恢复（进程级标志重置）。
+        _secrets_migrated = True
         return 0
 
     conn = None
@@ -219,9 +233,10 @@ def migrate_webhook_secrets() -> int:
         if migrated:
             conn.commit()
             logger.info(f"已完成 {migrated} 条 Webhook secret 加密迁移")
+        _secrets_migrated = True
         return migrated
     except Exception as exc:
-        logger.warning(f"Webhook secret 迁移失败（不影响主流程）: {exc}")
+        logger.warning(f"Webhook secret 迁移失败（不影响主流程）: {exc}", exc_info=True)
         return 0
     finally:
         if conn is not None:
@@ -230,18 +245,34 @@ def migrate_webhook_secrets() -> int:
 
 # ============ 迁移 ============
 
+# B2 P2-7：对程序启动过程里的一次性迁移动作使用进程级标志，避免每次 lifespan startup 都重复执行。
+# 这不会跨进程持久化，不同线程/工作进程依然会各自走一次；但对于单进程多 worker 的典型部署，
+# 已足以消除单进程内的重复扫描。
+_json_migrated: bool = False
+_secrets_migrated: bool = False
+
+
 def _migrate_from_json() -> None:
-    """从旧的 webhooks.json 迁移数据到 PostgreSQL（一次性，启动时自动执行）"""
+    """从旧的 webhooks.json 迁移数据到 PostgreSQL（一次性，启动时自动执行）。
+
+    B2 P2-7：使用进程级幂等标志 + 早退，避免每次启动重复读取文件/全表 COUNT。
+    """
+    global _json_migrated
+    if _json_migrated:
+        return
+
     from pathlib import Path
 
     json_path = Path(__file__).parent.parent.parent / "webhooks.json"
     if not json_path.exists():
+        _json_migrated = True  # 文件不存在，等价于迁移已完成，避免每次重复检查
         return
 
     conn = None
     try:
         data = json.loads(json_path.read_text(encoding="utf-8"))
         if not data:
+            _json_migrated = True
             return
 
         conn = _get_db_conn()
@@ -250,6 +281,7 @@ def _migrate_from_json() -> None:
             existing = cur.fetchone()[0]
         if existing > 0:
             logger.info("Webhook PostgreSQL 表已有数据，跳过 JSON 迁移")
+            _json_migrated = True
             return
 
         with conn.cursor() as cur:
@@ -280,8 +312,9 @@ def _migrate_from_json() -> None:
         logger.info(
             f"已从 webhooks.json 迁移 {len(data)} 条 Webhook 配置到 PostgreSQL，旧文件已备份为 {backup_path.name}"
         )
+        _json_migrated = True
     except Exception as exc:
-        logger.warning(f"从 webhooks.json 迁移失败（不影响正常使用）: {exc}")
+        logger.warning(f"从 webhooks.json 迁移失败（不影响正常使用）: {exc}", exc_info=True)
     finally:
         if conn is not None:
             _release_conn(conn)
@@ -388,10 +421,25 @@ def _assert_webhook_target_allowed(url: str) -> None:
         raise ValueError(validation["message"])
 
 
-# ============ 存储层（SQLite） ============
+# ============ 存储层（PostgreSQL，B2 P2-1 排正标题） ============
 
-def _load_webhooks() -> List[dict]:
-    """从 PostgreSQL 加载所有 Webhook 配置。"""
+# B2 P1-5：Webhook 配置属于极低频变动数据，为每个业务事件都去走 PostgreSQL 是明显的重复浪费。
+# 用 TTL 缓存避免改写路由同时主动 invalidate，避免看到错误的缓存状态。
+_webhooks_cache: List[dict] = []
+_webhooks_cache_expire: float = 0.0
+_webhooks_cache_lock = threading.Lock()
+
+
+def invalidate_webhooks_cache() -> None:
+    """使 Webhook 列表缓存失效（在 create/update/delete 或迁移后调用）。"""
+    global _webhooks_cache, _webhooks_cache_expire
+    with _webhooks_cache_lock:
+        _webhooks_cache = []
+        _webhooks_cache_expire = 0.0
+
+
+def _load_webhooks_uncached() -> List[dict]:
+    """不使用缓存直接查 PostgreSQL（便于管理面需要实时数据的场景）。"""
     conn = None
     try:
         conn = _get_db_conn()
@@ -400,11 +448,32 @@ def _load_webhooks() -> List[dict]:
             rows = cur.fetchall()
         return [_row_to_dict(row) for row in rows]
     except Exception as exc:
-        logger.error(f"加载 Webhook 配置失败: {exc}")
+        logger.error(f"加载 Webhook 配置失败: {exc}", exc_info=True)
         return []
     finally:
         if conn is not None:
             _release_conn(conn)
+
+
+def _load_webhooks() -> List[dict]:
+    """从 PostgreSQL 加载所有 Webhook 配置（带 TTL 缓存，B2 P1-5）。
+
+    WEBHOOK_CACHE_TTL_SECONDS=0 时相当于关闭缓存（适合调试或回归原行为）。
+    """
+    if WEBHOOK_CACHE_TTL_SECONDS <= 0:
+        return _load_webhooks_uncached()
+
+    now = time.time()
+    with _webhooks_cache_lock:
+        if _webhooks_cache_expire > now:
+            return list(_webhooks_cache)
+
+    fresh = _load_webhooks_uncached()
+    with _webhooks_cache_lock:
+        global _webhooks_cache, _webhooks_cache_expire
+        _webhooks_cache = list(fresh)
+        _webhooks_cache_expire = time.time() + WEBHOOK_CACHE_TTL_SECONDS
+    return fresh
 
 
 # ============ CRUD ============
@@ -457,10 +526,11 @@ def create_webhook(data: dict) -> dict:
                 ),
             )
         conn.commit()
+        invalidate_webhooks_cache()  # B2 P1-5：写后缓存失效
         logger.info(f"Webhook 已创建: {record.get('name')} -> {record.get('url')}")
         return record
     except Exception as exc:
-        logger.error(f"创建 Webhook 失败: {exc}")
+        logger.error(f"创建 Webhook 失败: {exc}", exc_info=True)
         raise
     finally:
         if conn is not None:
@@ -518,10 +588,11 @@ def update_webhook(webhook_id: str, data: dict, *, _allow_ciphertext_secret: boo
                 ),
             )
         conn.commit()
+        invalidate_webhooks_cache()  # B2 P1-5：写后缓存失效
         logger.info(f"Webhook 已更新: {webhook_id}")
         return get_webhook(webhook_id)
     except Exception as exc:
-        logger.error(f"更新 Webhook 失败: {exc}")
+        logger.error(f"更新 Webhook 失败: {exc}", exc_info=True)
         return None
     finally:
         if conn is not None:
@@ -538,10 +609,11 @@ def delete_webhook(webhook_id: str) -> bool:
         conn.commit()
         if rowcount == 0:
             return False
+        invalidate_webhooks_cache()  # B2 P1-5：写后缓存失效
         logger.info(f"Webhook 已删除: {webhook_id}")
         return True
     except Exception as exc:
-        logger.error(f"删除 Webhook 失败: {exc}")
+        logger.error(f"删除 Webhook 失败: {exc}", exc_info=True)
         return False
     finally:
         if conn is not None:
@@ -636,7 +708,11 @@ async def trigger_webhooks(
     data: dict,
     http_client: Optional[httpx.AsyncClient] = None,
 ) -> None:
-    """异步触发所有匹配事件的已启用 Webhook。"""
+    """异步触发所有匹配事件的已启用 Webhook。
+
+    B2 P1-6：连接管理改为 try/finally，用 psycopg2.extras.execute_batch 批量回写
+    last_triggered/last_status，消除 N 次单独 UPDATE 的 round-trip 和异常分支泄露连接的风险。
+    """
     webhooks = _load_webhooks()
     matched = [
         webhook
@@ -654,26 +730,57 @@ async def trigger_webhooks(
         tasks = [_send_webhook(client, webhook, event_type, data) for webhook in matched]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        try:
-            _conn = _get_db_conn()
-            now_iso = datetime.now(timezone.utc).isoformat()
-            with _conn.cursor() as cur:
-                for webhook, result in zip(matched, results):
-                    status = "success" if not isinstance(result, Exception) else "failed"
-                    cur.execute(
-                        "UPDATE webhooks SET last_triggered=%s, last_status=%s WHERE id=%s",
-                        (now_iso, status, webhook.get("id")),
-                    )
-            _conn.commit()
-            _release_conn(_conn)
-        except Exception as exc:
-            logger.warning(f"更新 Webhook 触发状态失败: {exc}")
+        # 批量回写触发状态，单连接 + execute_batch
+        _update_trigger_status(matched, results)
 
         success_count = sum(1 for result in results if not isinstance(result, Exception))
         logger.info(f"Webhook 触发完成: 事件={event_type}, 匹配={len(matched)}, 成功={success_count}")
     finally:
         if own_client:
             await client.aclose()
+
+
+def _update_trigger_status(matched: List[dict], results: List[Any]) -> None:
+    """批量回写 last_triggered/last_status，用 execute_batch 减少 round-trip。
+
+    任何失败仅记录 warning，不影响主流程。但用 try/finally 保证连接一定归还，
+    修复旧实现 except 分支下连接泄露的问题。
+    """
+    if not matched:
+        return
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    rows = [
+        (
+            now_iso,
+            "success" if not isinstance(result, Exception) else "failed",
+            webhook.get("id"),
+        )
+        for webhook, result in zip(matched, results)
+    ]
+
+    conn = None
+    try:
+        conn = _get_db_conn()
+        with conn.cursor() as cur:
+            psycopg2.extras.execute_batch(
+                cur,
+                "UPDATE webhooks SET last_triggered=%s, last_status=%s WHERE id=%s",
+                rows,
+                page_size=100,
+            )
+        conn.commit()
+        invalidate_webhooks_cache()  # last_status 已变，下一轮读取要拿新数据
+    except Exception as exc:
+        logger.warning(f"批量更新 Webhook 触发状态失败: {exc}", exc_info=True)
+        if conn is not None:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+    finally:
+        if conn is not None:
+            _release_conn(conn)
 
 
 async def _send_webhook(

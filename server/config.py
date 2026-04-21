@@ -38,6 +38,28 @@ IS_PRODUCTION = _ENV_NAME == "production"
 IS_TESTING = _ENV_NAME == "test" or "PYTEST_CURRENT_TEST" in os.environ
 
 
+# ============ 日志与访问去重（B2 P2-4：原 log_service 硬编码常量下沉到配置中心） ============
+
+def _int_env(name: str, default: int) -> int:
+    """读取整数环境变量；非法值回退到默认并发 warning。"""
+    raw = os.environ.get(name)
+    if raw is None or str(raw).strip() == "":
+        return default
+    try:
+        return int(str(raw).strip())
+    except (TypeError, ValueError):
+        logger.warning("环境变量 %s=%r 不是合法整数，回退默认值 %s", name, raw, default)
+        return default
+
+
+# 同一 memory_id + action 在该秒数内的重复访问日志会被抑制，避免页面刷新造成日志泛滥
+ACCESS_DEDUP_SECONDS = _int_env("ACCESS_DEDUP_SECONDS", 5)
+# 去重缓存软上限，超过后触发一次懒清理（过大会占内存，过小则清理频率高）
+ACCESS_DEDUP_MAX_ENTRIES = _int_env("ACCESS_DEDUP_MAX_ENTRIES", 2000)
+# Webhook 配置缓存 TTL（秒），0 表示关闭缓存，每次从 PostgreSQL 实时查询
+WEBHOOK_CACHE_TTL_SECONDS = _int_env("WEBHOOK_CACHE_TTL_SECONDS", 30)
+
+
 # ============ 结构化日志 ============
 
 class JsonLogFormatter(logging.Formatter):

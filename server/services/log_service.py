@@ -7,6 +7,7 @@ import logging
 import time
 import threading
 import queue as _queue
+from collections import OrderedDict
 from typing import Optional
 from datetime import datetime, timezone
 
@@ -14,7 +15,10 @@ import psycopg2
 import psycopg2.extras
 import psycopg2.pool
 
-from server.config import DATABASE_URL, IS_PRODUCTION
+from server.config import (
+    DATABASE_URL, IS_PRODUCTION,
+    ACCESS_DEDUP_SECONDS, ACCESS_DEDUP_MAX_ENTRIES,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +63,43 @@ _LOG_FLUSH_BATCH_SIZE = 100  # 每批最多写入 100 条
 _log_writer_thread: Optional[threading.Thread] = None
 _log_writer_running = False
 _dropped_log_count = 0
+# B2 P1-8：追踪序列化写入失败（穷尽重试后仍失败的批次）和丢失的记录数，
+# 方便 /health 或 /stats 接口暴露错误暲线，不再静默吞掉写入异常。
+_flush_failed_batches = 0
+_flush_failed_entries = 0
+_last_flush_error: Optional[str] = None
+_metrics_lock = threading.Lock()
+
+
+def get_log_writer_metrics() -> dict:
+    """日志写入线程运行指标快照，供 /health 等接口暴露。
+
+    Fields:
+        queue_size: 当前等待写入的日志条数
+        dropped: 因队列满丢弃的日志条数（自进程启动以来累计）
+        failed_batches: 重试后仍写入失败的批次数
+        failed_entries: 因写入失败丢失的记录数（failed_batches 所包含的条数总和）
+        last_error: 最新一次写入失败的错误摘要，无则为 None
+        running: 后台线程是否存活
+    """
+    with _metrics_lock:
+        return {
+            "queue_size": _log_queue.qsize(),
+            "dropped": _dropped_log_count,
+            "failed_batches": _flush_failed_batches,
+            "failed_entries": _flush_failed_entries,
+            "last_error": _last_flush_error,
+            "running": bool(_log_writer_running and _log_writer_thread and _log_writer_thread.is_alive()),
+        }
+
+
+def _record_flush_failure(batch_size: int, err: Exception) -> None:
+    """记录一次死信 flush 失败（在所有重试都耗尽后调用）。"""
+    global _flush_failed_batches, _flush_failed_entries, _last_flush_error
+    with _metrics_lock:
+        _flush_failed_batches += 1
+        _flush_failed_entries += batch_size
+        _last_flush_error = f"{type(err).__name__}: {err}"[:500]
 
 
 def _log_writer_loop():
@@ -118,7 +159,11 @@ def _flush_log_batch(batch: list, raise_on_failure: bool = False):
                         pass
                     conn = None
             else:
-                logger.warning(f"批量写入日志失败 ({len(batch)} 条，第 {attempt} 次尝试): {e}")
+                logger.error(
+                    f"批量写入日志失败 ({len(batch)} 条，第 {attempt} 次尝试)：{e}",
+                    exc_info=True,
+                )
+                _record_flush_failure(len(batch), e)
                 if raise_on_failure:
                     raise
                 return
@@ -128,7 +173,8 @@ def _flush_log_batch(batch: list, raise_on_failure: bool = False):
                     conn.rollback()
             except Exception:
                 pass
-            logger.warning(f"批量写入日志失败 ({len(batch)} 条): {e}")
+            logger.error(f"批量写入日志失败 ({len(batch)} 条): {e}", exc_info=True)
+            _record_flush_failure(len(batch), e)
             if raise_on_failure:
                 raise
             return
@@ -473,10 +519,21 @@ def get_change_logs(memory_id: str) -> list:
             _release_conn(conn)
 
 
-# 访问日志去重缓存
-_access_dedup_cache: dict = {}
+# 访问日志去重缓存（B2 P1-3：换为 OrderedDict 方便按插入顺序清理，并修正“先写后清理”导致的上限失控问题）
+_access_dedup_cache: "OrderedDict[str, float]" = OrderedDict()
 _access_dedup_lock = threading.Lock()
-_ACCESS_DEDUP_SECONDS = 5
+# 逻辑上绑定到 config.ACCESS_DEDUP_SECONDS，保留此别名兼容旧测试导入。
+_ACCESS_DEDUP_SECONDS = ACCESS_DEDUP_SECONDS
+
+
+def _purge_expired_dedup(now: float) -> None:
+    """按插入顺序清除已过期的 dedup 条目（需在持锁环境调用）。"""
+    cutoff = now - _ACCESS_DEDUP_SECONDS
+    while _access_dedup_cache:
+        _, ts = next(iter(_access_dedup_cache.items()))
+        if ts >= cutoff:
+            break
+        _access_dedup_cache.popitem(last=False)
 
 
 def log_access(memory_id: str, action: str, memory_preview: str = ""):
@@ -487,15 +544,20 @@ def log_access(memory_id: str, action: str, memory_preview: str = ""):
 
         with _access_dedup_lock:
             last_time = _access_dedup_cache.get(dedup_key)
-            if last_time and (now - last_time) < _ACCESS_DEDUP_SECONDS:
+            if last_time is not None and (now - last_time) < _ACCESS_DEDUP_SECONDS:
+                # 命中去重窗口：更新顺序为最近使用后直接返回，不写入新日志
+                _access_dedup_cache.move_to_end(dedup_key)
                 return
 
+            # P1-3 修正：先清理再插入，并以“插入顺序”代替 O(n) 遭历
             _access_dedup_cache[dedup_key] = now
+            _access_dedup_cache.move_to_end(dedup_key)
 
-            if len(_access_dedup_cache) > 500:
-                expired_keys = [k for k, v in _access_dedup_cache.items() if (now - v) > _ACCESS_DEDUP_SECONDS]
-                for k in expired_keys:
-                    _access_dedup_cache.pop(k, None)
+            if len(_access_dedup_cache) > ACCESS_DEDUP_MAX_ENTRIES:
+                _purge_expired_dedup(now)
+                # 若清理后仍超过硬上限（代表在去重窗口内出现高并发独立 key），强制删除最早的条目
+                while len(_access_dedup_cache) > ACCESS_DEDUP_MAX_ENTRIES:
+                    _access_dedup_cache.popitem(last=False)
 
         _enqueue_log(
             "access_logs",

@@ -18,6 +18,7 @@ from server.models.models import (
     memory_categories, _ensure_utc_iso,
 )
 from server.config import VALID_CATEGORIES
+from server.utils.datetime_utils import parse_iso_datetime
 
 # B2 P0-1：记忆变更日志统一走 log_service（memory_change_logs 表），
 # 原 ORM MemoryChangeLog（memory_change_logs_v2）已废弃。update_memory_meta 路径
@@ -242,19 +243,11 @@ def _build_query_filters(
 
 
 def _parse_date(value: str, end_of_day: bool = False) -> Optional[datetime]:
-    """解析日期字符串为 datetime"""
-    value = (value or "").strip()
-    if not value:
-        return None
-
-    if len(value) == 10 and value[4] == "-" and value[7] == "-":
-        suffix = "T23:59:59+00:00" if end_of_day else "T00:00:00+00:00"
-        return datetime.fromisoformat(value + suffix)
-
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed
+    """解析日期字符串为 datetime。
+    B2 P2-6：委托给 server.utils.datetime_utils.parse_iso_datetime，
+    消除 meta_service/memory_service 两份重复的解析实现。
+    """
+    return parse_iso_datetime(value, end_of_day=end_of_day)
 
 
 def query_memories_page(

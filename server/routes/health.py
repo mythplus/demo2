@@ -135,6 +135,25 @@ async def health_check_alias():
     return {"status": "ok", "message": "Mem0 Dashboard API 运行中"}
 
 
+@router.get("/health/log-writer")
+async def health_log_writer():
+    """日志写入线程运行指标（B2 P1-8）。
+
+    用于 Prometheus/监控面板观测异步日志队列的健康度：
+    - running：后台线程是否存活
+    - queue_size：当前排队等待写入 PostgreSQL 的日志条数
+    - dropped：累计因队列满而丢弃的条数（自进程启动以来）
+    - failed_batches / failed_entries：穷尽重试后仍写入失败的批次/条目数
+    - last_error：最近一次失败的错误摘要（便于报警时直接看到上下文）
+    """
+    from server.services.log_service import get_log_writer_metrics
+    metrics = get_log_writer_metrics()
+    return {
+        "status": "ok" if metrics.get("running") else "degraded",
+        "metrics": metrics,
+    }
+
+
 @router.get("/v1/config/info")
 async def get_config_info():
     """获取当前系统配置信息（实时从 config.yaml 读取，修改配置文件后刷新即可同步）"""

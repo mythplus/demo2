@@ -24,6 +24,7 @@ from server.config import (
     CATEGORY_DESCRIPTIONS, MEMORY_CATEGORIZATION_PROMPT,
     normalize_category,
 )
+from server.utils.datetime_utils import parse_iso_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -121,8 +122,28 @@ def disable_graph(m):
 
 # ============ 数据格式化 ============
 
+def _require_http_client() -> httpx.AsyncClient:
+    """B2 P2-2：统一运行时防护。
+
+    全局 ``http_client`` 由 app.py 的 lifespan startup 注入；若某些路径
+    （比如单测直接调用 service、或者还未进入 lifespan 就触发了后台线程）
+    在 http_client 为 None 时访问属性会产生令人困惑的 AttributeError，
+    这里显式抛出 RuntimeError，方便调用方 try/except 直接映射为可控错误。
+    """
+    if http_client is None:
+        raise RuntimeError(
+            "全局 http_client 未初始化；如在 lifespan 外直接调用服务层，请先通过 FastAPI TestClient 或 ASGI lifespan 初始化服务。"
+        )
+    return http_client
+
+
 def extract_memory_fields(payload: dict) -> dict:
-    """从 Qdrant payload 中提取记忆字段，包括 categories 和 state"""
+    """从 Qdrant payload 中提取记忆字段。
+
+    B2 P2-8：``payload.get("id")`` 在 Qdrant 原生 record.payload 上通常为空（真正的 id 在 record.id 上），
+    这里仍然保留提取是为了兼容 format_mem0_result 构造的 payload（其 id 被显式填写），
+    经由 Qdrant record 走到此处的 id 会在 format_record 中被 record.id 覆盖。
+    """
     metadata = payload.get("metadata", {}) or {}
     return {
         "id": str(payload.get("id", "")),
@@ -169,6 +190,7 @@ def format_mem0_result(item: dict) -> dict:
 async def auto_categorize_memory(memory_text: str) -> List[str]:
     """使用 LLM 对记忆内容进行自动分类（复用全局异步 HTTP 客户端）"""
     try:
+        client = _require_http_client()  # B2 P2-2：lifespan 外调用时早报错
         # 构建分类描述文本
         cat_text = "\n".join(f"- {k}: {v}" for k, v in CATEGORY_DESCRIPTIONS.items())
         prompt = MEMORY_CATEGORIZATION_PROMPT.format(
@@ -180,8 +202,7 @@ async def auto_categorize_memory(memory_text: str) -> List[str]:
         ollama_base_url = MEM0_CONFIG["llm"]["config"]["ollama_base_url"]
         model = MEM0_CONFIG["llm"]["config"]["model"]
 
-        response = await http_client.post(
-            f"{ollama_base_url}/api/generate",
+        response = await client.post(            f"{ollama_base_url}/api/generate",
             json={
                 "model": model,
                 "prompt": prompt,
@@ -225,8 +246,7 @@ async def auto_categorize_memory(memory_text: str) -> List[str]:
 
 async def embed_query_text(text: str) -> List[float]:
     """根据当前 Embedder 配置生成查询向量。"""
-    if http_client is None:
-        raise RuntimeError("Embedder HTTP 客户端未初始化")
+    client = _require_http_client()  # B2 P2-2：统一防护
 
     embedder_config = MEM0_CONFIG.get("embedder", {})
     provider = embedder_config.get("provider", "ollama")
@@ -238,7 +258,7 @@ async def embed_query_text(text: str) -> List[float]:
         raise RuntimeError("Embedder 配置不完整")
 
     if provider == "ollama":
-        response = await http_client.post(
+        response = await client.post(
             f"{base_url}/api/embeddings",
             json={"model": model, "prompt": text},
             timeout=15,
@@ -250,7 +270,7 @@ async def embed_query_text(text: str) -> List[float]:
         api_key = config.get("api_key", "")
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
-        response = await http_client.post(
+        response = await client.post(
             f"{base_url}/embeddings",
             json={"model": model, "input": text},
             headers=headers,
@@ -275,6 +295,7 @@ async def semantic_search_memories(
     exclude_ids: list[str] | None = None,
 ) -> List[Dict[str, Any]]:
     """直接基于 Qdrant 做语义搜索，作为 Mem0 SDK 全局搜索的回退路径。"""
+    _require_http_client()  # B2 P2-2：内部会调 embed_query_text，先睡早失败保证错误清晰
     query_vector = await embed_query_text(query)
     collection_name, qdrant_client = _get_qdrant_collection_and_client()
 
@@ -329,19 +350,10 @@ def _get_qdrant_collection_and_client():
 
 
 def _parse_dt_for_filter(value: str, end_of_day: bool = False):
-    """将日期/时间字符串解析为带 UTC 时区的 datetime，用于 Qdrant 时间过滤。"""
-    value = (value or "").strip()
-    if not value:
-        return None
-
-    if len(value) == 10 and value[4] == "-" and value[7] == "-":
-        suffix = "T23:59:59+00:00" if end_of_day else "T00:00:00+00:00"
-        return datetime.fromisoformat(value + suffix)
-
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed
+    """带 UTC 时区的日期/时间解析（用于 Qdrant 时间过滤）。
+    B2 P2-6：委托给公共工具，消除 meta_service/memory_service 两份重复实现。
+    """
+    return parse_iso_datetime(value, end_of_day=end_of_day)
 
 
 def build_memory_filter(
