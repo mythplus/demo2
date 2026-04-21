@@ -123,19 +123,8 @@ def update_memory_meta(
         db.flush()
         result = memory.to_dict()
 
-    # B2 P0-1：变更日志委托给 log_service（memory_change_logs 表），不再写 ORM 的 memory_change_logs_v2。
-    # 放在 with get_db_session() 块外（业务事务 commit 后）：即使日志写入失败也不会影响主数据一致性。
-    try:
-        _log_service.save_change_log(
-            memory_id,
-            "UPDATE",
-            new_memory=result.get("memory", ""),
-            categories=new_categories,
-            old_memory=old_content,
-            old_categories=old_categories,
-        )
-    except Exception as log_err:
-        logger.warning(f"记录记忆更新日志失败（不影响主流程）: {log_err}")
+    # 注意：UPDATE 的变更日志由路由层 save_memory_audit_snapshot 统一写入（包含 category_snapshots + memory_change_logs 原子写入），
+    # 此处不再重复写入，避免一次更新产生两条 UPDATE 记录。
 
     return result
 
