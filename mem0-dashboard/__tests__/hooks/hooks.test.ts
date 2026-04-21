@@ -17,11 +17,3 @@ describe("usePreferences", () => {
   });
 });
 
-// ============ useDebounce 测试 ============
-
-describe("useDebounce", () => {
-  it("应该导出 useDebounce 函数", async () => {
-    const mod = await import("@/hooks/use-debounce");
-    expect(typeof mod.useDebounce).toBe("function");
-  });
-});

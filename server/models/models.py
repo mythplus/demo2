@@ -1,17 +1,13 @@
 """
 ORM 数据模型 — 对齐 mem0 云平台架构
 MemoryMeta、Category 等表
-
-注意：历史上这里还有 MemoryChangeLog（表 memory_change_logs_v2），
-为消除与 log_service.memory_change_logs 的双轨存储，现已标记为废弃（B2 P0-1），
-保留类定义仅用于向后兼容历史数据库，不再有任何写入/读取路径。
 """
 
 import uuid
 import datetime
 
 from sqlalchemy import (
-    Column, String, Text, DateTime, Boolean, Integer,
+    Column, String, Text, DateTime,
     ForeignKey, Index, Table, JSON,
 )
 from sqlalchemy.orm import relationship
@@ -110,33 +106,4 @@ class Category(Base):
     memories = relationship("MemoryMeta", secondary=memory_categories, back_populates="categories")
 
 
-class MemoryChangeLog(Base):
-    """[已废弃 — B2 P0-1] 记忆内容变更日志表。
 
-    历史原因：此类曾是与 log_service.memory_change_logs（原生 SQL 建表）并存的第二条写入路径，
-    两者表名不同（memory_change_logs_v2 vs memory_change_logs），字段结构也不一致，
-    但记录的是同一业务事件，导致数据双写、前端关联查询缺失。
-
-    现有设计：所有记忆变更日志（ADD / UPDATE / DELETE / HARD_DELETE 等）统一由
-    server.services.log_service 管理，写入表 memory_change_logs。
-
-    保留本类定义仅为了：
-      1. 保证历史数据库里已经存在的 memory_change_logs_v2 表不会突然缺失模型声明；
-      2. 便于后续编写 alembic 迁移脚本 drop 此表。
-    任何新代码 标 不允许 写入/查询此 ORM 类。
-    """
-    __tablename__ = "memory_change_logs_v2"
-
-    id = Column(String(36), primary_key=True, default=_new_uuid)
-    memory_id = Column(String(36), ForeignKey("memories_meta.id", ondelete="CASCADE"), nullable=False, index=True)
-    event = Column(String(50), nullable=False, comment="事件类型: create/update/delete/import")
-    old_content = Column(Text, nullable=True, comment="变更前内容")
-    new_content = Column(Text, nullable=True, comment="变更后内容")
-    old_categories = Column(JSON, default=list, comment="变更前分类列表")
-    new_categories = Column(JSON, default=list, comment="变更后分类列表")
-    created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False, index=True)
-
-    __table_args__ = (
-        Index("idx_changelog_memory", "memory_id"),
-        Index("idx_changelog_time", "created_at"),
-    )

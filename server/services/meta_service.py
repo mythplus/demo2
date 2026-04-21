@@ -20,9 +20,6 @@ from server.models.models import (
 from server.config import VALID_CATEGORIES
 from server.utils.datetime_utils import parse_iso_datetime
 
-# B2 P0-1：记忆变更日志统一走 log_service（memory_change_logs 表），
-# 原 ORM MemoryChangeLog（memory_change_logs_v2）已废弃。update_memory_meta 路径
-# 的 UPDATE 事件改为委托给 log_service，与 ADD/DELETE 事件统一写入同一张表。
 from server.services import log_service as _log_service
 
 logger = logging.getLogger(__name__)
@@ -84,7 +81,6 @@ def create_memory_meta(
         db.add(memory)
         db.flush()  # 先写入 memory，确保外键约束满足
 
-        # B2 P0-1：不再写 ORM MemoryChangeLog（已废弃）。
         # ADD 事件由 routes/memories.py 统一调用 log_service.save_memory_audit_snapshot("ADD", ...) 记录。
 
         return memory.to_dict()
@@ -487,18 +483,11 @@ def get_summary_from_db(limit_recent: int = 5, limit_top_users: int = 10) -> dic
         }
 
 
-# ============ 变更历史（已迁移） ============
-# B2 P0-1：原 get_memory_change_logs（查询 ORM memory_change_logs_v2 表）已下线，
-# 变更历史统一由 log_service.get_change_logs 提供（查询 memory_change_logs 表）。
-# 如需查询记忆变更历史，请改用 `from server.services.log_service import get_change_logs`。
-
-
 # ============ 清理与探测 ============
 
 def delete_all_memory_meta() -> int:
     """清空关系库中的所有记忆元数据（危险操作，配合 Qdrant 全量清空使用）
 
-    B2 P0-1：不再清理 ORM MemoryChangeLog（已废弃）；
     memory_change_logs 表由 log_service 的日志清理线程按保留期（默认 30 天）自动清理。
     """
     with get_db_session() as db:
