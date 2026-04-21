@@ -33,6 +33,9 @@ langchain-core>=1.2.29
 # ORM 数据库
 SQLAlchemy==2.0.41
 
+# 数据库迁移
+alembic==1.14.0
+
 # PostgreSQL 驱动
 psycopg2-binary==2.9.10
 

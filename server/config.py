@@ -103,28 +103,59 @@ ACCESS_LOG_DB_PATH = os.path.join(_PROJECT_ROOT, "access_logs.db")
 RATE_LIMIT_DB_PATH = os.path.join(_PROJECT_ROOT, "rate_limit.db")
 
 # ============ 记忆元数据库（PostgreSQL，SQLAlchemy 管理） ============
-# 优先级：环境变量 DATABASE_URL > config.yaml database 节拼接 > 内置默认值
+# 优先级：环境变量 DATABASE_URL > 独立 POSTGRES_* 环境变量 > 开发环境 localhost 默认值
+#
+# 安全策略（P0-1）：
+# - 不再硬编码任何真实内网地址或真实密码作为默认值。
+# - 默认值仅为 localhost + 空密码，仅适用于本地开发。
+# - 生产环境（MEM0_ENV=production）缺失 DATABASE_URL 或 POSTGRES_PASSWORD 时，
+#   直接 RuntimeError fail fast，禁止静默连上任何环境。
 def _build_database_url() -> str:
-    # 1. 直接使用 DATABASE_URL 环境变量
+    # 1. 直接使用 DATABASE_URL 环境变量（推荐，包含完整连接串）
     url = os.environ.get("DATABASE_URL")
     if url:
         return url
-    # 2. 从独立环境变量拼接
-    host = os.environ.get("POSTGRES_HOST", "9.134.231.238")
+
+    # 2. 从独立环境变量拼接；默认仅本地开发可用
+    host = os.environ.get("POSTGRES_HOST", "localhost")
     port = os.environ.get("POSTGRES_PORT", "5432")
     db   = os.environ.get("POSTGRES_DB", "mem0")
     user = os.environ.get("POSTGRES_USER", "mem0")
-    pwd  = os.environ.get("POSTGRES_PASSWORD", "mem0_pg_2024")
-    return f"postgresql://{user}:{pwd}@{host}:{port}/{db}"
+    pwd  = os.environ.get("POSTGRES_PASSWORD", "")
+
+    # 3. 生产环境必须显式配置密码与主机，禁止使用默认值
+    if IS_PRODUCTION:
+        missing = []
+        if not pwd:
+            missing.append("POSTGRES_PASSWORD")
+        if host in ("localhost", "127.0.0.1"):
+            # 生产环境极少会连本机 PG；若确实需要请显式设置 POSTGRES_HOST=localhost
+            # 并同时设置 MEM0_ALLOW_LOCAL_PG=1 来豁免
+            if os.environ.get("MEM0_ALLOW_LOCAL_PG") != "1":
+                missing.append("POSTGRES_HOST")
+        if missing:
+            raise RuntimeError(
+                "生产环境（MEM0_ENV=production）必须显式配置以下环境变量: "
+                + ", ".join(missing)
+                + "。请检查 .env 文件或七彩石配置，未配置时禁止启动以避免连上错误环境。"
+            )
+
+    # 4. 开发/测试环境：空密码走无密码连接串（PG 端需允许 trust 或本地 peer）
+    auth = f"{user}:{pwd}@" if pwd else f"{user}@"
+    return f"postgresql://{auth}{host}:{port}/{db}"
+
 
 DATABASE_URL = _build_database_url()
 
 
-def _safe_error_detail(e: Exception) -> str:
+def safe_error_detail(e: Exception) -> str:
     """安全的异常信息：生产环境返回通用提示，开发环境返回详细错误"""
     if IS_PRODUCTION:
         return "服务器内部错误，请稍后重试"
     return str(e)
+
+# 向后兼容别名（旧代码通过 _safe_error_detail 导入）
+_safe_error_detail = safe_error_detail
 
 
 def _resolve_env_vars(value):
@@ -292,14 +323,62 @@ CATEGORY_DESCRIPTIONS = {
 MEMORY_CATEGORIZATION_PROMPT = """你是一个记忆分类助手。请根据以下记忆内容，从给定的分类列表中选择最合适的分类标签。
 一条记忆可以属于多个分类，但请只选择真正相关的分类，不要过度标注。
 
-可用的分类列表：
+可用的分类列表（括号前为英文 key，括号内是中文说明）：
 {categories}
 
-请严格按照以下 JSON 格式返回结果，不要输出任何其他内容：
-{{"categories": ["分类1", "分类2"]}}
+**输出规则（必须严格遵守）**：
+1. 只能返回上面列表中的**英文 key**（如 personal / work / health 等）
+2. 严禁返回中文分类名（如 "个人" / "工作" / "健康"）
+3. 严禁返回列表之外的任何其他分类
+4. 必须严格按照以下 JSON 格式返回，不要输出任何解释、markdown 或其他文字：
+{{"categories": ["英文key1", "英文key2"]}}
 
 如果没有任何分类匹配，返回空数组：
 {{"categories": []}}
 
 记忆内容：
 {memory_content}"""
+
+# ============ 中文分类名 → 英文 key 兜底映射 ============
+# 小模型有时无视 Prompt 规则返回中文分类名，这里做一次兜底归一化。
+# key 覆盖两种来源：
+#   1. CATEGORY_DESCRIPTIONS 中 " — " 前缀（如 "个人"）
+#   2. 常见别名/简称（如 "健康管理" → health）
+CATEGORY_CN_TO_EN = {
+    "个人": "personal",
+    "关系": "relationships", "人际关系": "relationships", "社交": "relationships",
+    "偏好": "preferences", "喜好": "preferences",
+    "健康": "health", "健康管理": "health",
+    "旅行": "travel", "旅游": "travel",
+    "工作": "work", "职业": "work",
+    "教育": "education", "学习": "education",
+    "项目": "projects",
+    "ai/ml与技术": "ai_ml_technology", "ai": "ai_ml_technology",
+    "技术": "ai_ml_technology", "技术支持": "technical_support",
+    "财务": "finance", "财经": "finance", "金融": "finance",
+    "购物": "shopping",
+    "法律": "legal",
+    "娱乐": "entertainment",
+    "消息": "messages",
+    "客户支持": "customer_support",
+    "产品反馈": "product_feedback",
+    "新闻": "news",
+    "组织": "organization",
+    "目标": "goals",
+}
+
+def normalize_category(raw: str) -> str:
+    """将 LLM 返回的分类名归一化为英文 key。
+    - 已是合法英文 key：原样返回（小写化以便匹配）
+    - 中文别名：查表转换
+    - 不识别：返回空串，由调用方过滤掉
+    """
+    if not isinstance(raw, str):
+        return ""
+    s = raw.strip().lower()
+    if not s:
+        return ""
+    if s in VALID_CATEGORIES:
+        return s
+    # 中文兜底
+    return CATEGORY_CN_TO_EN.get(raw.strip(), "") or CATEGORY_CN_TO_EN.get(s, "")

@@ -1,0 +1,197 @@
+.............................F.F.F..FF..F......FFF.....F.............F.. [ 88%]
+......F..                                                                [100%]
+================================== FAILURES ===================================
+_____________ TestVectorStoreConnection.test_test_vector_success ______________
+tests\test_health.py:109: in test_test_vector_success
+    assert data["points_count"] == 42
+E   assert 0 == 42
+------------------------------ Captured log call ------------------------------
+WARNING  server.config:config.py:168 环境变量 WEBHOOK_SECRET_KEY 未设置，将被替换为空字符串（请检查 .env 文件或环境变量配置）
+_______________ TestMetaStoreConnection.test_test_meta_success ________________
+tests\test_health.py:163: in test_test_meta_success
+    assert data["memories_count"] == 7
+E   assert 0 == 7
+____________________ TestAddMemory.test_add_memory_success ____________________
+tests\test_memories_crud.py:16: in test_add_memory_success
+    assert response.status_code == 200
+E   assert 500 == 200
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+------------------------------ Captured log call ------------------------------
+WARNING  server.services.log_service:log_service.py:131 批量写入日志失败 (2 条): 'sqlite3.Cursor' object does not support the context manager protocol (missed __exit__ method)
+ERROR    server.routes.memories:memories.py:208 添加记忆失败
+Traceback (most recent call last):
+  File "d:\Users\V_grhe\Desktop\ai-demo\demo2\server\routes\memories.py", line 177, in add_memory
+    await asyncio.to_thread(save_memory_audit_snapshot, mid, "ADD", memory_text, init_cats)
+  File "D:\Program Files\Python314\Lib\asyncio\threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Program Files\Python314\Lib\concurrent\futures\thread.py", line 86, in run
+    result = ctx.run(self.task)
+  File "D:\Program Files\Python314\Lib\concurrent\futures\thread.py", line 73, in run
+    return fn(*args, **kwargs)
+  File "d:\Users\V_grhe\Desktop\ai-demo\demo2\server\services\log_service.py", line 390, in save_memory_audit_snapshot
+    _flush_log_batch([
+    ~~~~~~~~~~~~~~~~^^
+        {
+        ^
+    ...<10 lines>...
+        },
+        ^^
+    ], raise_on_failure=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\Users\V_grhe\Desktop\ai-demo\demo2\server\services\log_service.py", line 98, in _flush_log_batch
+    with conn.cursor() as cur:
+         ~~~~~~~~~~~^^
+TypeError: 'sqlite3.Cursor' object does not support the context manager protocol (missed __exit__ method)
+WARNING  server.routes.memories:memories.py:220 添加记忆补写失败，已物理回滚 1 条记忆
+________________ TestAddMemory.test_add_memory_with_categories ________________
+tests\test_memories_crud.py:48: in test_add_memory_with_categories
+    assert response.status_code == 200
+E   assert 500 == 200
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+------------------------------ Captured log call ------------------------------
+WARNING  server.services.log_service:log_service.py:131 批量写入日志失败 (2 条): 'sqlite3.Cursor' object does not support the context manager protocol (missed __exit__ method)
+ERROR    server.routes.memories:memories.py:208 添加记忆失败
+Traceback (most recent call last):
+  File "d:\Users\V_grhe\Desktop\ai-demo\demo2\server\routes\memories.py", line 177, in add_memory
+    await asyncio.to_thread(save_memory_audit_snapshot, mid, "ADD", memory_text, init_cats)
+  File "D:\Program Files\Python314\Lib\asyncio\threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Program Files\Python314\Lib\concurrent\futures\thread.py", line 86, in run
+    result = ctx.run(self.task)
+  File "D:\Program Files\Python314\Lib\concurrent\futures\thread.py", line 73, in run
+    return fn(*args, **kwargs)
+  File "d:\Users\V_grhe\Desktop\ai-demo\demo2\server\services\log_service.py", line 390, in save_memory_audit_snapshot
+    _flush_log_batch([
+    ~~~~~~~~~~~~~~~~^^
+        {
+        ^
+    ...<10 lines>...
+        },
+        ^^
+    ], raise_on_failure=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\Users\V_grhe\Desktop\ai-demo\demo2\server\services\log_service.py", line 98, in _flush_log_batch
+    with conn.cursor() as cur:
+         ~~~~~~~~~~~^^
+TypeError: 'sqlite3.Cursor' object does not support the context manager protocol (missed __exit__ method)
+WARNING  server.routes.memories:memories.py:220 添加记忆补写失败，已物理回滚 1 条记忆
+_____________ TestAddMemory.test_add_memory_with_auto_categorize ______________
+tests\test_memories_crud.py:59: in test_add_memory_with_auto_categorize
+    assert response.status_code == 200
+E   assert 500 == 200
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+------------------------------ Captured log call ------------------------------
+WARNING  server.services.log_service:log_service.py:131 批量写入日志失败 (2 条): 'sqlite3.Cursor' object does not support the context manager protocol (missed __exit__ method)
+ERROR    server.routes.memories:memories.py:208 添加记忆失败
+Traceback (most recent call last):
+  File "d:\Users\V_grhe\Desktop\ai-demo\demo2\server\routes\memories.py", line 177, in add_memory
+    await asyncio.to_thread(save_memory_audit_snapshot, mid, "ADD", memory_text, init_cats)
+  File "D:\Program Files\Python314\Lib\asyncio\threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Program Files\Python314\Lib\concurrent\futures\thread.py", line 86, in run
+    result = ctx.run(self.task)
+  File "D:\Program Files\Python314\Lib\concurrent\futures\thread.py", line 73, in run
+    return fn(*args, **kwargs)
+  File "d:\Users\V_grhe\Desktop\ai-demo\demo2\server\services\log_service.py", line 390, in save_memory_audit_snapshot
+    _flush_log_batch([
+    ~~~~~~~~~~~~~~~~^^
+        {
+        ^
+    ...<10 lines>...
+        },
+        ^^
+    ], raise_on_failure=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\Users\V_grhe\Desktop\ai-demo\demo2\server\services\log_service.py", line 98, in _flush_log_batch
+    with conn.cursor() as cur:
+         ~~~~~~~~~~~^^
+TypeError: 'sqlite3.Cursor' object does not support the context manager protocol (missed __exit__ method)
+WARNING  server.routes.memories:memories.py:220 添加记忆补写失败，已物理回滚 1 条记忆
+________________ TestBatchImport.test_batch_import_empty_items ________________
+tests\test_memories_crud.py:95: in test_batch_import_empty_items
+    assert response.status_code == 400
+E   assert 422 == 400
+E    +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+__________________ TestUpdateMemory.test_update_memory_text ___________________
+tests\test_memories_crud.py:152: in test_update_memory_text
+    assert response.status_code == 200
+E   assert 500 == 200
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+------------------------------ Captured log call ------------------------------
+WARNING  server.services.log_service:log_service.py:131 批量写入日志失败 (2 条): 'sqlite3.Cursor' object does not support the context manager protocol (missed __exit__ method)
+ERROR    server.routes.memories:memories.py:642 更新记忆失败: 'sqlite3.Cursor' object does not support the context manager protocol (missed __exit__ method)
+_______________ TestUpdateMemory.test_update_memory_categories ________________
+tests\test_memories_crud.py:160: in test_update_memory_categories
+    assert response.status_code == 200
+E   assert 500 == 200
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+------------------------------ Captured log call ------------------------------
+WARNING  server.services.log_service:log_service.py:131 批量写入日志失败 (2 条): 'sqlite3.Cursor' object does not support the context manager protocol (missed __exit__ method)
+ERROR    server.routes.memories:memories.py:642 更新记忆失败: 'sqlite3.Cursor' object does not support the context manager protocol (missed __exit__ method)
+__________________ TestUpdateMemory.test_update_memory_state __________________
+tests\test_memories_crud.py:168: in test_update_memory_state
+    assert response.status_code == 200
+E   assert 500 == 200
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+------------------------------ Captured log call ------------------------------
+WARNING  server.services.log_service:log_service.py:131 批量写入日志失败 (2 条): 'sqlite3.Cursor' object does not support the context manager protocol (missed __exit__ method)
+ERROR    server.routes.memories:memories.py:642 更新记忆失败: 'sqlite3.Cursor' object does not support the context manager protocol (missed __exit__ method)
+_________________ TestBatchDelete.test_batch_delete_empty_ids _________________
+tests\test_memories_crud.py:222: in test_batch_delete_empty_ids
+    assert response.status_code == 400
+E   assert 422 == 400
+E    +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+_____________ TestRequestLogMiddleware.test_post_requests_logged ______________
+tests\test_middleware.py:48: in test_post_requests_logged
+    assert response.status_code == 200
+E   assert 500 == 200
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+------------------------------ Captured log call ------------------------------
+WARNING  server.services.log_service:log_service.py:131 批量写入日志失败 (2 条): 'sqlite3.Cursor' object does not support the context manager protocol (missed __exit__ method)
+ERROR    server.routes.memories:memories.py:208 添加记忆失败
+Traceback (most recent call last):
+  File "d:\Users\V_grhe\Desktop\ai-demo\demo2\server\routes\memories.py", line 177, in add_memory
+    await asyncio.to_thread(save_memory_audit_snapshot, mid, "ADD", memory_text, init_cats)
+  File "D:\Program Files\Python314\Lib\asyncio\threads.py", line 25, in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Program Files\Python314\Lib\concurrent\futures\thread.py", line 86, in run
+    result = ctx.run(self.task)
+  File "D:\Program Files\Python314\Lib\concurrent\futures\thread.py", line 73, in run
+    return fn(*args, **kwargs)
+  File "d:\Users\V_grhe\Desktop\ai-demo\demo2\server\services\log_service.py", line 390, in save_memory_audit_snapshot
+    _flush_log_batch([
+    ~~~~~~~~~~~~~~~~^^
+        {
+        ^
+    ...<10 lines>...
+        },
+        ^^
+    ], raise_on_failure=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "d:\Users\V_grhe\Desktop\ai-demo\demo2\server\services\log_service.py", line 98, in _flush_log_batch
+    with conn.cursor() as cur:
+         ~~~~~~~~~~~^^
+TypeError: 'sqlite3.Cursor' object does not support the context manager protocol (missed __exit__ method)
+WARNING  server.routes.memories:memories.py:220 添加记忆补写失败，已物理回滚 1 条记忆
+______________ TestStats.test_stats_category_distribution_format ______________
+tests\test_stats.py:35: in test_stats_category_distribution_format
+    assert cat in cat_dist
+E   AssertionError: assert 'personal' in {}
+=========================== short test summary info ===========================
+FAILED tests/test_health.py::TestVectorStoreConnection::test_test_vector_success
+FAILED tests/test_health.py::TestMetaStoreConnection::test_test_meta_success
+FAILED tests/test_memories_crud.py::TestAddMemory::test_add_memory_success - ...
+FAILED tests/test_memories_crud.py::TestAddMemory::test_add_memory_with_categories
+FAILED tests/test_memories_crud.py::TestAddMemory::test_add_memory_with_auto_categorize
+FAILED tests/test_memories_crud.py::TestBatchImport::test_batch_import_empty_items
+FAILED tests/test_memories_crud.py::TestUpdateMemory::test_update_memory_text
+FAILED tests/test_memories_crud.py::TestUpdateMemory::test_update_memory_categories
+FAILED tests/test_memories_crud.py::TestUpdateMemory::test_update_memory_state
+FAILED tests/test_memories_crud.py::TestBatchDelete::test_batch_delete_empty_ids
+FAILED tests/test_middleware.py::TestRequestLogMiddleware::test_post_requests_logged
+FAILED tests/test_stats.py::TestStats::test_stats_category_distribution_format
+12 failed, 69 passed in 10.44s

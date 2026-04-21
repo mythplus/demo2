@@ -19,6 +19,8 @@
 - 生产环境必须配置 `security.api_key`；前端不再使用 `NEXT_PUBLIC_MEM0_API_KEY`，默认通过同源 Nginx 反向代理访问后端
 - Webhook URL 需经过 SSRF 安全校验；`secret` 使用加密存储，密钥来自 `security.webhook_secret_key` 或 `api_key` 派生值
 - 生产模式默认单 worker，避免对日志写入产生锁竞争（同一 PG 连接池共享）
+- **P0-1**：`_build_database_url()` 禁止硬编码内网 IP/密码；生产环境缺 `DATABASE_URL` 或 `POSTGRES_PASSWORD` 直接 `RuntimeError` fail fast（本机 PG 需 `MEM0_ALLOW_LOCAL_PG=1` 豁免）
+- **P0-2**：DB schema 变更必须走 alembic（`alembic revision --autogenerate` → `alembic upgrade head`）；生产 `init_db()` 不再 `create_all`，只做 schema 健康检查；`alembic.ini` 必须 ASCII 纯英文（Windows GBK 会读 UTF-8 中文崩）；DSN 由 `alembic/env.py` 从 `server.config.DATABASE_URL` 动态注入，不在 ini 里重复暴露
 
 
 ## 用户偏好

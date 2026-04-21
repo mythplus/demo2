@@ -590,6 +590,28 @@ NEXT_PUBLIC_MEM0_API_KEY=mem0-xxx-yyy        # 必须与后端一致
 - 参数校验：Pydantic 模型 + 长度限制
 - SQL 注入防护：SQLAlchemy ORM 参数化查询
 
+### 6. 数据库连接串（P0-1）
+
+- **禁止硬编码真实 IP / 密码**：`server/config.py` 的 `_build_database_url()` 默认值仅为 `localhost` + 空密码，只适用于本地开发。
+- **生产 fail fast**：当 `MEM0_ENV=production` 时，若 `DATABASE_URL` 与 `POSTGRES_PASSWORD` 均未配置，服务启动时直接 `RuntimeError`，禁止静默连上非预期的环境。
+- **必要时豁免**：生产确实需要连本机 PG，可显式设置 `POSTGRES_HOST=localhost` + `MEM0_ALLOW_LOCAL_PG=1` 双开关。
+- **密钥轮换**：本仓库历史中若曾提交过明文密码，默认视为**已泄漏**，必须在 PG 侧立即轮换。
+- **.env 管理**：`.env` 已通过 `.gitignore` 排除；若需团队共享，请走七彩石等配置中心注入环境变量，不要提交到 git。
+
+### 7. 数据库迁移（P0-2）
+
+- **`create_all` 只建不改**：新增 / 修改字段时 `init_db()` 不会触发 `ALTER`，旧表会缺字段直到运行时崩溃。
+- **方案**：引入 [Alembic](https://alembic.sqlalchemy.org/) 管理迁移，详见 [`alembic/README.md`](./alembic/README.md)。
+- **生产行为**：`init_db()` 在 `MEM0_ENV=production` 下**不再 create_all**，仅做 schema 健康检查；迁移由部署流水线（蓝盾）显式执行 `alembic upgrade head`。
+- **开发行为**：继续走 `create_all` 快速起服务，但**任何 ORM 列变更都要同步生成迁移脚本**：
+
+  ```bash
+  alembic revision --autogenerate -m "add deleted_at to memory_meta"
+  alembic upgrade head
+  ```
+
+- **首次接入既有生产库**：执行 `alembic stamp head` 打基线，再进行后续增量迁移。
+
 ---
 
 ## 🧪 测试

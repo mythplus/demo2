@@ -3,6 +3,7 @@ Mem0 Dashboard 后端 API 服务 — FastAPI 应用组装
 创建 FastAPI 实例、生命周期管理、中间件注册、路由注册
 """
 
+import uuid
 import logging
 from contextlib import asynccontextmanager
 
@@ -13,7 +14,7 @@ from fastapi.responses import JSONResponse
 
 from server.config import (
     MEM0_CONFIG, ACCESS_LOG_DB_PATH,
-    IS_PRODUCTION, IS_TESTING, _safe_error_detail, setup_logging,
+    IS_PRODUCTION, IS_TESTING, safe_error_detail, setup_logging,
 )
 from server.services import memory_service
 from server.services.log_service import init_access_log_db, start_log_writer, stop_log_writer, start_log_cleanup
@@ -33,15 +34,16 @@ from server.routes import health, memories, search, stats, logs, graph, playgrou
 
 logger = logging.getLogger(__name__)
 
-# 配置结构化日志（生产环境 JSON 格式，开发环境可读文本格式）
-setup_logging()
-
+# 日志配置延迟到 lifespan 内执行，避免 uvicorn reload 子进程在 import 阶段
+# 与 uvicorn 自带的 logging.config 注册顺序冲突、导致 handler 竞争
 
 # ============ 应用生命周期 ============
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用启动时初始化 Mem0"""
+    # 配置结构化日志（生产环境 JSON 格式，开发环境可读文本格式）
+    setup_logging()
     logger.info("=" * 50)
     logger.info("Mem0 Dashboard 后端服务启动中...")
     _vs_cfg = MEM0_CONFIG.get("vector_store", {}).get("config", {})
@@ -97,7 +99,7 @@ openapi_tags = [
 
 app = FastAPI(
     title="Mem0 Dashboard API",
-    description="Mem0 记忆管理后端服务（Qdrant 本地文件模式）",
+    description="Mem0 记忆管理后端服务（远程 Qdrant / Neo4j / PostgreSQL 模式）",
     version="1.1.0",
     lifespan=lifespan,
     openapi_tags=openapi_tags,
@@ -107,11 +109,28 @@ app = FastAPI(
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """全局未捕获异常处理：记录日志，不暴露内部错误详情"""
-    logger.error(f"未捕获异常 [{request.method} {request.url.path}]: {exc}", exc_info=True)
+    """全局未捕获异常处理：记录日志，不暴露内部错误详情。
+    同时为每个失败请求生成/复用 request_id，并写入响应头与响应体，
+    方便用户/运维根据该 ID 反查服务端日志。"""
+    # 优先复用中间件已注入到 request.state 的 request_id，没有则即时生成
+    request_id = getattr(request.state, "request_id", None) or uuid.uuid4().hex
+
+    logger.error(
+        f"未捕获异常 [{request.method} {request.url.path}] request_id={request_id}: {exc}",
+        exc_info=True,
+        extra={
+            "request_id": request_id,
+            "method": request.method,
+            "path": request.url.path,
+        },
+    )
     return JSONResponse(
         status_code=500,
-        content={"detail": _safe_error_detail(exc)},
+        headers={"X-Request-ID": request_id},
+        content={
+            "detail": safe_error_detail(exc),
+            "request_id": request_id,
+        },
     )
 
 
@@ -122,11 +141,17 @@ async def global_exception_handler(request: Request, exc: Exception):
 _cors_origins_str = str(MEM0_CONFIG.get("security", {}).get("cors_origins", "*")).strip()
 _cors_origins = [o.strip() for o in _cors_origins_str.split(",") if o.strip()] if _cors_origins_str != "*" else ["*"]
 _local_origin_regex = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$" if not IS_PRODUCTION else None
+# allow_credentials 由独立配置项控制，解耦于 origins 是否为通配符。
+# 浏览器规范：allow_credentials=True 时 allow_origins 不能为 "*"，此时自动降级为 False。
+_cors_allow_credentials = bool(MEM0_CONFIG.get("security", {}).get("cors_allow_credentials", True))
+if _cors_allow_credentials and _cors_origins == ["*"]:
+    logger.warning("CORS 配置 allow_credentials=True 与 origins=\"*\" 冲突，已自动降级为 False")
+    _cors_allow_credentials = False
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
     allow_origin_regex=_local_origin_regex,
-    allow_credentials=True if _cors_origins != ["*"] else False,
+    allow_credentials=_cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
