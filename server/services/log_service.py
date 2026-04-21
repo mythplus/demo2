@@ -14,7 +14,7 @@ import psycopg2
 import psycopg2.extras
 import psycopg2.pool
 
-from server.config import DATABASE_URL
+from server.config import DATABASE_URL, IS_PRODUCTION
 
 logger = logging.getLogger(__name__)
 
@@ -255,10 +255,39 @@ def stop_log_writer():
 
 
 def init_access_log_db():
-    """初始化访问日志和请求日志数据库（PostgreSQL）"""
+    """初始化访问日志和请求日志相关表（PostgreSQL）
+
+    B2 P0-2 整改：
+    - 开发/测试环境：仍走 CREATE TABLE IF NOT EXISTS 快速起服。
+    - 生产环境（MEM0_ENV=production）：**禁止**自动建表，改为“schema 健康检查”，
+      确保必要的日志表（access_logs / request_logs / memory_change_logs / category_snapshots）
+      已由 `alembic upgrade head` 建立，避免运行时绕过迁移干预 schema。
+    """
+    required_tables = ("access_logs", "request_logs", "memory_change_logs", "category_snapshots")
+
     conn = None
     try:
         conn = _get_db_conn()
+
+        if IS_PRODUCTION:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT table_name FROM information_schema.tables
+                       WHERE table_schema = current_schema() AND table_name = ANY(%s)""",
+                    (list(required_tables),),
+                )
+                existing = {row[0] for row in cur.fetchall()}
+            missing = [name for name in required_tables if name not in existing]
+            if missing:
+                raise RuntimeError(
+                    "生产环境日志表缺失: "
+                    + ", ".join(missing)
+                    + "。请先执行 `alembic upgrade head` 再启动服务。"
+                )
+            logger.info("生产环境：日志表 schema 健康检查通过，迁移由流水线管理（alembic upgrade head）")
+            return
+
+        # 开发/测试：裸建表 + 建索引，保持快速迭代体验
         with conn.cursor() as cur:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS access_logs (

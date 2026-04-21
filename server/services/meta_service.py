@@ -1,30 +1,30 @@
 """记忆元数据 CRUD 服务 -- 基于 SQLAlchemy 的关系库操作
 对齐 mem0 云平台架构，所有结构化查询（过滤、分页、统计）
 都通过关系库完成，Qdrant 只负责向量存储与语义搜索。
+
+P1-1 整改：全部走 ``get_db_session()`` 上下文管理器，统一 commit/rollback/close，
+避免手写 try/finally 模板导致的连接泄漏或 rollback 遗漏。
 """
 import logging
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 
-from sqlalchemy import func, and_, or_, case, text
+from sqlalchemy import func, or_, case, select
 from sqlalchemy.orm import Session, subqueryload
 
-from server.models.database import get_session_factory
+from server.models.database import get_db_session
 from server.models.models import (
-    MemoryMeta, Category, MemoryChangeLog,
+    MemoryMeta, Category,
     memory_categories, _ensure_utc_iso,
 )
 from server.config import VALID_CATEGORIES
 
+# B2 P0-1：记忆变更日志统一走 log_service（memory_change_logs 表），
+# 原 ORM MemoryChangeLog（memory_change_logs_v2）已废弃。update_memory_meta 路径
+# 的 UPDATE 事件改为委托给 log_service，与 ADD/DELETE 事件统一写入同一张表。
+from server.services import log_service as _log_service
+
 logger = logging.getLogger(__name__)
-
-
-# ============ 会话管理 ============
-
-def _get_db() -> Session:
-    """获取数据库会话"""
-    SessionLocal = get_session_factory()
-    return SessionLocal()
 
 
 # ============ 分类管理 ============
@@ -66,9 +66,7 @@ def create_memory_meta(
     created_at: datetime = None,
 ) -> dict:
     """创建记忆元数据记录（在 Qdrant 写入成功后调用）"""
-    db = _get_db()
-    try:
-        # 获取或创建分类
+    with get_db_session() as db:
         cat_objects = get_or_create_categories(db, categories or [])
 
         memory = MemoryMeta(
@@ -85,23 +83,10 @@ def create_memory_meta(
         db.add(memory)
         db.flush()  # 先写入 memory，确保外键约束满足
 
-        # 记录变更日志
-        changelog = MemoryChangeLog(
-            memory_id=memory_id,
-            event="create",
-            new_content=content,
-            new_categories=categories or [],
-        )
-        db.add(changelog)
+        # B2 P0-1：不再写 ORM MemoryChangeLog（已废弃）。
+        # ADD 事件由 routes/memories.py 统一调用 log_service.save_memory_audit_snapshot("ADD", ...) 记录。
 
-        db.commit()
         return memory.to_dict()
-    except Exception as e:
-        db.rollback()
-        logger.error(f"创建记忆元数据失败: {e}")
-        raise
-    finally:
-        db.close()
 
 
 def update_memory_meta(
@@ -111,8 +96,7 @@ def update_memory_meta(
     metadata: dict = None,
 ) -> Optional[dict]:
     """更新记忆元数据"""
-    db = _get_db()
-    try:
+    with get_db_session() as db:
         memory = db.query(MemoryMeta).options(subqueryload(MemoryMeta.categories)).filter(
             MemoryMeta.id == memory_id
         ).first()
@@ -122,66 +106,52 @@ def update_memory_meta(
         old_content = memory.content
         old_categories = [c.name for c in memory.categories]
 
-        # 更新内容
         if content is not None:
             memory.content = content
 
-        # 更新分类
         if categories is not None:
             cat_objects = get_or_create_categories(db, categories)
             memory.categories = cat_objects
 
-        # 更新扩展元数据
         if metadata is not None:
             memory.metadata_ = metadata
 
         memory.updated_at = datetime.now(timezone.utc)
 
-        # 记录变更日志
         new_categories = [c.name for c in memory.categories]
-        changelog = MemoryChangeLog(
-            memory_id=memory_id,
-            event="update",
-            old_content=old_content,
-            new_content=memory.content,
-            old_categories=old_categories,
-            new_categories=new_categories,
-        )
-        db.add(changelog)
+        db.flush()
+        result = memory.to_dict()
 
-        db.commit()
-        db.refresh(memory)
-        return memory.to_dict()
-    except Exception as e:
-        db.rollback()
-        logger.error(f"更新记忆元数据失败: {e}")
-        raise
-    finally:
-        db.close()
+    # B2 P0-1：变更日志委托给 log_service（memory_change_logs 表），不再写 ORM 的 memory_change_logs_v2。
+    # 放在 with get_db_session() 块外（业务事务 commit 后）：即使日志写入失败也不会影响主数据一致性。
+    try:
+        _log_service.save_change_log(
+            memory_id,
+            "UPDATE",
+            new_memory=result.get("memory", ""),
+            categories=new_categories,
+            old_memory=old_content,
+            old_categories=old_categories,
+        )
+    except Exception as log_err:
+        logger.warning(f"记录记忆更新日志失败（不影响主流程）: {log_err}")
+
+    return result
 
 
 def hard_delete_memory_meta(memory_id: str) -> bool:
     """物理删除单条记忆的关系库元数据（级联删除关联的分类、状态历史、变更日志）"""
-    db = _get_db()
-    try:
+    with get_db_session() as db:
         memory = db.query(MemoryMeta).filter(MemoryMeta.id == memory_id).first()
         if not memory:
             return False
         db.delete(memory)
-        db.commit()
         return True
-    except Exception as e:
-        db.rollback()
-        logger.error(f"物理删除记忆元数据失败: {e}")
-        raise
-    finally:
-        db.close()
 
 
 def batch_hard_delete_memory_meta(memory_ids: List[str]) -> Dict[str, Any]:
     """批量物理删除记忆的关系库元数据"""
-    db = _get_db()
-    try:
+    with get_db_session() as db:
         results = []
         success_count = 0
         failed_count = 0
@@ -198,34 +168,25 @@ def batch_hard_delete_memory_meta(memory_ids: List[str]) -> Dict[str, Any]:
                 results.append({"id": mid, "success": True})
                 success_count += 1
             except Exception as e:
+                # 单条失败不阻断其它，但整体事务由 get_db_session 管
                 results.append({"id": mid, "success": False, "error": str(e)})
                 failed_count += 1
 
-        db.commit()
         return {
             "total": len(memory_ids),
             "success": success_count,
             "failed": failed_count,
             "results": results,
         }
-    except Exception as e:
-        db.rollback()
-        logger.error(f"批量物理删除失败: {e}")
-        raise
-    finally:
-        db.close()
 
 
 def get_memory_meta(memory_id: str) -> Optional[dict]:
     """获取单条记忆元数据"""
-    db = _get_db()
-    try:
+    with get_db_session() as db:
         memory = db.query(MemoryMeta).options(subqueryload(MemoryMeta.categories)).filter(
             MemoryMeta.id == memory_id
         ).first()
         return memory.to_dict() if memory else None
-    finally:
-        db.close()
 
 
 # ============ 查询与分页 ============
@@ -308,8 +269,7 @@ def query_memories_page(
     sort_order: str = "desc",
 ) -> dict:
     """从关系库查询分页记忆列表"""
-    db = _get_db()
-    try:
+    with get_db_session() as db:
         safe_page = max(1, int(page or 1))
         safe_page_size = max(1, min(int(page_size or 20), 200))
 
@@ -322,24 +282,20 @@ def query_memories_page(
         for f in filters:
             id_query = id_query.filter(f)
 
-        # 总数
         count_query = db.query(func.count(MemoryMeta.id))
         for f in filters:
             count_query = count_query.filter(f)
         total = count_query.scalar() or 0
 
-        # 排序
         sort_col = getattr(MemoryMeta, sort_by, MemoryMeta.created_at)
         if sort_order == "asc":
             id_query = id_query.order_by(sort_col.asc())
         else:
             id_query = id_query.order_by(sort_col.desc())
 
-        # 分页（在主表 ID 上 LIMIT，不受 JOIN 影响）
         offset = (safe_page - 1) * safe_page_size
         page_ids = [row[0] for row in id_query.offset(offset).limit(safe_page_size).all()]
 
-        # 第二步：用 ID 列表加载完整对象 + 关联分类
         if page_ids:
             query = db.query(MemoryMeta).options(subqueryload(MemoryMeta.categories)).filter(
                 MemoryMeta.id.in_(page_ids)
@@ -359,10 +315,8 @@ def query_memories_page(
             "page": safe_page,
             "page_size": safe_page_size,
             "total_pages": total_pages,
-            "total_is_estimate": False,  # L3: 关系库 COUNT 精确，始终为 False
+            "total_is_estimate": False,
         }
-    finally:
-        db.close()
 
 
 def query_all_memory_ids(
@@ -373,8 +327,7 @@ def query_all_memory_ids(
     search: str = None,
 ) -> List[str]:
     """从关系库查询当前筛选条件下的所有记忆 ID（用于前端全选功能）"""
-    db = _get_db()
-    try:
+    with get_db_session() as db:
         id_query = db.query(MemoryMeta.id)
         filters = _build_query_filters(
             db, user_id=user_id,
@@ -383,8 +336,6 @@ def query_all_memory_ids(
         for f in filters:
             id_query = id_query.filter(f)
         return [row[0] for row in id_query.all()]
-    finally:
-        db.close()
 
 
 def query_all_memories(
@@ -397,8 +348,7 @@ def query_all_memories(
     sort_order: str = "desc",
 ) -> List[dict]:
     """从关系库查询全部记忆（用于导出等场景）"""
-    db = _get_db()
-    try:
+    with get_db_session() as db:
         query = db.query(MemoryMeta).options(subqueryload(MemoryMeta.categories))
         filters = _build_query_filters(
             db, user_id=user_id,
@@ -415,16 +365,13 @@ def query_all_memories(
 
         memories = query.all()
         return [m.to_dict() for m in memories]
-    finally:
-        db.close()
 
 
 # ============ 用户汇总 ============
 
 def get_users_summary_from_db() -> List[dict]:
     """从关系库聚合用户摘要"""
-    db = _get_db()
-    try:
+    with get_db_session() as db:
         results = db.query(
             MemoryMeta.user_id,
             func.count(MemoryMeta.id).label("memory_count"),
@@ -451,16 +398,17 @@ def get_users_summary_from_db() -> List[dict]:
             }
             for row in results
         ]
-    finally:
-        db.close()
 
 
 # ============ 统计聚合 ============
 
 def compute_stats_from_db() -> dict:
-    """从关系库聚合统计信息"""
-    db = _get_db()
-    try:
+    """从关系库聚合统计信息。
+
+    P1-7 整改：未分类记忆数改用 NOT EXISTS 半连接，避免 ``IN (SELECT ... FROM subquery)``
+    双重嵌套导致的执行计划膨胀。
+    """
+    with get_db_session() as db:
         # 总记忆数
         total_memories = db.query(func.count(MemoryMeta.id)).scalar() or 0
 
@@ -484,10 +432,14 @@ def compute_stats_from_db() -> dict:
             if cat_name in VALID_CATEGORIES:
                 category_distribution[cat_name] = count
 
-        # 未分类数量
-        categorized_ids = db.query(memory_categories.c.memory_id).distinct().subquery()
+        # 未分类数量：用 NOT EXISTS 替代 NOT IN (SELECT DISTINCT ... subquery)
+        exists_cat = (
+            select(memory_categories.c.memory_id)
+            .where(memory_categories.c.memory_id == MemoryMeta.id)
+            .exists()
+        )
         uncategorized_count = db.query(func.count(MemoryMeta.id)).filter(
-            ~MemoryMeta.id.in_(db.query(categorized_ids)),
+            ~exists_cat,
         ).scalar() or 0
 
         # 状态分布（对齐 mem0 云平台：无 state 概念，全部视为 active）
@@ -509,20 +461,15 @@ def compute_stats_from_db() -> dict:
             "daily_counter": daily_counter,
         }
 
-    finally:
-        db.close()
-
 
 # ============ 首页摘要 ============
 
 def get_summary_from_db(limit_recent: int = 5, limit_top_users: int = 10) -> dict:
     """从关系库获取首页摘要数据"""
-    db = _get_db()
-    try:
+    with get_db_session() as db:
         safe_recent = max(1, min(int(limit_recent or 5), 20))
         safe_top_users = max(1, min(int(limit_top_users or 10), 50))
 
-        # 最近记忆（两阶段查询：先查 ID 分页，再加载关联数据）
         recent_ids = [row[0] for row in db.query(MemoryMeta.id).order_by(
             MemoryMeta.created_at.desc()
         ).limit(safe_recent).all()]
@@ -535,7 +482,6 @@ def get_summary_from_db(limit_recent: int = 5, limit_top_users: int = 10) -> dic
         else:
             recent_memories = []
 
-        # 活跃用户
         top_users_rows = db.query(
             MemoryMeta.user_id,
             func.count(MemoryMeta.id).label("memory_count"),
@@ -557,95 +503,52 @@ def get_summary_from_db(limit_recent: int = 5, limit_top_users: int = 10) -> dic
             "recent_memories": recent_memories,
             "top_users": top_users,
         }
-    finally:
-        db.close()
 
 
-# ============ 变更历史 ============
-
-def get_memory_change_logs(memory_id: str) -> List[dict]:
-    """获取记忆的变更历史"""
-    db = _get_db()
-    try:
-        logs = db.query(MemoryChangeLog).filter(
-            MemoryChangeLog.memory_id == memory_id,
-        ).order_by(MemoryChangeLog.created_at.asc()).all()
-
-        return [
-            {
-                "id": log.id,
-                "memory_id": log.memory_id,
-                "event": log.event,
-                "old_memory": log.old_content,
-                "new_memory": log.new_content,
-                "categories": log.new_categories or [],
-                "old_categories": log.old_categories or [],
-                "created_at": _ensure_utc_iso(log.created_at),
-            }
-            for log in logs
-        ]
-    finally:
-        db.close()
+# ============ 变更历史（已迁移） ============
+# B2 P0-1：原 get_memory_change_logs（查询 ORM memory_change_logs_v2 表）已下线，
+# 变更历史统一由 log_service.get_change_logs 提供（查询 memory_change_logs 表）。
+# 如需查询记忆变更历史，请改用 `from server.services.log_service import get_change_logs`。
 
 
-# ============ 记忆是否存在于关系库 ============
+# ============ 清理与探测 ============
 
 def delete_all_memory_meta() -> int:
-    """清空关系库中的所有记忆元数据（危险操作，配合 Qdrant 全量清空使用）"""
-    db = _get_db()
-    try:
+    """清空关系库中的所有记忆元数据（危险操作，配合 Qdrant 全量清空使用）
+
+    B2 P0-1：不再清理 ORM MemoryChangeLog（已废弃）；
+    memory_change_logs 表由 log_service 的日志清理线程按保留期（默认 30 天）自动清理。
+    """
+    with get_db_session() as db:
         # 先删除关联表数据
         db.execute(memory_categories.delete())
-        # 删除变更日志
-        deleted_logs = db.query(MemoryChangeLog).delete()
         # 删除所有记忆元数据
         deleted_count = db.query(MemoryMeta).delete()
-        db.commit()
-        logger.info(f"已清空关系库所有记忆元数据（删除 {deleted_count} 条记忆，{deleted_logs} 条变更日志）")
+        logger.info(f"已清空关系库所有记忆元数据（删除 {deleted_count} 条记忆）")
         return deleted_count
-    except Exception as e:
-        db.rollback()
-        logger.error(f"清空关系库所有记忆元数据失败: {e}")
-        raise
-    finally:
-        db.close()
 
 
 def hard_delete_user_memory_meta(user_id: str) -> int:
     """物理删除某个用户在关系库中的全部记忆元数据。"""
-    db = _get_db()
-    try:
+    with get_db_session() as db:
         records = db.query(MemoryMeta).filter(MemoryMeta.user_id == user_id).all()
         deleted_count = len(records)
         for record in records:
             db.delete(record)
-        db.commit()
         logger.info(f"已清理用户 {user_id} 的关系库元数据（删除 {deleted_count} 条）")
         return deleted_count
-    except Exception as e:
-        db.rollback()
-        logger.error(f"清理用户 {user_id} 的关系库元数据失败: {e}")
-        raise
-    finally:
-        db.close()
 
 
 def memory_exists_in_db(memory_id: str) -> bool:
     """检查记忆是否存在于关系库"""
-    db = _get_db()
-    try:
+    with get_db_session() as db:
         return db.query(MemoryMeta.id).filter(MemoryMeta.id == memory_id).first() is not None
-    finally:
-        db.close()
 
 
 def count_memories(user_id: str = None) -> int:
     """统计记忆数量"""
-    db = _get_db()
-    try:
+    with get_db_session() as db:
         query = db.query(func.count(MemoryMeta.id))
         if user_id:
             query = query.filter(MemoryMeta.user_id == user_id)
         return query.scalar() or 0
-    finally:
-        db.close()

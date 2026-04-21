@@ -1,6 +1,10 @@
 """
 ORM 数据模型 — 对齐 mem0 云平台架构
-Memory、Category、MemoryChangeLog 等表
+MemoryMeta、Category 等表
+
+注意：历史上这里还有 MemoryChangeLog（表 memory_change_logs_v2），
+为消除与 log_service.memory_change_logs 的双轨存储，现已标记为废弃（B2 P0-1），
+保留类定义仅用于向后兼容历史数据库，不再有任何写入/读取路径。
 """
 
 import uuid
@@ -22,8 +26,11 @@ def _utcnow():
 
 def _ensure_utc_iso(dt) -> str:
     """将 datetime 序列化为带 UTC 时区的 ISO 格式字符串。
-    SQLite 不原生支持时区，读取后可能丢失 tzinfo，
-    此函数确保输出始终带 +00:00 后缀，前端 new Date() 才能正确识别为 UTC。"""
+    兼容以下情况：
+      1. PostgreSQL 驱动在某些配置下返回的 naive datetime（缺少 tzinfo）；
+      2. 早期从 SQLite 迁移过来的历史数据，时区信息已丢失；
+      3. 直接传入字符串或 None 的边界场景。
+    确保输出始终带 +00:00 后缀，前端 new Date() 才能正确识别为 UTC。"""
     if dt is None:
         return ""
     if dt.tzinfo is None:
@@ -104,8 +111,20 @@ class Category(Base):
 
 
 class MemoryChangeLog(Base):
-    """记忆内容变更日志表 — 记录记忆文本和分类的修改历史。
-    替代原有 SQLite memory_change_logs 表，纳入 SQLAlchemy 统一管理。"""
+    """[已废弃 — B2 P0-1] 记忆内容变更日志表。
+
+    历史原因：此类曾是与 log_service.memory_change_logs（原生 SQL 建表）并存的第二条写入路径，
+    两者表名不同（memory_change_logs_v2 vs memory_change_logs），字段结构也不一致，
+    但记录的是同一业务事件，导致数据双写、前端关联查询缺失。
+
+    现有设计：所有记忆变更日志（ADD / UPDATE / DELETE / HARD_DELETE 等）统一由
+    server.services.log_service 管理，写入表 memory_change_logs。
+
+    保留本类定义仅为了：
+      1. 保证历史数据库里已经存在的 memory_change_logs_v2 表不会突然缺失模型声明；
+      2. 便于后续编写 alembic 迁移脚本 drop 此表。
+    任何新代码 标 不允许 写入/查询此 ORM 类。
+    """
     __tablename__ = "memory_change_logs_v2"
 
     id = Column(String(36), primary_key=True, default=_new_uuid)

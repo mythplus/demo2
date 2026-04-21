@@ -171,9 +171,8 @@ demo2/
 │   ├── nginx.conf                # Nginx 反代配置（HTTPS + API Key 注入）
 │   └── ssl/                      # SSL 证书目录
 │
-├── qdrant_data/                  # Qdrant 向量数据（本地文件模式）
+├── qdrant_data/                  # Qdrant 本地文件模式遗留目录（远程模式下不再使用）
 ├── access_logs.db                # SQLite 访问日志
-├── memory_meta.db                # SQLite 记忆元数据
 ├── rate_limit.db                 # SQLite 速率限制
 ├── config.yaml / .example        # 主配置文件
 ├── .env / .env.example           # 环境变量
@@ -685,8 +684,8 @@ npm run test:coverage    # 覆盖率报告
 <summary><strong>Q5: 如何重置全部数据？</strong></summary>
 
 ```bash
-# 本地开发
-rm qdrant_data/ access_logs.db* memory_meta.db* rate_limit.db*
+# 本地开发（记忆元数据已迁至 PostgreSQL，需另行在数据库侧清理 memories_meta 等表）
+rm qdrant_data/ access_logs.db* rate_limit.db*
 
 # Docker
 docker-compose down -v

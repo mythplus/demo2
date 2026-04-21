@@ -21,7 +21,7 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 import psycopg2.extras
 
-from server.config import MEM0_CONFIG
+from server.config import MEM0_CONFIG, IS_PRODUCTION
 from server.services.log_service import _get_db_conn, _release_conn
 from server.services.background_tasks import create_background_task
 
@@ -69,10 +69,30 @@ _BLOCKED_IPS = {
 
 
 def init_webhook_table() -> None:
-    """初始化 Webhook 配置表（应用启动时调用）"""
+    """初始化 Webhook 配置表（应用启动时调用）
+
+    B2 P0-2 整改：生产环境禁止自动 CREATE TABLE，改为 schema 健康检查，
+    由 `alembic upgrade head` 负责真正的建表与迁移；开发/测试环境保持原有快速起服务的行为。
+    """
     conn = None
     try:
         conn = _get_db_conn()
+
+        if IS_PRODUCTION:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT table_name FROM information_schema.tables
+                       WHERE table_schema = current_schema() AND table_name = %s""",
+                    ("webhooks",),
+                )
+                exists = cur.fetchone() is not None
+            if not exists:
+                raise RuntimeError(
+                    "生产环境 webhooks 表缺失。请先执行 `alembic upgrade head` 再启动服务。"
+                )
+            logger.info("生产环境：Webhook 表 schema 健康检查通过")
+            return
+
         with conn.cursor() as cur:
             cur.execute(
                 """

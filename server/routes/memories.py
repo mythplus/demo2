@@ -908,7 +908,7 @@ async def hard_delete_user(user_id: str):
         except Exception as graph_err:
             logger.warning(f"清理用户 {user_id} 的图谱数据失败（不影响记忆删除）: {graph_err}")
 
-        # 3. 清理 memory_meta.db 中该用户的所有记忆元数据
+        # 3. 清理 PostgreSQL memories_meta 表中该用户的所有记忆元数据
         meta_deleted = 0
         try:
             meta_deleted = await _retry_db_write(

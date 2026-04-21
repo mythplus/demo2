@@ -8,6 +8,7 @@ import copy
 import json
 import time
 import logging
+import threading
 from typing import List, Dict, Any, Iterator
 from datetime import datetime, timezone
 from contextlib import contextmanager
@@ -21,28 +22,91 @@ from qdrant_client.http.models import (
 from server.config import (
     MEM0_CONFIG, VALID_CATEGORIES,
     CATEGORY_DESCRIPTIONS, MEMORY_CATEGORIZATION_PROMPT,
+    normalize_category,
 )
 
 logger = logging.getLogger(__name__)
 
 # ============ 全局 Memory 实例 ============
 memory_instance = None
+_memory_init_lock = threading.Lock()  # P1-4: 防止多线程/异步并发下的双重初始化
 
 # ============ 全局异步 HTTP 客户端（由 app.py lifespan 初始化） ============
 http_client: httpx.AsyncClient | None = None
 
 
+# ============ 统计与摘要缓存（P1-2：前移到使用方之前声明，避免阅读困惑） ============
+
+_stats_cache: Dict[str, Any] = {"data": None, "expire": 0.0}
+_users_cache: Dict[str, Any] = {"data": None, "expire": 0.0}
+_summary_cache: Dict[str, Any] = {"data": None, "expire": 0.0}
+_STATS_CACHE_TTL = 30  # 统计数据缓存 30 秒
+_USERS_CACHE_TTL = 30  # 用户汇总缓存 30 秒
+_SUMMARY_CACHE_TTL = 30  # 首页摘要缓存 30 秒
+
+
+def invalidate_stats_cache():
+    """使统计与摘要缓存失效（在写操作后调用）"""
+    for cache in (_stats_cache, _users_cache, _summary_cache):
+        cache["data"] = None
+        cache["expire"] = 0.0
+
+
+def get_stats_cache() -> Dict[str, Any]:
+    """获取统计缓存"""
+    return _stats_cache
+
+
+def set_stats_cache(data: Any):
+    """设置统计缓存"""
+    _stats_cache["data"] = data
+    _stats_cache["expire"] = time.time() + _STATS_CACHE_TTL
+
+
+def get_users_cache() -> Dict[str, Any]:
+    """获取用户汇总缓存"""
+    return _users_cache
+
+
+def set_users_cache(data: Any):
+    """设置用户汇总缓存"""
+    _users_cache["data"] = data
+    _users_cache["expire"] = time.time() + _USERS_CACHE_TTL
+
+
+def get_summary_cache() -> Dict[str, Any]:
+    """获取首页摘要缓存"""
+    return _summary_cache
+
+
+def set_summary_cache(data: Any):
+    """设置首页摘要缓存"""
+    _summary_cache["data"] = data
+    _summary_cache["expire"] = time.time() + _SUMMARY_CACHE_TTL
+
+
 def get_memory():
-    """获取 Mem0 Memory 实例（延迟初始化）"""
+    """获取 Mem0 Memory 实例（延迟初始化 + 双检锁，P1-4）。
+
+    单进程内 log_service 后台线程 + 主 asyncio event loop 可能同时首次触达 get_memory()，
+    不加锁会导致 Mem0/Qdrant 双重初始化（慢启动、日志双打、连接池翻倍）。
+    """
     global memory_instance
-    if memory_instance is None:
+    if memory_instance is not None:
+        return memory_instance
+
+    with _memory_init_lock:
+        # 双检：拿到锁之后再检查一次，避免重复初始化
+        if memory_instance is not None:
+            return memory_instance
+
         from mem0 import Memory
         _vs_cfg = MEM0_CONFIG.get("vector_store", {}).get("config", {})
         _qdrant_addr = _vs_cfg.get("url") or f"{_vs_cfg.get('host', 'unknown')}:{_vs_cfg.get('port', 'unknown')}"
         logger.info(f"正在初始化 Mem0，Qdrant 远程服务: {_qdrant_addr}")
         memory_instance = Memory.from_config(MEM0_CONFIG)
         logger.info("Mem0 初始化完成")
-    return memory_instance
+        return memory_instance
 
 
 @contextmanager
@@ -134,10 +198,25 @@ async def auto_categorize_memory(memory_text: str) -> List[str]:
         parsed = json.loads(result_text)
         raw_categories = parsed.get("categories", [])
 
-        # 校验：只保留合法的分类
-        valid = [c for c in raw_categories if c in VALID_CATEGORIES]
-        logger.info(f"AI 自动分类结果: {valid} (原始: {raw_categories})")
-        return valid
+        # B2 P0-3：即使 Prompt 要求只返回英文 key，小模型偶发会返回中文分类名或混合结果。
+        # 通过 normalize_category 做中→英兜底映射：
+        #   - 合法英文 key → 原样保留
+        #   - 中文分类名（如"个人"/"健康"）→ 查表转成 personal/health
+        #   - 无法识别 → 返回空串，由下一步去重时过滤掉
+        normalized = []
+        seen = set()
+        for raw in raw_categories:
+            key = normalize_category(raw)
+            if key and key in VALID_CATEGORIES and key not in seen:
+                normalized.append(key)
+                seen.add(key)
+
+        # 记录映射前后的差异，便于排查 Prompt / 模型行为
+        if normalized != [c for c in raw_categories if c in VALID_CATEGORIES]:
+            logger.info(f"AI 自动分类归一化: {raw_categories} → {normalized}")
+        else:
+            logger.info(f"AI 自动分类结果: {normalized} (原始: {raw_categories})")
+        return normalized
 
     except Exception as e:
         logger.warning(f"AI 自动分类失败: {e}")
@@ -588,53 +667,3 @@ def compute_memory_stats() -> dict:
             "daily_counter": {},
         }
 
-
-
-# ============ 统计与摘要缓存 ============
-
-_stats_cache: Dict[str, Any] = {"data": None, "expire": 0.0}
-_users_cache: Dict[str, Any] = {"data": None, "expire": 0.0}
-_summary_cache: Dict[str, Any] = {"data": None, "expire": 0.0}
-_STATS_CACHE_TTL = 30  # 统计数据缓存 30 秒
-_USERS_CACHE_TTL = 30  # 用户汇总缓存 30 秒
-_SUMMARY_CACHE_TTL = 30  # 首页摘要缓存 30 秒
-
-
-def invalidate_stats_cache():
-    """使统计与摘要缓存失效（在写操作后调用）"""
-    for cache in (_stats_cache, _users_cache, _summary_cache):
-        cache["data"] = None
-        cache["expire"] = 0.0
-
-
-def get_stats_cache() -> Dict[str, Any]:
-    """获取统计缓存"""
-    return _stats_cache
-
-
-def set_stats_cache(data: Any):
-    """设置统计缓存"""
-    _stats_cache["data"] = data
-    _stats_cache["expire"] = time.time() + _STATS_CACHE_TTL
-
-
-def get_users_cache() -> Dict[str, Any]:
-    """获取用户汇总缓存"""
-    return _users_cache
-
-
-def set_users_cache(data: Any):
-    """设置用户汇总缓存"""
-    _users_cache["data"] = data
-    _users_cache["expire"] = time.time() + _USERS_CACHE_TTL
-
-
-def get_summary_cache() -> Dict[str, Any]:
-    """获取首页摘要缓存"""
-    return _summary_cache
-
-
-def set_summary_cache(data: Any):
-    """设置首页摘要缓存"""
-    _summary_cache["data"] = data
-    _summary_cache["expire"] = time.time() + _SUMMARY_CACHE_TTL
