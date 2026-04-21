@@ -38,10 +38,8 @@ def get_memory():
     if memory_instance is None:
         from mem0 import Memory
         _vs_cfg = MEM0_CONFIG.get("vector_store", {}).get("config", {})
-        logger.info(
-            f"正在初始化 Mem0，Qdrant 远程服务: "
-            f"{_vs_cfg.get('host', 'unknown')}:{_vs_cfg.get('port', 'unknown')}"
-        )
+        _qdrant_addr = _vs_cfg.get("url") or f"{_vs_cfg.get('host', 'unknown')}:{_vs_cfg.get('port', 'unknown')}"
+        logger.info(f"正在初始化 Mem0，Qdrant 远程服务: {_qdrant_addr}")
         memory_instance = Memory.from_config(MEM0_CONFIG)
         logger.info("Mem0 初始化完成")
     return memory_instance

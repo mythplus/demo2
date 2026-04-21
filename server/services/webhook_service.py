@@ -1,7 +1,7 @@
 """Webhook 服务 - 管理 Webhook 配置、触发事件通知
 支持通用 HTTP POST 和企业微信群机器人格式。
 
-存储层使用 SQLite（access_logs.db 同库），支持多 Worker（多进程）并发安全读写。
+存储层使用 PostgreSQL（与日志服务共享连接池）。
 """
 
 import asyncio
@@ -13,15 +13,16 @@ import json
 import logging
 import os
 import socket
-import sqlite3
 import threading
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qs, urlparse
 
 import httpx
+import psycopg2.extras
 
-from server.config import ACCESS_LOG_DB_PATH, MEM0_CONFIG
+from server.config import MEM0_CONFIG
+from server.services.log_service import _get_db_conn, _release_conn
 from server.services.background_tasks import create_background_task
 
 try:
@@ -48,7 +49,6 @@ VALID_WEBHOOK_EVENTS = {
 }
 
 _SECRET_PREFIX = "enc:v1:"
-_THREAD_LOCAL = threading.local()
 _CIPHER_CACHE: Optional["Fernet"] = None
 _CIPHER_READY = False
 _CIPHER_WARNING_EMITTED = False
@@ -66,50 +66,34 @@ _BLOCKED_IPS = {
 }
 
 
-# ============ SQLite 存储层 ============
-
-def _get_db_conn() -> sqlite3.Connection:
-    """获取线程本地的 SQLite 连接（复用，WAL 模式）"""
-    conn = getattr(_THREAD_LOCAL, "wh_conn", None)
-    if conn is not None:
-        try:
-            conn.execute("SELECT 1")
-            return conn
-        except Exception:
-            try:
-                conn.close()
-            except Exception:
-                pass
-            _THREAD_LOCAL.wh_conn = None
-
-    conn = sqlite3.connect(ACCESS_LOG_DB_PATH, check_same_thread=False)
-    conn.execute("PRAGMA busy_timeout=5000")
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.row_factory = sqlite3.Row
-    _THREAD_LOCAL.wh_conn = conn
-    return conn
 
 
 def init_webhook_table() -> None:
     """初始化 Webhook 配置表（应用启动时调用）"""
-    conn = _get_db_conn()
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS webhooks (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            url TEXT NOT NULL,
-            enabled INTEGER NOT NULL DEFAULT 1,
-            events TEXT NOT NULL DEFAULT '[]',
-            secret TEXT,
-            created_at TEXT NOT NULL,
-            last_triggered TEXT,
-            last_status TEXT
-        )
-        """
-    )
-    conn.commit()
-    logger.info("Webhook 配置表已初始化")
+    conn = None
+    try:
+        conn = _get_db_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS webhooks (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    url TEXT NOT NULL,
+                    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                    events TEXT NOT NULL DEFAULT '[]',
+                    secret TEXT,
+                    created_at TEXT NOT NULL,
+                    last_triggered TEXT,
+                    last_status TEXT
+                )
+                """
+            )
+        conn.commit()
+        logger.info("Webhook 配置表已初始化")
+    finally:
+        if conn is not None:
+            _release_conn(conn)
 
 
 # ============ Secret 加密 ============
@@ -193,21 +177,25 @@ def migrate_webhook_secrets() -> int:
         logger.info("Webhook secret 加密迁移已跳过：当前无可用加密密钥")
         return 0
 
-    conn = _get_db_conn()
+    conn = None
     try:
-        rows = conn.execute(
-            "SELECT id, secret FROM webhooks WHERE secret IS NOT NULL AND secret != ''"
-        ).fetchall()
-        migrated = 0
-        for row in rows:
-            stored_secret = row["secret"]
-            if not stored_secret or stored_secret.startswith(_SECRET_PREFIX):
-                continue
-            conn.execute(
-                "UPDATE webhooks SET secret = ? WHERE id = ?",
-                (_encrypt_secret(stored_secret, allow_ciphertext=True), row["id"]),
+        conn = _get_db_conn()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT id, secret FROM webhooks WHERE secret IS NOT NULL AND secret != ''"
             )
-            migrated += 1
+            rows = cur.fetchall()
+        migrated = 0
+        with conn.cursor() as cur:
+            for row in rows:
+                stored_secret = row["secret"]
+                if not stored_secret or stored_secret.startswith(_SECRET_PREFIX):
+                    continue
+                cur.execute(
+                    "UPDATE webhooks SET secret = %s WHERE id = %s",
+                    (_encrypt_secret(stored_secret, allow_ciphertext=True), row["id"]),
+                )
+                migrated += 1
         if migrated:
             conn.commit()
             logger.info(f"已完成 {migrated} 条 Webhook secret 加密迁移")
@@ -215,65 +203,76 @@ def migrate_webhook_secrets() -> int:
     except Exception as exc:
         logger.warning(f"Webhook secret 迁移失败（不影响主流程）: {exc}")
         return 0
+    finally:
+        if conn is not None:
+            _release_conn(conn)
 
 
 # ============ 迁移 ============
 
 def _migrate_from_json() -> None:
-    """从旧的 webhooks.json 迁移数据到 SQLite（一次性，启动时自动执行）"""
+    """从旧的 webhooks.json 迁移数据到 PostgreSQL（一次性，启动时自动执行）"""
     from pathlib import Path
 
     json_path = Path(__file__).parent.parent.parent / "webhooks.json"
     if not json_path.exists():
         return
 
+    conn = None
     try:
         data = json.loads(json_path.read_text(encoding="utf-8"))
         if not data:
             return
 
         conn = _get_db_conn()
-        existing = conn.execute("SELECT COUNT(*) FROM webhooks").fetchone()[0]
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM webhooks")
+            existing = cur.fetchone()[0]
         if existing > 0:
-            logger.info("Webhook SQLite 表已有数据，跳过 JSON 迁移")
+            logger.info("Webhook PostgreSQL 表已有数据，跳过 JSON 迁移")
             return
 
-        for wh in data:
-            conn.execute(
-                """
-                INSERT OR IGNORE INTO webhooks
-                (id, name, url, enabled, events, secret, created_at, last_triggered, last_status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    wh.get("id", ""),
-                    wh.get("name", ""),
-                    wh.get("url", ""),
-                    1 if wh.get("enabled", True) else 0,
-                    json.dumps(wh.get("events", []), ensure_ascii=False),
-                    _encrypt_secret(wh.get("secret"), allow_ciphertext=True),
-                    wh.get("created_at", ""),
-                    wh.get("last_triggered"),
-                    wh.get("last_status"),
-                ),
-            )
+        with conn.cursor() as cur:
+            for wh in data:
+                cur.execute(
+                    """
+                    INSERT INTO webhooks
+                    (id, name, url, enabled, events, secret, created_at, last_triggered, last_status)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (id) DO NOTHING
+                    """,
+                    (
+                        wh.get("id", ""),
+                        wh.get("name", ""),
+                        wh.get("url", ""),
+                        wh.get("enabled", True),
+                        json.dumps(wh.get("events", []), ensure_ascii=False),
+                        _encrypt_secret(wh.get("secret"), allow_ciphertext=True),
+                        wh.get("created_at", ""),
+                        wh.get("last_triggered"),
+                        wh.get("last_status"),
+                    ),
+                )
         conn.commit()
 
         backup_path = json_path.with_suffix(".json.bak")
         json_path.rename(backup_path)
         logger.info(
-            f"已从 webhooks.json 迁移 {len(data)} 条 Webhook 配置到 SQLite，旧文件已备份为 {backup_path.name}"
+            f"已从 webhooks.json 迁移 {len(data)} 条 Webhook 配置到 PostgreSQL，旧文件已备份为 {backup_path.name}"
         )
     except Exception as exc:
         logger.warning(f"从 webhooks.json 迁移失败（不影响正常使用）: {exc}")
+    finally:
+        if conn is not None:
+            _release_conn(conn)
 
 
 # ============ 工具函数 ============
 
-def _row_to_dict(row: sqlite3.Row) -> dict:
-    """将 SQLite Row 转换为 Webhook 字典。"""
+def _row_to_dict(row: dict) -> dict:
+    """将 PostgreSQL Row 转换为 Webhook 字典。"""
     data = dict(row)
-    data["enabled"] = bool(data.get("enabled", 1))
+    data["enabled"] = bool(data.get("enabled", True))
     try:
         data["events"] = json.loads(data.get("events", "[]"))
     except (json.JSONDecodeError, TypeError):
@@ -372,14 +371,20 @@ def _assert_webhook_target_allowed(url: str) -> None:
 # ============ 存储层（SQLite） ============
 
 def _load_webhooks() -> List[dict]:
-    """从 SQLite 加载所有 Webhook 配置。"""
+    """从 PostgreSQL 加载所有 Webhook 配置。"""
+    conn = None
     try:
         conn = _get_db_conn()
-        rows = conn.execute("SELECT * FROM webhooks ORDER BY created_at DESC").fetchall()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM webhooks ORDER BY created_at DESC")
+            rows = cur.fetchall()
         return [_row_to_dict(row) for row in rows]
     except Exception as exc:
         logger.error(f"加载 Webhook 配置失败: {exc}")
         return []
+    finally:
+        if conn is not None:
+            _release_conn(conn)
 
 
 # ============ CRUD ============
@@ -389,16 +394,23 @@ def list_webhooks() -> List[dict]:
 
 
 def get_webhook(webhook_id: str) -> Optional[dict]:
+    conn = None
     try:
         conn = _get_db_conn()
-        row = conn.execute("SELECT * FROM webhooks WHERE id = ?", (webhook_id,)).fetchone()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM webhooks WHERE id = %s", (webhook_id,))
+            row = cur.fetchone()
         return _row_to_dict(row) if row else None
     except Exception as exc:
         logger.error(f"获取 Webhook 失败: {exc}")
         return None
+    finally:
+        if conn is not None:
+            _release_conn(conn)
 
 
 def create_webhook(data: dict) -> dict:
+    conn = None
     try:
         conn = _get_db_conn()
         created_at = datetime.now(timezone.utc).isoformat()
@@ -408,27 +420,31 @@ def create_webhook(data: dict) -> dict:
             "secret": stored_secret,
             "created_at": created_at,
         }
-        conn.execute(
-            """
-            INSERT INTO webhooks (id, name, url, enabled, events, secret, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                record.get("id", ""),
-                record.get("name", ""),
-                record.get("url", ""),
-                1 if record.get("enabled", True) else 0,
-                json.dumps(record.get("events", []), ensure_ascii=False),
-                record.get("secret"),
-                record["created_at"],
-            ),
-        )
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO webhooks (id, name, url, enabled, events, secret, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    record.get("id", ""),
+                    record.get("name", ""),
+                    record.get("url", ""),
+                    record.get("enabled", True),
+                    json.dumps(record.get("events", []), ensure_ascii=False),
+                    record.get("secret"),
+                    record["created_at"],
+                ),
+            )
         conn.commit()
         logger.info(f"Webhook 已创建: {record.get('name')} -> {record.get('url')}")
         return record
     except Exception as exc:
         logger.error(f"创建 Webhook 失败: {exc}")
         raise
+    finally:
+        if conn is not None:
+            _release_conn(conn)
 
 
 def update_webhook(webhook_id: str, data: dict, *, _allow_ciphertext_secret: bool = False) -> Optional[dict]:
@@ -441,9 +457,12 @@ def update_webhook(webhook_id: str, data: dict, *, _allow_ciphertext_secret: boo
             existing 记录整体回写的场景）。启用后允许 ``secret`` 为已加密的 ``enc:v1:`` 密文
             原样回写，不做明文伪造校验。对外路由必须保持 False。
     """
+    conn = None
     try:
         conn = _get_db_conn()
-        existing = conn.execute("SELECT * FROM webhooks WHERE id = ?", (webhook_id,)).fetchone()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM webhooks WHERE id = %s", (webhook_id,))
+            existing = cur.fetchone()
         if not existing:
             return None
 
@@ -461,42 +480,52 @@ def update_webhook(webhook_id: str, data: dict, *, _allow_ciphertext_secret: boo
         last_triggered = data.get("last_triggered", existing_dict.get("last_triggered"))
         last_status = data.get("last_status", existing_dict.get("last_status"))
 
-        conn.execute(
-            """
-            UPDATE webhooks SET name=?, url=?, enabled=?, events=?, secret=?,
-            last_triggered=?, last_status=? WHERE id=?
-            """,
-            (
-                name,
-                url,
-                1 if enabled else 0,
-                json.dumps(events, ensure_ascii=False),
-                secret,
-                last_triggered,
-                last_status,
-                webhook_id,
-            ),
-        )
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE webhooks SET name=%s, url=%s, enabled=%s, events=%s, secret=%s,
+                last_triggered=%s, last_status=%s WHERE id=%s
+                """,
+                (
+                    name,
+                    url,
+                    enabled,
+                    json.dumps(events, ensure_ascii=False),
+                    secret,
+                    last_triggered,
+                    last_status,
+                    webhook_id,
+                ),
+            )
         conn.commit()
         logger.info(f"Webhook 已更新: {webhook_id}")
         return get_webhook(webhook_id)
     except Exception as exc:
         logger.error(f"更新 Webhook 失败: {exc}")
         return None
+    finally:
+        if conn is not None:
+            _release_conn(conn)
 
 
 def delete_webhook(webhook_id: str) -> bool:
+    conn = None
     try:
         conn = _get_db_conn()
-        cursor = conn.execute("DELETE FROM webhooks WHERE id = ?", (webhook_id,))
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM webhooks WHERE id = %s", (webhook_id,))
+            rowcount = cur.rowcount
         conn.commit()
-        if cursor.rowcount == 0:
+        if rowcount == 0:
             return False
         logger.info(f"Webhook 已删除: {webhook_id}")
         return True
     except Exception as exc:
         logger.error(f"删除 Webhook 失败: {exc}")
         return False
+    finally:
+        if conn is not None:
+            _release_conn(conn)
 
 
 # ============ URL 校验 ============
@@ -606,15 +635,17 @@ async def trigger_webhooks(
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         try:
-            conn = _get_db_conn()
+            _conn = _get_db_conn()
             now_iso = datetime.now(timezone.utc).isoformat()
-            for webhook, result in zip(matched, results):
-                status = "success" if not isinstance(result, Exception) else "failed"
-                conn.execute(
-                    "UPDATE webhooks SET last_triggered=?, last_status=? WHERE id=?",
-                    (now_iso, status, webhook.get("id")),
-                )
-            conn.commit()
+            with _conn.cursor() as cur:
+                for webhook, result in zip(matched, results):
+                    status = "success" if not isinstance(result, Exception) else "failed"
+                    cur.execute(
+                        "UPDATE webhooks SET last_triggered=%s, last_status=%s WHERE id=%s",
+                        (now_iso, status, webhook.get("id")),
+                    )
+            _conn.commit()
+            _release_conn(_conn)
         except Exception as exc:
             logger.warning(f"更新 Webhook 触发状态失败: {exc}")
 

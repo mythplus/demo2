@@ -623,6 +623,20 @@ export const mem0Api = {
     return request<ServiceTestResponse>("/v1/config/test-embedder");
   },
 
+  /**
+   * 测试向量数据库（Qdrant）连接：查询集合信息，返回维度与向量数量
+   */
+  async testVectorStoreConnection(): Promise<ServiceTestResponse> {
+    return request<ServiceTestResponse>("/v1/config/test-vector");
+  },
+
+  /**
+   * 测试元数据库（PostgreSQL）连接：执行轻量查询并统计主表记录数
+   */
+  async testMetaStoreConnection(): Promise<ServiceTestResponse> {
+    return request<ServiceTestResponse>("/v1/config/test-meta");
+  },
+
   // ============ Playground 对话 ============
 
   /**

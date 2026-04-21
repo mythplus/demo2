@@ -102,8 +102,22 @@ ACCESS_LOG_DB_PATH = os.path.join(_PROJECT_ROOT, "access_logs.db")
 # ============ 速率限制数据库路径（独立于访问日志，避免高并发下互相阻塞） ============
 RATE_LIMIT_DB_PATH = os.path.join(_PROJECT_ROOT, "rate_limit.db")
 
-# ============ 记忆元数据库路径（SQLAlchemy 管理，对齐 OpenMemory 官方架构） ============
-MEMORY_DB_PATH = os.path.join(_PROJECT_ROOT, "memory_meta.db")
+# ============ 记忆元数据库（PostgreSQL，SQLAlchemy 管理） ============
+# 优先级：环境变量 DATABASE_URL > config.yaml database 节拼接 > 内置默认值
+def _build_database_url() -> str:
+    # 1. 直接使用 DATABASE_URL 环境变量
+    url = os.environ.get("DATABASE_URL")
+    if url:
+        return url
+    # 2. 从独立环境变量拼接
+    host = os.environ.get("POSTGRES_HOST", "9.134.231.238")
+    port = os.environ.get("POSTGRES_PORT", "5432")
+    db   = os.environ.get("POSTGRES_DB", "mem0")
+    user = os.environ.get("POSTGRES_USER", "mem0")
+    pwd  = os.environ.get("POSTGRES_PASSWORD", "mem0_pg_2024")
+    return f"postgresql://{user}:{pwd}@{host}:{port}/{db}"
+
+DATABASE_URL = _build_database_url()
 
 
 def _safe_error_detail(e: Exception) -> str:

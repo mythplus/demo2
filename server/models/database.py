@@ -1,15 +1,15 @@
 """
-数据库引擎与会话管理 — SQLAlchemy + SQLite（可平滑切换 PostgreSQL）
+数据库引擎与会话管理 — SQLAlchemy + PostgreSQL
 对齐 OpenMemory 官方架构，将记忆元数据（state、categories、状态变更历史等）
 从 Qdrant metadata 迁移到关系型数据库，Qdrant 只负责向量存储与语义搜索。
 """
 
 import logging
 from contextlib import contextmanager
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
 
-from server.config import MEMORY_DB_PATH
+from server.config import DATABASE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -21,31 +21,18 @@ _engine = None
 _SessionLocal = None
 
 
-def _sqlite_pragma_on_connect(dbapi_conn, connection_record):
-    """SQLite 连接时设置性能优化 PRAGMA"""
-    cursor = dbapi_conn.cursor()
-    cursor.execute("PRAGMA journal_mode=WAL")
-    cursor.execute("PRAGMA synchronous=NORMAL")
-    cursor.execute("PRAGMA busy_timeout=10000")
-    cursor.execute("PRAGMA cache_size=-4000")
-    cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.close()
-
-
 def get_engine():
     """获取数据库引擎（单例）"""
     global _engine
     if _engine is None:
-        db_url = f"sqlite:///{MEMORY_DB_PATH}"
         _engine = create_engine(
-            db_url,
+            DATABASE_URL,
             echo=False,
             pool_pre_ping=True,
-            connect_args={"check_same_thread": False},
+            pool_size=10,
+            max_overflow=20,
         )
-        # SQLite 性能优化
-        event.listen(_engine, "connect", _sqlite_pragma_on_connect)
-        logger.info(f"数据库引擎已创建: {db_url}")
+        logger.info(f"数据库引擎已创建: {DATABASE_URL.split('@')[-1]}")  # 隐藏密码部分
     return _engine
 
 

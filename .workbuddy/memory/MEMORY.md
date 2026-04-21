@@ -2,7 +2,7 @@
 
 ## 项目概述
 - **目标**: 复刻 mem0.ai dashboard 前端功能，自己部署使用
-- **技术栈**: Next.js 14 + TypeScript + Tailwind CSS + Radix UI/shadcn + lucide-react + recharts + zustand | FastAPI + Mem0 + Qdrant(本地文件) + Ollama
+- **技术栈**: Next.js 14 + TypeScript + Tailwind CSS + Radix UI/shadcn + lucide-react + recharts + zustand | FastAPI + Mem0 + Qdrant(远程服务) + PostgreSQL(记忆元数据 + 访问/请求日志 + 限流 + Webhook 配置) + Neo4j + Ollama
 - **风格约束**: 简约设计系统 (Swiss Modernism + Data-Dense Dashboard)，Inter 字体，Indigo 主色 (#4F46E5)，中性灰基底
 - **排除功能**: Apps 应用管理、Skill/SubAgent（列为扩展任务）
 
@@ -15,10 +15,10 @@
 - categories/state 通过 Mem0 metadata 透传，不修改 Mem0 内核
 - 后端 Ollama 地址: http://9.134.231.238:11434 (qwen2.5:7b + nomic-embed-text)
 - 前端默认端口 3000，后端默认端口 8080
-- 访问日志存储在 access_logs.db (SQLite)
+- 访问日志/请求日志/限流/Webhook 配置/记忆元数据统一存 PostgreSQL（DSN 由 `DATABASE_URL` 指定）
 - 生产环境必须配置 `security.api_key`；前端不再使用 `NEXT_PUBLIC_MEM0_API_KEY`，默认通过同源 Nginx 反向代理访问后端
 - Webhook URL 需经过 SSRF 安全校验；`secret` 使用加密存储，密钥来自 `security.webhook_secret_key` 或 `api_key` 派生值
-- 生产模式默认单 worker，避免多个 SQLite 文件（访问日志 / 限流 / 元数据库）在多进程下产生锁竞争
+- 生产模式默认单 worker，避免对日志写入产生锁竞争（同一 PG 连接池共享）
 
 
 ## 用户偏好

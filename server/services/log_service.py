@@ -1,47 +1,55 @@
 """
-日志服务 — SQLite 访问日志、请求日志、修改历史、批量写入队列
+日志服务 — PostgreSQL 访问日志、请求日志、修改历史、批量写入队列
 """
 
 import json
 import logging
-import sqlite3
 import time
 import threading
 import queue as _queue
 from typing import Optional
 from datetime import datetime, timezone
 
-from server.config import ACCESS_LOG_DB_PATH
+import psycopg2
+import psycopg2.extras
+import psycopg2.pool
+
+from server.config import DATABASE_URL
 
 logger = logging.getLogger(__name__)
 
-# ============ SQLite 线程本地连接池 ============
-_thread_local = threading.local()
+# ============ PostgreSQL 连接池 ============
+_pg_pool: Optional[psycopg2.pool.ThreadedConnectionPool] = None
+_pool_lock = threading.Lock()
+
+
+def _get_pool() -> psycopg2.pool.ThreadedConnectionPool:
+    """获取 PostgreSQL 连接池（单例，线程安全）"""
+    global _pg_pool
+    if _pg_pool is not None:
+        return _pg_pool
+    with _pool_lock:
+        if _pg_pool is None:
+            _pg_pool = psycopg2.pool.ThreadedConnectionPool(
+                minconn=2,
+                maxconn=20,
+                dsn=DATABASE_URL,
+            )
+            logger.info("PostgreSQL 日志连接池已创建")
+    return _pg_pool
 
 
 def _get_db_conn():
-    """获取 SQLite 连接（线程本地复用，自动设置 busy_timeout 和 WAL 模式）"""
-    conn = getattr(_thread_local, "db_conn", None)
-    if conn is not None:
-        try:
-            conn.execute("SELECT 1")  # 检测连接是否仍然有效
-            return conn
-        except Exception:
-            # 连接已失效，重新创建
-            try:
-                conn.close()
-            except Exception:
-                pass
-            _thread_local.db_conn = None
+    """从连接池获取一个 PostgreSQL 连接"""
+    return _get_pool().getconn()
 
-    conn = sqlite3.connect(ACCESS_LOG_DB_PATH, check_same_thread=False)
-    conn.execute("PRAGMA busy_timeout=10000")   # 10 秒等待锁释放（多 Worker 场景需要更长）
-    conn.execute("PRAGMA journal_mode=WAL")      # WAL 模式：允许并发读写
-    conn.execute("PRAGMA synchronous=NORMAL")    # 降低同步级别，提升写入性能（WAL 下安全）
-    conn.execute("PRAGMA wal_autocheckpoint=500") # 每 500 页自动 checkpoint，减少 WAL 文件膨胀
-    conn.execute("PRAGMA cache_size=-4000")       # 4MB 页缓存，减少磁盘 IO
-    _thread_local.db_conn = conn
-    return conn
+
+def _release_conn(conn):
+    """将连接归还连接池"""
+    try:
+        _get_pool().putconn(conn)
+    except Exception:
+        pass
 
 
 # ============ 异步日志批量写入队列 ============
@@ -53,21 +61,18 @@ _log_writer_running = False
 _dropped_log_count = 0
 
 
-
 def _log_writer_loop():
-    """后台线程：从队列中批量取出日志并写入 SQLite"""
+    """后台线程：从队列中批量取出日志并写入 PostgreSQL"""
     global _log_writer_running
     while _log_writer_running:
         batch: list = []
         try:
-            # 阻塞等待第一条，最多等 _LOG_FLUSH_INTERVAL 秒
             try:
                 first = _log_queue.get(timeout=_LOG_FLUSH_INTERVAL)
                 batch.append(first)
             except _queue.Empty:
                 continue
 
-            # 非阻塞地尽量多取
             while len(batch) < _LOG_FLUSH_BATCH_SIZE:
                 try:
                     batch.append(_log_queue.get_nowait())
@@ -80,38 +85,38 @@ def _log_writer_loop():
             logger.warning(f"日志写入线程异常: {e}")
 
 
-_FLUSH_MAX_RETRIES = 3       # 写入失败最大重试次数
-_FLUSH_RETRY_BASE_DELAY = 0.5  # 重试基础延迟（秒），指数退避
+_FLUSH_MAX_RETRIES = 3
+_FLUSH_RETRY_BASE_DELAY = 0.5
 
 
 def _flush_log_batch(batch: list, raise_on_failure: bool = False):
-    """将一批日志写入 SQLite（单次事务，带指数退避重试）"""
+    """将一批日志写入 PostgreSQL（单次事务，带指数退避重试）"""
     conn = None
     for attempt in range(1, _FLUSH_MAX_RETRIES + 1):
         try:
             conn = _get_db_conn()
-            for item in batch:
-                conn.execute(item["sql"], item["params"])
+            with conn.cursor() as cur:
+                for item in batch:
+                    cur.execute(item["sql"], item["params"])
             conn.commit()
-            return  # 写入成功，直接返回
-        except sqlite3.OperationalError as e:
+            return
+        except psycopg2.OperationalError as e:
             try:
                 if conn is not None:
                     conn.rollback()
             except Exception:
                 pass
-            # 数据库锁定（database is locked）时重试
-            if "locked" in str(e).lower() and attempt < _FLUSH_MAX_RETRIES:
+            if attempt < _FLUSH_MAX_RETRIES:
                 delay = _FLUSH_RETRY_BASE_DELAY * (2 ** (attempt - 1))
-                logger.warning(f"SQLite 写入锁冲突，第 {attempt} 次重试（{delay:.1f}s 后）: {e}")
+                logger.warning(f"PostgreSQL 写入失败，第 {attempt} 次重试（{delay:.1f}s 后）: {e}")
                 time.sleep(delay)
-                # 重置连接，避免复用损坏的连接
-                try:
-                    if conn is not None:
-                        conn.close()
-                except Exception:
-                    pass
-                _thread_local.db_conn = None
+                # 归还损坏连接，重新获取
+                if conn is not None:
+                    try:
+                        _get_pool().putconn(conn, close=True)
+                    except Exception:
+                        pass
+                    conn = None
             else:
                 logger.warning(f"批量写入日志失败 ({len(batch)} 条，第 {attempt} 次尝试): {e}")
                 if raise_on_failure:
@@ -127,6 +132,10 @@ def _flush_log_batch(batch: list, raise_on_failure: bool = False):
             if raise_on_failure:
                 raise
             return
+        finally:
+            if conn is not None:
+                _release_conn(conn)
+                conn = None
 
 
 def _enqueue_log(table: str, sql: str, params: tuple):
@@ -137,7 +146,6 @@ def _enqueue_log(table: str, sql: str, params: tuple):
     except _queue.Full:
         _dropped_log_count += 1
         logger.warning(f"日志队列已满，累计丢弃 {_dropped_log_count} 条日志")
-
 
 
 def start_log_writer():
@@ -153,15 +161,15 @@ def start_log_writer():
 
 # ============ 日志自动清理（保留 30 天） ============
 
-_LOG_RETENTION_DAYS = 30  # 日志保留天数
+_LOG_RETENTION_DAYS = 30
 _cleanup_thread: Optional[threading.Thread] = None
 _cleanup_running = False
-_cleanup_stop_event = threading.Event()  # 用于快速唤醒清理线程以响应停止信号
-
+_cleanup_stop_event = threading.Event()
 
 
 def cleanup_old_logs():
     """清理超过 _LOG_RETENTION_DAYS 天的日志记录（所有日志表统一清理）"""
+    conn = None
     try:
         from datetime import timedelta
         cutoff = (datetime.now(timezone.utc) - timedelta(days=_LOG_RETENTION_DAYS)).isoformat()
@@ -175,48 +183,48 @@ def cleanup_old_logs():
         ]
 
         total_deleted = 0
-        for table, col in tables_and_cols:
-            try:
-                cursor = conn.execute(f"DELETE FROM {table} WHERE {col} < ?", (cutoff,))
-                deleted = cursor.rowcount
-                total_deleted += deleted
-                if deleted > 0:
-                    logger.info(f"日志清理: {table} 删除 {deleted} 条（>{_LOG_RETENTION_DAYS}天）")
-            except Exception as e:
-                logger.warning(f"清理 {table} 失败: {e}")
+        with conn.cursor() as cur:
+            for table, col in tables_and_cols:
+                try:
+                    cur.execute(f"DELETE FROM {table} WHERE {col} < %s", (cutoff,))
+                    deleted = cur.rowcount
+                    total_deleted += deleted
+                    if deleted > 0:
+                        logger.info(f"日志清理: {table} 删除 {deleted} 条（>{_LOG_RETENTION_DAYS}天）")
+                except Exception as e:
+                    logger.warning(f"清理 {table} 失败: {e}")
 
         conn.commit()
 
         if total_deleted > 0:
-            # 清理后执行 VACUUM 回收磁盘空间
-            try:
-                conn.execute("VACUUM")
-            except Exception:
-                pass  # VACUUM 在 WAL 模式下可能失败，忽略
             logger.info(f"日志清理完成，共删除 {total_deleted} 条过期记录")
         else:
             logger.info("日志清理：无过期记录")
     except Exception as e:
         logger.warning(f"日志清理任务异常: {e}")
+        if conn is not None:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+    finally:
+        if conn is not None:
+            _release_conn(conn)
 
 
 def _daily_cleanup_loop():
     """后台线程：每天执行一次日志清理"""
     while _cleanup_running:
-        # 等待 24 小时，或被 _cleanup_stop_event 提前唤醒
         stopped = _cleanup_stop_event.wait(timeout=24 * 3600)
         if stopped or not _cleanup_running:
             return
         cleanup_old_logs()
 
 
-
 def start_log_cleanup():
     """启动日志清理：立即清理一次 + 启动每日定时清理线程"""
     global _cleanup_thread, _cleanup_running
-    # 启动时立即清理一次
     cleanup_old_logs()
-    # 启动每日清理线程
     if _cleanup_thread is None or not _cleanup_thread.is_alive():
         _cleanup_running = True
         _cleanup_stop_event.clear()
@@ -225,18 +233,16 @@ def start_log_cleanup():
         logger.info(f"日志自动清理已启用（保留 {_LOG_RETENTION_DAYS} 天，每日执行）")
 
 
-
 def stop_log_writer():
     """停止后台日志写入线程，并 flush 剩余日志"""
     global _log_writer_running, _cleanup_running
     _log_writer_running = False
     _cleanup_running = False
-    _cleanup_stop_event.set()  # 唤醒清理线程使其快速退出
+    _cleanup_stop_event.set()
     if _log_writer_thread is not None:
         _log_writer_thread.join(timeout=10)
     if _cleanup_thread is not None:
         _cleanup_thread.join(timeout=5)
-    # flush 队列中剩余的日志
     remaining: list = []
     while not _log_queue.empty():
         try:
@@ -248,73 +254,71 @@ def stop_log_writer():
         logger.info(f"已 flush 剩余 {len(remaining)} 条日志")
 
 
-
 def init_access_log_db():
-    """初始化访问日志和请求日志数据库"""
-    conn = _get_db_conn()
-    # 启用 WAL 模式（持久化设置，只需初始化时执行一次）
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS access_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            memory_id TEXT NOT NULL,
-            action TEXT NOT NULL,
-            memory_preview TEXT,
-            timestamp TEXT NOT NULL DEFAULT (datetime('now'))
-        )
-    """)
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_memory_id ON access_logs(memory_id)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_timestamp ON access_logs(timestamp)")
-    # 请求日志表
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS request_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT NOT NULL,
-            method TEXT NOT NULL,
-            path TEXT NOT NULL,
-            request_type TEXT,
-            user_id TEXT,
-            status_code INTEGER,
-            latency_ms REAL,
-            payload_summary TEXT,
-            error TEXT
-        )
-    """)
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_timestamp ON request_logs(timestamp)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_type ON request_logs(request_type)")
-    # 自建修改历史表（Mem0 原生 history 时间不准，自己记录完整操作历史）
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS memory_change_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            memory_id TEXT NOT NULL,
-            event TEXT NOT NULL,
-            old_memory TEXT,
-            new_memory TEXT,
-            categories TEXT NOT NULL DEFAULT '[]',
-            old_categories TEXT NOT NULL DEFAULT '[]',
-            timestamp TEXT NOT NULL
-        )
-    """)
-    # 兼容旧表：如果 old_categories 列不存在则添加
+    """初始化访问日志和请求日志数据库（PostgreSQL）"""
+    conn = None
     try:
-        conn.execute("ALTER TABLE memory_change_logs ADD COLUMN old_categories TEXT NOT NULL DEFAULT '[]'")
-    except Exception:
-        pass  # 列已存在，忽略
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_mcl_memory_id ON memory_change_logs(memory_id)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_mcl_timestamp ON memory_change_logs(timestamp)")
-    # 保留旧表兼容（不删除）
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS category_snapshots (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            memory_id TEXT NOT NULL,
-            categories TEXT NOT NULL DEFAULT '[]',
-            timestamp TEXT NOT NULL
-        )
-    """)
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_cat_snap_memory_id ON category_snapshots(memory_id)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_cat_snap_timestamp ON category_snapshots(timestamp)")
+        conn = _get_db_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS access_logs (
+                    id SERIAL PRIMARY KEY,
+                    memory_id TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    memory_preview TEXT,
+                    timestamp TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC')::TEXT
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_memory_id ON access_logs(memory_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_timestamp ON access_logs(timestamp)")
 
-    conn.commit()
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS request_logs (
+                    id SERIAL PRIMARY KEY,
+                    timestamp TEXT NOT NULL,
+                    method TEXT NOT NULL,
+                    path TEXT NOT NULL,
+                    request_type TEXT,
+                    user_id TEXT,
+                    status_code INTEGER,
+                    latency_ms REAL,
+                    payload_summary TEXT,
+                    error TEXT
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_timestamp ON request_logs(timestamp)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_type ON request_logs(request_type)")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS memory_change_logs (
+                    id SERIAL PRIMARY KEY,
+                    memory_id TEXT NOT NULL,
+                    event TEXT NOT NULL,
+                    old_memory TEXT,
+                    new_memory TEXT,
+                    categories TEXT NOT NULL DEFAULT '[]',
+                    old_categories TEXT NOT NULL DEFAULT '[]',
+                    timestamp TEXT NOT NULL
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_mcl_memory_id ON memory_change_logs(memory_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_mcl_timestamp ON memory_change_logs(timestamp)")
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS category_snapshots (
+                    id SERIAL PRIMARY KEY,
+                    memory_id TEXT NOT NULL,
+                    categories TEXT NOT NULL DEFAULT '[]',
+                    timestamp TEXT NOT NULL
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_cat_snap_memory_id ON category_snapshots(memory_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_cat_snap_timestamp ON category_snapshots(timestamp)")
+
+        conn.commit()
+    finally:
+        if conn is not None:
+            _release_conn(conn)
 
 
 # ============ 访问日志 ============
@@ -328,7 +332,7 @@ def save_category_snapshot(memory_id: str, categories: list, timestamp: str = ""
             _flush_log_batch([
                 {
                     "table": "category_snapshots",
-                    "sql": "INSERT INTO category_snapshots (memory_id, categories, timestamp) VALUES (?, ?, ?)",
+                    "sql": "INSERT INTO category_snapshots (memory_id, categories, timestamp) VALUES (%s, %s, %s)",
                     "params": (memory_id, cats_json, ts),
                 }
             ], raise_on_failure=True)
@@ -336,7 +340,7 @@ def save_category_snapshot(memory_id: str, categories: list, timestamp: str = ""
 
         _enqueue_log(
             "category_snapshots",
-            "INSERT INTO category_snapshots (memory_id, categories, timestamp) VALUES (?, ?, ?)",
+            "INSERT INTO category_snapshots (memory_id, categories, timestamp) VALUES (%s, %s, %s)",
             (memory_id, cats_json, ts),
         )
     except Exception as e:
@@ -356,7 +360,7 @@ def save_change_log(memory_id: str, event: str, new_memory: str,
         old_cats_json = json.dumps(old_categories or [], ensure_ascii=False)
         sql = """INSERT INTO memory_change_logs
                (memory_id, event, old_memory, new_memory, categories, old_categories, timestamp)
-               VALUES (?, ?, ?, ?, ?, ?, ?)"""
+               VALUES (%s, %s, %s, %s, %s, %s, %s)"""
         params = (memory_id, event, old_memory or "", new_memory, cats_json, old_cats_json, ts)
 
         if strict:
@@ -386,14 +390,14 @@ def save_memory_audit_snapshot(memory_id: str, event: str, new_memory: str,
     _flush_log_batch([
         {
             "table": "category_snapshots",
-            "sql": "INSERT INTO category_snapshots (memory_id, categories, timestamp) VALUES (?, ?, ?)",
+            "sql": "INSERT INTO category_snapshots (memory_id, categories, timestamp) VALUES (%s, %s, %s)",
             "params": (memory_id, cats_json, ts),
         },
         {
             "table": "memory_change_logs",
             "sql": """INSERT INTO memory_change_logs
                (memory_id, event, old_memory, new_memory, categories, old_categories, timestamp)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
             "params": (memory_id, event, old_memory or "", new_memory, cats_json, old_cats_json, ts),
         },
     ], raise_on_failure=True)
@@ -401,14 +405,16 @@ def save_memory_audit_snapshot(memory_id: str, event: str, new_memory: str,
 
 def get_change_logs(memory_id: str) -> list:
     """获取某条记忆的自建修改历史（时间正序）"""
+    conn = None
     try:
         conn = _get_db_conn()
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            """SELECT event, old_memory, new_memory, categories, old_categories, timestamp
-               FROM memory_change_logs WHERE memory_id = ? ORDER BY timestamp ASC""",
-            (memory_id,),
-        ).fetchall()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """SELECT event, old_memory, new_memory, categories, old_categories, timestamp
+                   FROM memory_change_logs WHERE memory_id = %s ORDER BY timestamp ASC""",
+                (memory_id,),
+            )
+            rows = cur.fetchall()
         result = []
         for row in rows:
             try:
@@ -433,12 +439,15 @@ def get_change_logs(memory_id: str) -> list:
     except Exception as e:
         logger.warning(f"查询修改历史失败: {e}")
         return []
+    finally:
+        if conn is not None:
+            _release_conn(conn)
 
 
-# 访问日志去重缓存：防止前端 React StrictMode 等场景下短时间内重复记录
-_access_dedup_cache: dict = {}  # key: "memory_id:action" -> last_timestamp (float)
-_access_dedup_lock = threading.Lock()  # L5: 保护 _access_dedup_cache 的读-判断-写原子性
-_ACCESS_DEDUP_SECONDS = 5  # 同一 memory_id + action 在此秒数内的重复调用将被忽略
+# 访问日志去重缓存
+_access_dedup_cache: dict = {}
+_access_dedup_lock = threading.Lock()
+_ACCESS_DEDUP_SECONDS = 5
 
 
 def log_access(memory_id: str, action: str, memory_preview: str = ""):
@@ -447,15 +456,13 @@ def log_access(memory_id: str, action: str, memory_preview: str = ""):
         now = time.time()
         dedup_key = f"{memory_id}:{action}"
 
-        # 去重 + 写入 + 清理统一在锁内执行，保证读-判断-写的原子性
         with _access_dedup_lock:
             last_time = _access_dedup_cache.get(dedup_key)
             if last_time and (now - last_time) < _ACCESS_DEDUP_SECONDS:
-                return  # 跳过重复记录
+                return
 
             _access_dedup_cache[dedup_key] = now
 
-            # 定期清理过期的去重缓存条目（防止内存泄漏）
             if len(_access_dedup_cache) > 500:
                 expired_keys = [k for k, v in _access_dedup_cache.items() if (now - v) > _ACCESS_DEDUP_SECONDS]
                 for k in expired_keys:
@@ -463,7 +470,7 @@ def log_access(memory_id: str, action: str, memory_preview: str = ""):
 
         _enqueue_log(
             "access_logs",
-            "INSERT INTO access_logs (memory_id, action, memory_preview, timestamp) VALUES (?, ?, ?, ?)",
+            "INSERT INTO access_logs (memory_id, action, memory_preview, timestamp) VALUES (%s, %s, %s, %s)",
             (memory_id, action, memory_preview[:100] if memory_preview else "", datetime.now(timezone.utc).isoformat()),
         )
     except Exception as e:
@@ -472,28 +479,31 @@ def log_access(memory_id: str, action: str, memory_preview: str = ""):
 
 def get_access_logs(memory_id: str = None, limit: int = 50, offset: int = 0) -> list:
     """查询访问日志"""
+    conn = None
     try:
         conn = _get_db_conn()
-        conn.row_factory = sqlite3.Row
-        if memory_id:
-            rows = conn.execute(
-                "SELECT * FROM access_logs WHERE memory_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?",
-                (memory_id, limit, offset),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM access_logs ORDER BY timestamp DESC LIMIT ? OFFSET ?",
-                (limit, offset),
-            ).fetchall()
-        return [dict(row) for row in rows]
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            if memory_id:
+                cur.execute(
+                    "SELECT * FROM access_logs WHERE memory_id = %s ORDER BY timestamp DESC LIMIT %s OFFSET %s",
+                    (memory_id, limit, offset),
+                )
+            else:
+                cur.execute(
+                    "SELECT * FROM access_logs ORDER BY timestamp DESC LIMIT %s OFFSET %s",
+                    (limit, offset),
+                )
+            return [dict(row) for row in cur.fetchall()]
     except Exception as e:
         logger.warning(f"查询访问日志失败: {e}")
         return []
+    finally:
+        if conn is not None:
+            _release_conn(conn)
 
 
 # ============ 请求日志工具函数 ============
 
-# 路径 → 请求类型映射
 _PATH_TYPE_MAP = {
     ("POST", "/v1/memories/"): "添加",
     ("POST", "/v1/memories/search/"): "搜索",
@@ -505,7 +515,7 @@ _PATH_TYPE_MAP = {
 
 
 def classify_request(method: str, path: str) -> str:
-    """根据 HTTP 方法和路径推断请求类型（只分类前端写操作）"""
+    """根据 HTTP 方法和路径推断请求类型"""
     if method == "POST" and "/search" in path:
         return "搜索"
     if method == "POST" and "/playground" in path:
@@ -516,18 +526,15 @@ def classify_request(method: str, path: str) -> str:
         return "更新"
     if method == "DELETE":
         return "删除"
-    # 其余请求不应被记录，兜底返回方法名
     return method
 
 
 def extract_user_from_request(method: str, path: str, body: str) -> str:
     """尝试从请求中提取 user_id"""
-    # 从 query params
     if "user_id=" in path:
         for part in path.split("?")[1].split("&") if "?" in path else []:
             if part.startswith("user_id="):
                 return part.split("=", 1)[1]
-    # 从 body
     if body:
         try:
             data = json.loads(body)
@@ -541,14 +548,12 @@ def extract_user_from_request(method: str, path: str, body: str) -> str:
 def summarize_payload(method: str, path: str, body: str) -> str:
     """生成请求载荷摘要"""
     if not body:
-        # GET 请求从 query params 提取
         if "?" in path:
             return path.split("?", 1)[1][:200]
         return ""
     try:
         data = json.loads(body)
         if isinstance(data, dict):
-            # 过滤掉过长的字段
             summary = {}
             for k, v in data.items():
                 if k == "messages":
@@ -572,7 +577,7 @@ def log_request(timestamp: str, method: str, path: str, request_type: str,
             "request_logs",
             """INSERT INTO request_logs
                (timestamp, method, path, request_type, user_id, status_code, latency_ms, payload_summary, error)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (timestamp, method, path, request_type, user_id, status_code,
              round(latency_ms, 2), payload_summary[:500], error[:500]),
         )
@@ -582,34 +587,35 @@ def log_request(timestamp: str, method: str, path: str, request_type: str,
 
 def get_request_logs(request_type: str = None, since: str = None, until: str = None, limit: int = 50, offset: int = 0) -> tuple:
     """查询请求日志，返回 (logs, total)"""
+    conn = None
     try:
         conn = _get_db_conn()
-        conn.row_factory = sqlite3.Row
 
         where = "WHERE 1=1"
         params: list = []
         if request_type:
-            where += " AND request_type = ?"
+            where += " AND request_type = %s"
             params.append(request_type)
         if since:
-            where += " AND timestamp >= ?"
+            where += " AND timestamp >= %s"
             params.append(since)
         if until:
-            where += " AND timestamp <= ?"
+            where += " AND timestamp <= %s"
             params.append(until)
 
-        # 总数
-        total = conn.execute(f"SELECT COUNT(*) FROM request_logs {where}", params).fetchone()[0]
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(f"SELECT COUNT(*) FROM request_logs {where}", params)
+            total = cur.fetchone()["count"]
 
-        # 分页数据
-        rows = conn.execute(
-            f"SELECT * FROM request_logs {where} ORDER BY timestamp DESC LIMIT ? OFFSET ?",
-            params + [limit, offset],
-        ).fetchall()
-        return [dict(row) for row in rows], total
+            cur.execute(
+                f"SELECT * FROM request_logs {where} ORDER BY timestamp DESC LIMIT %s OFFSET %s",
+                params + [limit, offset],
+            )
+            rows = [dict(row) for row in cur.fetchall()]
+        return rows, total
     except Exception as e:
         logger.warning(f"查询请求日志失败: {e}")
         return [], 0
-
-
-
+    finally:
+        if conn is not None:
+            _release_conn(conn)

@@ -56,6 +56,10 @@ export default function SettingsPage() {
   const [llmTestResult, setLlmTestResult] = useState<ServiceTestResponse | null>(null);
   const [embedderTestStatus, setEmbedderTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [embedderTestResult, setEmbedderTestResult] = useState<ServiceTestResponse | null>(null);
+  const [vectorTestStatus, setVectorTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
+  const [vectorTestResult, setVectorTestResult] = useState<ServiceTestResponse | null>(null);
+  const [metaTestStatus, setMetaTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
+  const [metaTestResult, setMetaTestResult] = useState<ServiceTestResponse | null>(null);
 
   // 获取配置信息
   const fetchConfigInfo = useCallback(async () => {
@@ -65,6 +69,10 @@ export default function SettingsPage() {
     setLlmTestResult(null);
     setEmbedderTestStatus("idle");
     setEmbedderTestResult(null);
+    setVectorTestStatus("idle");
+    setVectorTestResult(null);
+    setMetaTestStatus("idle");
+    setMetaTestResult(null);
     try {
       const info = await mem0Api.getConfigInfo();
       setConfigInfo(info);
@@ -104,6 +112,34 @@ export default function SettingsPage() {
     } catch {
       setEmbedderTestStatus("error");
       setEmbedderTestResult(null);
+    }
+  };
+
+  // 测试向量数据库连接
+  const handleTestVector = async () => {
+    setVectorTestStatus("testing");
+    setVectorTestResult(null);
+    try {
+      const result = await mem0Api.testVectorStoreConnection();
+      setVectorTestResult(result);
+      setVectorTestStatus(result.status === "connected" ? "success" : "error");
+    } catch {
+      setVectorTestStatus("error");
+      setVectorTestResult(null);
+    }
+  };
+
+  // 测试元数据库连接
+  const handleTestMeta = async () => {
+    setMetaTestStatus("testing");
+    setMetaTestResult(null);
+    try {
+      const result = await mem0Api.testMetaStoreConnection();
+      setMetaTestResult(result);
+      setMetaTestStatus(result.status === "connected" ? "success" : "error");
+    } catch {
+      setMetaTestStatus("error");
+      setMetaTestResult(null);
     }
   };
 
@@ -335,30 +371,122 @@ export default function SettingsPage() {
                 )}
               </div>
 
-              {/* 存储服务概览 */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-lg border p-4 space-y-3">
+              {/* 向量数据库 */}
+              <div className="rounded-lg border p-4 space-y-4">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Database className="h-5 w-5 text-orange-500" />
                     <span className="text-base font-semibold">向量数据库</span>
                   </div>
-                  <div className="text-sm space-y-2">
-                    <div className="flex items-center gap-2"><span className="text-muted-foreground">类型：</span><Badge variant="secondary" className="font-mono text-sm px-2.5 py-0.5">{configInfo.vector_store.provider}</Badge></div>
-                    <p><span className="text-muted-foreground">集合：</span><span className="font-mono">{configInfo.vector_store.collection_name}</span></p>
-                    <p><span className="text-muted-foreground">维度：</span><span className="font-mono">{configInfo.vector_store.embedding_model_dims}</span></p>
-                  </div>
-
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleTestVector}
+                    disabled={vectorTestStatus === "testing"}
+                  >
+                    {vectorTestStatus === "testing" ? (
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Zap className="mr-2 h-3.5 w-3.5" />
+                    )}
+                    测试连接
+                  </Button>
                 </div>
-                <div className="rounded-lg border p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Network className="h-5 w-5 text-green-500" />
-                    <span className="text-base font-semibold">图数据库</span>
-                  </div>
-                  <div className="text-sm space-y-2">
-                    <div className="flex items-center gap-2"><span className="text-muted-foreground">类型：</span><Badge variant="secondary" className="font-mono text-sm px-2.5 py-0.5">{configInfo.graph_store.provider}</Badge></div>
-                    <p className="truncate" title={configInfo.graph_store.url}><span className="text-muted-foreground">地址：</span><span className="font-mono">{configInfo.graph_store.url || "-"}</span></p>
-                  </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                  <div className="flex items-center gap-2"><span className="text-muted-foreground">类型：</span><Badge variant="secondary" className="font-mono text-sm px-2.5 py-0.5">{configInfo.vector_store.provider}</Badge></div>
+                  <div className="flex items-center gap-2"><span className="text-muted-foreground">集合：</span><Badge variant="outline" className="font-mono text-sm px-2.5 py-0.5">{configInfo.vector_store.collection_name || "-"}</Badge></div>
+                  <p className="col-span-2 truncate" title={configInfo.vector_store.url}><span className="text-muted-foreground">服务地址：</span><span className="font-mono">{configInfo.vector_store.url || "本地文件模式"}</span></p>
+                  <p><span className="text-muted-foreground">配置维度：</span><span className="font-mono">{configInfo.vector_store.embedding_model_dims}</span></p>
+                </div>
 
+                {vectorTestStatus === "success" && vectorTestResult && (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      {vectorTestResult.message}
+                    </div>
+                    {vectorTestResult.dimensions_match === false && (
+                      <p className="text-xs text-yellow-600 dark:text-yellow-400 ml-5.5">
+                        ⚠️ 实际维度 {vectorTestResult.dimensions} 与配置 {vectorTestResult.configured_dimensions} 不一致，可能导致插入失败
+                      </p>
+                    )}
+                    {typeof vectorTestResult.latency_ms === "number" && (
+                      <p className="text-xs text-muted-foreground ml-5.5">
+                        耗时 {vectorTestResult.latency_ms} ms
+                      </p>
+                    )}
+                  </div>
+                )}
+                {vectorTestStatus === "error" && (
+                  <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+                    <XCircle className="h-3.5 w-3.5" />
+                    {vectorTestResult?.message || "向量数据库连接测试失败"}
+                  </div>
+                )}
+              </div>
+
+              {/* 元数据库（PostgreSQL） */}
+              <div className="rounded-lg border p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Database className="h-5 w-5 text-sky-500" />
+                    <span className="text-base font-semibold">元数据库</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleTestMeta}
+                    disabled={metaTestStatus === "testing"}
+                  >
+                    {metaTestStatus === "testing" ? (
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Zap className="mr-2 h-3.5 w-3.5" />
+                    )}
+                    测试连接
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                  <div className="flex items-center gap-2"><span className="text-muted-foreground">类型：</span><Badge variant="secondary" className="font-mono text-sm px-2.5 py-0.5">{configInfo.meta_store.provider}</Badge></div>
+                  <div className="flex items-center gap-2"><span className="text-muted-foreground">数据库：</span><Badge variant="outline" className="font-mono text-sm px-2.5 py-0.5">{configInfo.meta_store.database || "-"}</Badge></div>
+                  <p className="col-span-2 truncate" title={configInfo.meta_store.url}><span className="text-muted-foreground">服务地址：</span><span className="font-mono">{configInfo.meta_store.url || "-"}</span></p>
+                </div>
+
+                {metaTestStatus === "success" && metaTestResult && (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      {metaTestResult.message}
+                    </div>
+                    {metaTestResult.server_version && (
+                      <p className="text-xs text-muted-foreground ml-5.5 truncate" title={metaTestResult.server_version}>
+                        版本：{metaTestResult.server_version}
+                      </p>
+                    )}
+                    {typeof metaTestResult.latency_ms === "number" && (
+                      <p className="text-xs text-muted-foreground ml-5.5">
+                        耗时 {metaTestResult.latency_ms} ms
+                      </p>
+                    )}
+                  </div>
+                )}
+                {metaTestStatus === "error" && (
+                  <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+                    <XCircle className="h-3.5 w-3.5" />
+                    {metaTestResult?.message || "元数据库连接测试失败"}
+                  </div>
+                )}
+              </div>
+
+              {/* 图数据库 */}
+              <div className="rounded-lg border p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Network className="h-5 w-5 text-green-500" />
+                  <span className="text-base font-semibold">图数据库</span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                  <div className="flex items-center gap-2"><span className="text-muted-foreground">类型：</span><Badge variant="secondary" className="font-mono text-sm px-2.5 py-0.5">{configInfo.graph_store.provider}</Badge></div>
+                  <p className="col-span-1 truncate" title={configInfo.graph_store.url}><span className="text-muted-foreground">地址：</span><span className="font-mono">{configInfo.graph_store.url || "-"}</span></p>
                 </div>
               </div>
             </>

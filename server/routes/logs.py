@@ -2,15 +2,15 @@
 访问日志 + 请求日志路由
 """
 
-import sqlite3
 import logging
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta, timezone
 
+import psycopg2.extras
 from fastapi import APIRouter, HTTPException, Query
 
 from server.config import _safe_error_detail
-from server.services.log_service import get_access_logs, get_request_logs, _get_db_conn
+from server.services.log_service import get_access_logs, get_request_logs, _get_db_conn, _release_conn
 
 logger = logging.getLogger(__name__)
 
@@ -82,30 +82,33 @@ async def get_request_logs_stats(
     until: Optional[str] = Query(None, description="结束时间 ISO 格式"),
 ):
     """获取请求日志统计（按类型分组计数 + 按类型趋势数据，自动根据时间范围切换粒度）"""
+    conn = None
     try:
         conn = _get_db_conn()
-        conn.row_factory = sqlite3.Row
 
         where = "WHERE 1=1"
         params: list = []
         if since:
-            where += " AND timestamp >= ?"
+            where += " AND timestamp >= %s"
             params.append(since)
         if until:
-            where += " AND timestamp <= ?"
+            where += " AND timestamp <= %s"
             params.append(until)
 
-        # 按类型分组（归并旧版英文类型名）
-        type_rows = conn.execute(
-            f"SELECT request_type, COUNT(*) as count FROM request_logs {where} GROUP BY request_type ORDER BY count DESC",
-            params,
-        ).fetchall()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            # 按类型分组（归并旧版英文类型名）
+            cur.execute(
+                f"SELECT request_type, COUNT(*) as count FROM request_logs {where} GROUP BY request_type ORDER BY count DESC",
+                params,
+            )
+            type_rows = cur.fetchall()
+
         type_distribution: Dict[str, int] = {}
         for row in type_rows:
             normalized = _normalize_request_type(row["request_type"])
             type_distribution[normalized] = type_distribution.get(normalized, 0) + row["count"]
 
-        # 判断粒度：since 在 24 小时内用 30 分钟粒度，否则按天
+        # 判断粒度
         now = datetime.now(timezone.utc)
         if since:
             try:
@@ -114,21 +117,22 @@ async def get_request_logs_stats(
                 since_dt = now - timedelta(days=14)
             hours_diff = (now - since_dt).total_seconds() / 3600
         else:
-            hours_diff = 999  # 无 since 视为大范围
+            hours_diff = 999
 
-        # 小时级粒度（<=24h）：按 1 小时分桶
         if hours_diff <= 24:
             granularity = "hour"
-            # 按 1 小时分桶查询
-            hourly_rows = conn.execute(
-                f"""SELECT
-                      STRFTIME('%Y-%m-%d %H:00', timestamp) as slot,
-                      request_type, COUNT(*) as count
-                    FROM request_logs {where}
-                    GROUP BY slot, request_type
-                    ORDER BY slot""",
-                params,
-            ).fetchall()
+            # PostgreSQL：按 1 小时分桶
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    f"""SELECT
+                          TO_CHAR(DATE_TRUNC('hour', timestamp::timestamptz), 'YYYY-MM-DD HH24:00') AS slot,
+                          request_type, COUNT(*) AS count
+                        FROM request_logs {where}
+                        GROUP BY slot, request_type
+                        ORDER BY slot""",
+                    params,
+                )
+                hourly_rows = cur.fetchall()
 
             slot_map: Dict[str, Dict[str, int]] = {}
             all_types = set()
@@ -140,12 +144,11 @@ async def get_request_logs_stats(
                     slot_map[s] = {}
                 slot_map[s][t] = slot_map[s].get(t, 0) + row["count"]
 
-            # 补全 24 小时时间槽（00:00 ~ 23:00）
+            # 补全 24 小时时间槽
             daily_trend = []
             slot_start = since_dt.replace(hour=0, minute=0, second=0, microsecond=0)
             slot_end = slot_start.replace(hour=23, minute=0)
             while slot_start <= slot_end:
-                # 格式与 SQL STRFTIME('%Y-%m-%d %H:00') 保持一致
                 slot_key = slot_start.strftime("%Y-%m-%d %H:00")
                 entry: Dict[str, Any] = {"date": slot_key}
                 type_counts = slot_map.get(slot_key, {})
@@ -156,14 +159,17 @@ async def get_request_logs_stats(
 
         else:
             granularity = "day"
-            # 按天分组（原逻辑）
-            daily_type_rows = conn.execute(
-                f"""SELECT DATE(timestamp) as date, request_type, COUNT(*) as count
-                   FROM request_logs {where}
-                   GROUP BY DATE(timestamp), request_type
-                   ORDER BY date""",
-                params,
-            ).fetchall()
+            # PostgreSQL：按天分组
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    f"""SELECT TO_CHAR(timestamp::timestamptz, 'YYYY-MM-DD') AS date,
+                               request_type, COUNT(*) AS count
+                           FROM request_logs {where}
+                           GROUP BY date, request_type
+                           ORDER BY date""",
+                    params,
+                )
+                daily_type_rows = cur.fetchall()
 
             daily_type_map: Dict[str, Dict[str, int]] = {}
             all_types = set()
@@ -175,7 +181,6 @@ async def get_request_logs_stats(
                     daily_type_map[d] = {}
                 daily_type_map[d][t] = daily_type_map[d].get(t, 0) + row["count"]
 
-            # 补全缺失日期
             num_days = min(int(hours_diff / 24) + 1, 30)
             daily_trend = []
             for i in range(num_days - 1, -1, -1):
@@ -187,7 +192,9 @@ async def get_request_logs_stats(
                 daily_trend.append(entry)
 
         # 总请求数
-        total = conn.execute(f"SELECT COUNT(*) FROM request_logs {where}", params).fetchone()[0]
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM request_logs {where}", params)
+            total = cur.fetchone()[0]
 
         return {
             "total": total,
@@ -199,3 +206,6 @@ async def get_request_logs_stats(
     except Exception as e:
         logger.error(f"获取请求日志统计失败: {e}")
         raise HTTPException(status_code=500, detail=_safe_error_detail(e))
+    finally:
+        if conn is not None:
+            _release_conn(conn)

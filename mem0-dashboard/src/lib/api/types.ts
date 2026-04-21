@@ -359,9 +359,20 @@ export interface ConfigInfoResponse {
     provider: string;
     collection_name: string;
     embedding_model_dims: number;
+    /** 远程向量数据库访问地址，本地文件模式时为空串 */
+    url: string;
   };
   graph_store: {
     provider: string;
+    url: string;
+  };
+  /** 记忆元数据库（PostgreSQL）基本信息；URL 不包含凭据 */
+  meta_store: {
+    provider: string;
+    host: string;
+    port: number;
+    database: string;
+    /** 展示用地址：host:port/database，生产环境对 IP 做脱敏 */
     url: string;
   };
 }
@@ -369,12 +380,32 @@ export interface ConfigInfoResponse {
 /** 服务连接测试响应 */
 export interface ServiceTestResponse {
   status: "connected" | "error";
+  /** provider 视测试目标而定：ollama / qdrant / postgresql 等 */
   provider: string;
-  model: string;
+  /** 模型名或实例标识，存储类测试可能缺省 */
+  model?: string;
+  /** 展示用访问地址（已剥离凭据） */
   base_url: string;
+  /** LLM 特有：模型是否存在于服务端列表 */
   model_available?: boolean;
+  /** LLM 特有：首条生成样例 */
   test_response?: string;
+  /** Embedder / Vector 特有：向量维度 */
   embedding_dims?: number;
+  /** Vector 特有：集合名 / 数据点数 / 配置维度 / 实际维度 / 维度是否一致 */
+  collection_name?: string;
+  points_count?: number;
+  dimensions?: number;
+  configured_dimensions?: number;
+  dimensions_match?: boolean;
+  /** Meta 特有：主机 / 端口 / 数据库名 / 版本 / 主表记录数 */
+  host?: string;
+  port?: number;
+  database?: string;
+  server_version?: string;
+  memories_count?: number;
+  /** 存储类测试公共：耗时（ms） */
+  latency_ms?: number;
   message: string;
 }
 

@@ -1,0 +1,295 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.3, pytest-9.0.2, pluggy-1.6.0 -- D:\Program Files\Python314\python.exe
+cachedir: .pytest_cache
+rootdir: D:\Users\V_grhe\Desktop\ai-demo\demo2
+configfile: pytest.ini
+plugins: anyio-4.13.0, langsmith-0.7.31, asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 10 items
+
+tests/test_health.py::TestHealthCheck::test_health_check_returns_ok ERROR [ 10%]
+tests/test_health.py::TestHealthCheck::test_health_check_alias_ok ERROR  [ 20%]
+tests/test_health.py::TestHealthCheck::test_health_check_response_format ERROR [ 30%]
+tests/test_health.py::TestConfigInfo::test_config_info_has_all_blocks ERROR [ 40%]
+tests/test_health.py::TestConfigInfo::test_config_info_vector_store_has_url ERROR [ 50%]
+tests/test_health.py::TestConfigInfo::test_config_info_meta_store_shape ERROR [ 60%]
+tests/test_health.py::TestVectorStoreConnection::test_test_vector_success ERROR [ 70%]
+tests/test_health.py::TestVectorStoreConnection::test_test_vector_error ERROR [ 80%]
+tests/test_health.py::TestMetaStoreConnection::test_test_meta_success ERROR [ 90%]
+tests/test_health.py::TestMetaStoreConnection::test_test_meta_error ERROR [100%]
+
+=================================== ERRORS ====================================
+_______ ERROR at setup of TestHealthCheck.test_health_check_returns_ok ________
+D:\Program Files\Python314\Lib\site-packages\pytest_asyncio\plugin.py:730: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+tests\conftest.py:171: in client
+    stack.enter_context(patch("server.services.memory_service.get_memory", return_value=mock_memory))
+D:\Program Files\Python314\Lib\contextlib.py:530: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+D:\Program Files\Python314\Lib\unittest\mock.py:1487: in __enter__
+    self.target = self.getter()
+                  ^^^^^^^^^^^^^
+D:\Program Files\Python314\Lib\pkgutil.py:458: in resolve_name
+    mod = importlib.import_module(modname)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Python314\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\__init__.py:10: in <module>
+    from server.app import app  # noqa: F401 �� FastAPI Ӧ��ʵ��
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\app.py:19: in <module>
+    from server.services.log_service import init_access_log_db, start_log_writer, stop_log_writer, start_log_cleanup
+server\services\log_service.py:13: in <module>
+    import psycopg2
+E   ModuleNotFoundError: No module named 'psycopg2'
+----------------------------- Captured log setup ------------------------------
+WARNING  server.config:config.py:137 �������� WEBHOOK_SECRET_KEY δ���ã������滻Ϊ���ַ��������� .env �ļ��򻷾��������ã�
+________ ERROR at setup of TestHealthCheck.test_health_check_alias_ok _________
+D:\Program Files\Python314\Lib\site-packages\pytest_asyncio\plugin.py:730: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+tests\conftest.py:171: in client
+    stack.enter_context(patch("server.services.memory_service.get_memory", return_value=mock_memory))
+D:\Program Files\Python314\Lib\contextlib.py:530: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+D:\Program Files\Python314\Lib\unittest\mock.py:1487: in __enter__
+    self.target = self.getter()
+                  ^^^^^^^^^^^^^
+D:\Program Files\Python314\Lib\pkgutil.py:458: in resolve_name
+    mod = importlib.import_module(modname)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Python314\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\__init__.py:10: in <module>
+    from server.app import app  # noqa: F401 �� FastAPI Ӧ��ʵ��
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\app.py:19: in <module>
+    from server.services.log_service import init_access_log_db, start_log_writer, stop_log_writer, start_log_cleanup
+server\services\log_service.py:13: in <module>
+    import psycopg2
+E   ModuleNotFoundError: No module named 'psycopg2'
+_____ ERROR at setup of TestHealthCheck.test_health_check_response_format _____
+D:\Program Files\Python314\Lib\site-packages\pytest_asyncio\plugin.py:730: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+tests\conftest.py:171: in client
+    stack.enter_context(patch("server.services.memory_service.get_memory", return_value=mock_memory))
+D:\Program Files\Python314\Lib\contextlib.py:530: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+D:\Program Files\Python314\Lib\unittest\mock.py:1487: in __enter__
+    self.target = self.getter()
+                  ^^^^^^^^^^^^^
+D:\Program Files\Python314\Lib\pkgutil.py:458: in resolve_name
+    mod = importlib.import_module(modname)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Python314\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\__init__.py:10: in <module>
+    from server.app import app  # noqa: F401 �� FastAPI Ӧ��ʵ��
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\app.py:19: in <module>
+    from server.services.log_service import init_access_log_db, start_log_writer, stop_log_writer, start_log_cleanup
+server\services\log_service.py:13: in <module>
+    import psycopg2
+E   ModuleNotFoundError: No module named 'psycopg2'
+______ ERROR at setup of TestConfigInfo.test_config_info_has_all_blocks _______
+D:\Program Files\Python314\Lib\site-packages\pytest_asyncio\plugin.py:730: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+tests\conftest.py:171: in client
+    stack.enter_context(patch("server.services.memory_service.get_memory", return_value=mock_memory))
+D:\Program Files\Python314\Lib\contextlib.py:530: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+D:\Program Files\Python314\Lib\unittest\mock.py:1487: in __enter__
+    self.target = self.getter()
+                  ^^^^^^^^^^^^^
+D:\Program Files\Python314\Lib\pkgutil.py:458: in resolve_name
+    mod = importlib.import_module(modname)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Python314\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\__init__.py:10: in <module>
+    from server.app import app  # noqa: F401 �� FastAPI Ӧ��ʵ��
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\app.py:19: in <module>
+    from server.services.log_service import init_access_log_db, start_log_writer, stop_log_writer, start_log_cleanup
+server\services\log_service.py:13: in <module>
+    import psycopg2
+E   ModuleNotFoundError: No module named 'psycopg2'
+___ ERROR at setup of TestConfigInfo.test_config_info_vector_store_has_url ____
+D:\Program Files\Python314\Lib\site-packages\pytest_asyncio\plugin.py:730: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+tests\conftest.py:171: in client
+    stack.enter_context(patch("server.services.memory_service.get_memory", return_value=mock_memory))
+D:\Program Files\Python314\Lib\contextlib.py:530: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+D:\Program Files\Python314\Lib\unittest\mock.py:1487: in __enter__
+    self.target = self.getter()
+                  ^^^^^^^^^^^^^
+D:\Program Files\Python314\Lib\pkgutil.py:458: in resolve_name
+    mod = importlib.import_module(modname)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Python314\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\__init__.py:10: in <module>
+    from server.app import app  # noqa: F401 �� FastAPI Ӧ��ʵ��
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\app.py:19: in <module>
+    from server.services.log_service import init_access_log_db, start_log_writer, stop_log_writer, start_log_cleanup
+server\services\log_service.py:13: in <module>
+    import psycopg2
+E   ModuleNotFoundError: No module named 'psycopg2'
+_____ ERROR at setup of TestConfigInfo.test_config_info_meta_store_shape ______
+D:\Program Files\Python314\Lib\site-packages\pytest_asyncio\plugin.py:730: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+tests\conftest.py:171: in client
+    stack.enter_context(patch("server.services.memory_service.get_memory", return_value=mock_memory))
+D:\Program Files\Python314\Lib\contextlib.py:530: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+D:\Program Files\Python314\Lib\unittest\mock.py:1487: in __enter__
+    self.target = self.getter()
+                  ^^^^^^^^^^^^^
+D:\Program Files\Python314\Lib\pkgutil.py:458: in resolve_name
+    mod = importlib.import_module(modname)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Python314\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\__init__.py:10: in <module>
+    from server.app import app  # noqa: F401 �� FastAPI Ӧ��ʵ��
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\app.py:19: in <module>
+    from server.services.log_service import init_access_log_db, start_log_writer, stop_log_writer, start_log_cleanup
+server\services\log_service.py:13: in <module>
+    import psycopg2
+E   ModuleNotFoundError: No module named 'psycopg2'
+____ ERROR at setup of TestVectorStoreConnection.test_test_vector_success _____
+D:\Program Files\Python314\Lib\site-packages\pytest_asyncio\plugin.py:730: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+tests\conftest.py:171: in client
+    stack.enter_context(patch("server.services.memory_service.get_memory", return_value=mock_memory))
+D:\Program Files\Python314\Lib\contextlib.py:530: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+D:\Program Files\Python314\Lib\unittest\mock.py:1487: in __enter__
+    self.target = self.getter()
+                  ^^^^^^^^^^^^^
+D:\Program Files\Python314\Lib\pkgutil.py:458: in resolve_name
+    mod = importlib.import_module(modname)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Python314\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\__init__.py:10: in <module>
+    from server.app import app  # noqa: F401 �� FastAPI Ӧ��ʵ��
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\app.py:19: in <module>
+    from server.services.log_service import init_access_log_db, start_log_writer, stop_log_writer, start_log_cleanup
+server\services\log_service.py:13: in <module>
+    import psycopg2
+E   ModuleNotFoundError: No module named 'psycopg2'
+_____ ERROR at setup of TestVectorStoreConnection.test_test_vector_error ______
+D:\Program Files\Python314\Lib\site-packages\pytest_asyncio\plugin.py:730: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+tests\conftest.py:171: in client
+    stack.enter_context(patch("server.services.memory_service.get_memory", return_value=mock_memory))
+D:\Program Files\Python314\Lib\contextlib.py:530: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+D:\Program Files\Python314\Lib\unittest\mock.py:1487: in __enter__
+    self.target = self.getter()
+                  ^^^^^^^^^^^^^
+D:\Program Files\Python314\Lib\pkgutil.py:458: in resolve_name
+    mod = importlib.import_module(modname)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Python314\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\__init__.py:10: in <module>
+    from server.app import app  # noqa: F401 �� FastAPI Ӧ��ʵ��
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\app.py:19: in <module>
+    from server.services.log_service import init_access_log_db, start_log_writer, stop_log_writer, start_log_cleanup
+server\services\log_service.py:13: in <module>
+    import psycopg2
+E   ModuleNotFoundError: No module named 'psycopg2'
+______ ERROR at setup of TestMetaStoreConnection.test_test_meta_success _______
+D:\Program Files\Python314\Lib\site-packages\pytest_asyncio\plugin.py:730: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+tests\conftest.py:171: in client
+    stack.enter_context(patch("server.services.memory_service.get_memory", return_value=mock_memory))
+D:\Program Files\Python314\Lib\contextlib.py:530: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+D:\Program Files\Python314\Lib\unittest\mock.py:1487: in __enter__
+    self.target = self.getter()
+                  ^^^^^^^^^^^^^
+D:\Program Files\Python314\Lib\pkgutil.py:458: in resolve_name
+    mod = importlib.import_module(modname)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Python314\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\__init__.py:10: in <module>
+    from server.app import app  # noqa: F401 �� FastAPI Ӧ��ʵ��
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\app.py:19: in <module>
+    from server.services.log_service import init_access_log_db, start_log_writer, stop_log_writer, start_log_cleanup
+server\services\log_service.py:13: in <module>
+    import psycopg2
+E   ModuleNotFoundError: No module named 'psycopg2'
+_______ ERROR at setup of TestMetaStoreConnection.test_test_meta_error ________
+D:\Program Files\Python314\Lib\site-packages\pytest_asyncio\plugin.py:730: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+tests\conftest.py:171: in client
+    stack.enter_context(patch("server.services.memory_service.get_memory", return_value=mock_memory))
+D:\Program Files\Python314\Lib\contextlib.py:530: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+D:\Program Files\Python314\Lib\unittest\mock.py:1487: in __enter__
+    self.target = self.getter()
+                  ^^^^^^^^^^^^^
+D:\Program Files\Python314\Lib\pkgutil.py:458: in resolve_name
+    mod = importlib.import_module(modname)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+D:\Program Files\Python314\Lib\importlib\__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\__init__.py:10: in <module>
+    from server.app import app  # noqa: F401 �� FastAPI Ӧ��ʵ��
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+server\app.py:19: in <module>
+    from server.services.log_service import init_access_log_db, start_log_writer, stop_log_writer, start_log_cleanup
+server\services\log_service.py:13: in <module>
+    import psycopg2
+E   ModuleNotFoundError: No module named 'psycopg2'
+=========================== short test summary info ===========================
+ERROR tests/test_health.py::TestHealthCheck::test_health_check_returns_ok - M...
+ERROR tests/test_health.py::TestHealthCheck::test_health_check_alias_ok - Mod...
+ERROR tests/test_health.py::TestHealthCheck::test_health_check_response_format
+ERROR tests/test_health.py::TestConfigInfo::test_config_info_has_all_blocks
+ERROR tests/test_health.py::TestConfigInfo::test_config_info_vector_store_has_url
+ERROR tests/test_health.py::TestConfigInfo::test_config_info_meta_store_shape
+ERROR tests/test_health.py::TestVectorStoreConnection::test_test_vector_success
+ERROR tests/test_health.py::TestVectorStoreConnection::test_test_vector_error
+ERROR tests/test_health.py::TestMetaStoreConnection::test_test_meta_success
+ERROR tests/test_health.py::TestMetaStoreConnection::test_test_meta_error - M...
+============================= 10 errors in 2.04s ==============================

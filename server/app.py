@@ -45,9 +45,8 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 50)
     logger.info("Mem0 Dashboard 后端服务启动中...")
     _vs_cfg = MEM0_CONFIG.get("vector_store", {}).get("config", {})
-    _qdrant_host = _vs_cfg.get("host", "unknown")
-    _qdrant_port = _vs_cfg.get("port", "unknown")
-    logger.info(f"Qdrant 存储模式: 远程服务模式 ({_qdrant_host}:{_qdrant_port})")
+    _qdrant_addr = _vs_cfg.get("url") or f"{_vs_cfg.get('host', 'unknown')}:{_vs_cfg.get('port', 'unknown')}"
+    logger.info(f"Qdrant 存储模式: 远程服务模式 ({_qdrant_addr})")
     logger.info("=" * 50)
     # 初始化全局异步 HTTP 客户端
     memory_service.http_client = httpx.AsyncClient(timeout=30.0)
