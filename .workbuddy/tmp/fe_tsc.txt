@@ -1,0 +1,12 @@
+__tests__/lib/api-client.test.ts(5,7): error TS2451: Cannot redeclare block-scoped variable 'mockFetch'.
+__tests__/lib/api-client.test.ts(13,10): error TS2393: Duplicate function implementation.
+__tests__/lib/api-client.test.ts(110,9): error TS2353: Object literal may only specify known properties, and 'state' does not exist in type 'FilterParams'.
+__tests__/lib/api/client.test.ts(7,7): error TS2451: Cannot redeclare block-scoped variable 'mockFetch'.
+__tests__/lib/api/client.test.ts(26,10): error TS2393: Duplicate function implementation.
+__tests__/lib/api/client.test.ts(74,53): error TS2353: Object literal may only specify known properties, and 'state' does not exist in type 'FilterParams'.
+__tests__/lib/constants.test.ts(5,27): error TS2305: Module '"@/lib/constants"' has no exported member 'getStateInfo'.
+__tests__/lib/constants.test.ts(5,56): error TS2305: Module '"@/lib/constants"' has no exported member 'STATE_LIST'.
+__tests__/lib/constants.test.ts(47,36): error TS7006: Parameter 's' implicitly has an 'any' type.
+__tests__/store/connection-store.test.ts(62,62): error TS2554: Expected 0 arguments, but got 1.
+__tests__/store/connection-store.test.ts(73,62): error TS2554: Expected 0 arguments, but got 1.
+__tests__/store/connection-store.test.ts(94,62): error TS2554: Expected 0 arguments, but got 1.

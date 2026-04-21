@@ -217,47 +217,52 @@ async def store_memories_node(state: PlaygroundState) -> dict:
         raw_new = add_result.get("results", []) if isinstance(add_result, dict) else add_result
         for item in raw_new:
             event = item.get("event", "NONE")
-            if event in ("ADD", "UPDATE"):
-                mem_id = item.get("id", "")
-                mem_text = item.get("memory", "")
-                new_memories.append({
-                    "id": mem_id,
-                    "memory": mem_text,
-                    "event": event,
-                })
-                cats = []
-                # 自动分类并写入 Qdrant
-                if mem_text and mem_id:
-                    try:
-                        cats = await auto_categorize_memory(mem_text)
-                        if cats:
-                            _write_categories_to_qdrant(m, mem_id, cats)
-                    except Exception as e:
-                        logger.warning(f"[LangGraph] 自动分类失败 [{mem_id}]: {e}")
+            mem_id = item.get("id", "")
+            mem_text = item.get("memory", "")
+            # 只保留真正落库的记忆事件，避免 NONE/DELETE 或缺 id 的无效事件
+            # 被误计入"新增/更新"数量（主要修正 UPDATE 无实际新增却被算成新增的情况）
+            if event not in ("ADD", "UPDATE"):
+                continue
+            if not mem_id:
+                continue
+            new_memories.append({
+                "id": mem_id,
+                "memory": mem_text,
+                "event": event,
+            })
+            cats = []
+            # 自动分类并写入 Qdrant
+            if mem_text and mem_id:
+                try:
+                    cats = await auto_categorize_memory(mem_text)
+                    if cats:
+                        _write_categories_to_qdrant(m, mem_id, cats)
+                except Exception as e:
+                    logger.warning(f"[LangGraph] 自动分类失败 [{mem_id}]: {e}")
 
-                # 双写关系库（对齐其他写入路径，区分 ADD/UPDATE）
-                if mem_id:
-                    try:
-                        if event == "ADD":
-                            await asyncio.to_thread(
-                                meta_service.create_memory_meta,
-                                memory_id=mem_id,
-                                user_id=state["user_id"],
-                                content=mem_text,
-                                hash_value=item.get("hash", "") if isinstance(item, dict) else "",
-                                categories=cats,
-                                metadata={"categories": cats} if cats else {},
-                            )
-                        elif event == "UPDATE":
-                            await asyncio.to_thread(
-                                meta_service.update_memory_meta,
-                                memory_id=mem_id,
-                                content=mem_text,
-                                categories=cats if cats else None,
-                                metadata={"categories": cats} if cats else None,
-                            )
-                    except Exception as db_err:
-                        logger.warning(f"[LangGraph] 关系库双写失败（不影响主流程）: {db_err}")
+            # 双写关系库（对齐其他写入路径，区分 ADD/UPDATE）
+            if mem_id:
+                try:
+                    if event == "ADD":
+                        await asyncio.to_thread(
+                            meta_service.create_memory_meta,
+                            memory_id=mem_id,
+                            user_id=state["user_id"],
+                            content=mem_text,
+                            hash_value=item.get("hash", "") if isinstance(item, dict) else "",
+                            categories=cats,
+                            metadata={"categories": cats} if cats else {},
+                        )
+                    elif event == "UPDATE":
+                        await asyncio.to_thread(
+                            meta_service.update_memory_meta,
+                            memory_id=mem_id,
+                            content=mem_text,
+                            categories=cats if cats else None,
+                            metadata={"categories": cats} if cats else None,
+                        )
+                except Exception as db_err:
+                    logger.warning(f"[LangGraph] 关系库双写失败（不影响主流程）: {db_err}")
 
         if new_memories:
             memory_service.invalidate_stats_cache()

@@ -361,10 +361,9 @@ async def test_vector_store_connection():
                 first_val = next(iter(vectors.values()))
                 actual_dims = int(getattr(first_val, "size", 0) or 0)
 
-        points_count = int(getattr(info, "points_count", 0) or 0)
-
+        # 仅做连通性探测，不再返回集合内向量数量（避免给用户传达“数据量”等与连接测试无关的信息）
         dims_match = (actual_dims == configured_dims) if (configured_dims and actual_dims) else True
-        message_parts = [f"Qdrant 连接成功，集合「{collection_name}」共 {points_count} 条向量"]
+        message_parts = [f"Qdrant 连接成功，集合「{collection_name}」"]
         if actual_dims:
             message_parts.append(f"维度 {actual_dims}")
         if configured_dims and actual_dims and not dims_match:
@@ -377,7 +376,8 @@ async def test_vector_store_connection():
             "provider": provider,
             "base_url": display_url,
             "collection_name": collection_name,
-            "points_count": points_count,
+            # points_count 字段保留 0，兼容前端类型定义；连通性测试不再暴露数据量
+            "points_count": 0,
             "dimensions": actual_dims or configured_dims,
             "configured_dimensions": configured_dims,
             "dimensions_match": dims_match,
@@ -403,11 +403,10 @@ async def test_vector_store_connection():
 
 @router.get("/v1/config/test-meta")
 async def test_meta_store_connection():
-    """测试元数据库（PostgreSQL）连接：执行轻量查询并统计主要表记录数。
+    """测试元数据库（PostgreSQL）连接：仅做连通性探测。
 
     返回值：
       - server_version：PostgreSQL 版本（执行 SELECT version()）
-      - memories_count：当前 memory_meta 表记录数
       - latency_ms：查询耗时
     """
     meta_info = _parse_meta_dsn(DATABASE_URL)
@@ -426,14 +425,6 @@ async def test_meta_store_connection():
             ver_row = conn.execute(sa_text("SELECT version()")).scalar() or ""
             # version() 返回较长，取前 80 字符足够判断引擎/版本
             server_version = ver_row[:80]
-            # 3) 主表计数（memory_meta 在 meta_service / models 中定义）
-            try:
-                memories_count = int(
-                    conn.execute(sa_text("SELECT COUNT(*) FROM memory_meta")).scalar() or 0
-                )
-            except Exception:
-                # 表未创建（首次部署）或权限不足：不算错误，仅提示为 0
-                memories_count = 0
 
         latency = round((time.time() - start) * 1000, 1)
         return {
@@ -444,9 +435,10 @@ async def test_meta_store_connection():
             "database": meta_info["database"],
             "base_url": display_url,
             "server_version": server_version,
-            "memories_count": memories_count,
+            # memories_count 字段保留 0，兼容前端类型定义；连通性测试不再统计数据量
+            "memories_count": 0,
             "latency_ms": latency,
-            "message": f"PostgreSQL 连接成功，memory_meta 共 {memories_count} 条记录",
+            "message": "PostgreSQL 连接成功",
         }
     except Exception as e:
         latency = round((time.time() - start) * 1000, 1)

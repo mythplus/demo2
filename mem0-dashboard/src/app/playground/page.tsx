@@ -104,13 +104,27 @@ const MessageBubble = React.memo(function MessageBubble({
             </button>
           )}
 
-          {/* 新增记忆标记 */}
-          {!isUser && message.newMemories && message.newMemories.length > 0 && (
-            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
-              <Plus className="h-3 w-3" />
-              新增 {message.newMemories.length} 条记忆
-            </span>
-          )}
+          {/* 新增 / 更新记忆标记（按 Mem0 SDK 的 event 区分：ADD 为新增，UPDATE 为改写已有记忆） */}
+          {!isUser && message.newMemories && message.newMemories.length > 0 && (() => {
+            const addedCount = message.newMemories.filter((m) => m.event === "ADD").length;
+            const updatedCount = message.newMemories.filter((m) => m.event === "UPDATE").length;
+            return (
+              <div className="inline-flex items-center gap-2 text-[11px]">
+                {addedCount > 0 && (
+                  <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                    <Plus className="h-3 w-3" />
+                    新增 {addedCount} 条记忆
+                  </span>
+                )}
+                {updatedCount > 0 && (
+                  <span className="inline-flex items-center gap-1 text-sky-600 dark:text-sky-400">
+                    <RefreshCw className="h-3 w-3" />
+                    更新 {updatedCount} 条记忆
+                  </span>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>

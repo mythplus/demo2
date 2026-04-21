@@ -112,7 +112,22 @@ async def add_memory(request: AddMemoryRequest):
             kwargs["metadata"] = final_metadata
 
         # m.add 是同步的 Mem0 SDK 调用，放到线程池执行避免阻塞事件循环
-        result = await asyncio.to_thread(m.add, messages=messages, infer=request.infer, **kwargs)
+        # Mem0 的 graph_store 分支与 infer 参数无关，只要启用 graph 就会调 LLM 抽取
+        # 实体关系；当 LLM（尤其是本地小模型）返回不规范 JSON 时，mem0 的
+        # graph_memory 会抛 KeyError: 'source' / 'destination' / 'relationship' 等，
+        # 导致整个 add 失败。这里做一次降级：图谱抽取异常时自动禁用图谱重试，
+        # 保证向量库核心写入不被边缘内容阻塞。
+        def _add_with_graph_fallback():
+            try:
+                return m.add(messages=messages, infer=request.infer, **kwargs)
+            except (KeyError, ValueError, TypeError) as graph_err:
+                logger.warning(
+                    f"图谱关系抽取失败，降级为仅向量存储后重试：{type(graph_err).__name__}: {graph_err}"
+                )
+                with disable_graph(m) as m_no_graph:
+                    return m_no_graph.add(messages=messages, infer=request.infer, **kwargs)
+
+        result = await asyncio.to_thread(_add_with_graph_fallback)
 
         added_items = []
         if isinstance(result, dict) and "results" in result:

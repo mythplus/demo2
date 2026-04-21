@@ -1,0 +1,139 @@
+
+> mem0-dashboard@0.1.0 lint
+> next lint
+
+
+./src/app/data-transfer/page.tsx
+51:36  Warning: 'OperationRecord' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+68:10  Warning: 'memoryCount' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+69:10  Warning: 'loading' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+98:14  Warning: 'recordsLoading' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/app/graph-memory/page.tsx
+245:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+258:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+280:6  Warning: React Hook useEffect has missing dependencies: 'fetchHealth' and 'fetchStats'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+297:6  Warning: React Hook useEffect has missing dependencies: 'entitySearch', 'fetchEntities', 'fetchGraphData', 'fetchRelations', 'graphHealth', and 'relationSearch'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+302:26  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+341:17  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+362:17  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+387:17  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/app/memories/page.tsx
+77:5  Warning: 'totalIsEstimate' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/app/memory/[id]/page.tsx
+11:3  Warning: 'RefreshCw' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+17:3  Warning: 'Play' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+18:3  Warning: 'Pause' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+19:3  Warning: 'Archive' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+339:73  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+350:89  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+353:73  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/app/not-found.tsx
+1:30  Warning: 'ArrowLeft' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/app/page.tsx
+22:10  Warning: 'Badge' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/app/playground/page.tsx
+352:9  Warning: 'isNearBottom' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/app/search/page.tsx
+15:3  Warning: 'ChevronDown' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+16:3  Warning: 'Check' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+29:10  Warning: 'Separator' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+125:9  Warning: The 'saveHistory' function makes the dependencies of useCallback Hook (at line 189) change on every render. Move it inside the useCallback callback. Alternatively, wrap the definition of 'saveHistory' in its own useCallback() Hook.  react-hooks/exhaustive-deps
+
+./src/app/users/page.tsx
+13:3  Warning: 'Loader2' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+19:3  Warning: 'CardDescription' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/app/users/[userId]/page.tsx
+16:3  Warning: 'Eye' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+31:10  Warning: 'Badge' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+32:10  Warning: 'Separator' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/app/webhooks/page.tsx
+13:3  Warning: 'X' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+24:3  Warning: 'CardDescription' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/components/graph/force-graph-viewer.tsx
+41:27  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+128:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+153:45  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+199:27  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+202:27  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+204:25  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+205:27  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+206:27  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+209:43  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+215:29  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/layout/client-layout.tsx
+63:6  Warning: React Hook useEffect has a missing dependency: 'setSidebarCollapsed'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/memories/add-memory-dialog.tsx
+16:3  Warning: 'Select' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+17:3  Warning: 'SelectContent' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+18:3  Warning: 'SelectItem' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+19:3  Warning: 'SelectTrigger' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+20:3  Warning: 'SelectValue' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+26:25  Warning: 'getCategoryInfo' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/components/memories/import-dialog.tsx
+24:3  Warning: 'SkipForward' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+159:6  Warning: React Hook React.useEffect has missing dependencies: 'onOpenChange' and 'reset'. Either include them or remove the dependency array. If 'onOpenChange' changes too often, find the parent component that defines it and wrap that definition in useCallback.  react-hooks/exhaustive-deps
+
+./src/components/memories/memory-detail-panel.tsx
+333:71  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+345:87  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+349:71  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/memories/memory-filters.tsx
+8:3  Warning: 'Select' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+9:3  Warning: 'SelectContent' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+10:3  Warning: 'SelectItem' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+11:3  Warning: 'SelectTrigger' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+12:3  Warning: 'SelectValue' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/components/memories/memory-table.tsx
+5:10  Warning: 'Eye' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+5:47  Warning: 'Archive' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+5:56  Warning: 'Pause' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+5:63  Warning: 'Play' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/components/ui/dropdown-menu.tsx
+5:10  Warning: 'Check' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+5:31  Warning: 'Circle' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/components/ui/select.tsx
+5:30  Warning: 'ChevronUp' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/hooks/use-toast.ts
+18:7  Warning: 'actionTypes' is assigned a value but only used as a type. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/lib/import-task-registry.ts
+16:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+17:16  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/types/react-force-graph-2d.d.ts
+2:12  Warning: 'Component' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+5:26  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+5:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+6:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+7:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+9:41  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+10:31  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+11:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+17:26  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+18:26  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+24:11  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+25:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+28:95  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/basic-features/eslint#disabling-rules
