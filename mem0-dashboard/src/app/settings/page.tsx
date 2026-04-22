@@ -170,7 +170,6 @@ export default function SettingsPage() {
   const themeIcons = {
     light: Sun,
     dark: Moon,
-    system: Settings,
   };
 
   return (
@@ -542,12 +541,11 @@ export default function SettingsPage() {
               </p>
             </div>
             <div className="flex gap-1">
-              {(["light", "dark", "system"] as const).map((mode) => {
+              {(["light", "dark"] as const).map((mode) => {
                 const Icon = themeIcons[mode];
                 const labels = {
                   light: "浅色",
                   dark: "深色",
-                  system: "系统",
                 };
                 return (
                   <Button

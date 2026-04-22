@@ -111,7 +111,7 @@ export function useMemoriesPage() {
         search: debouncedSearchText.trim() || undefined,
         page: currentPage,
         page_size: pageSize,
-        sort_by: sortOrder === "oldest" ? "created_at" : sortOrder === "updated" ? "updated_at" : "created_at",
+        sort_by: "created_at",
         sort_order: sortOrder === "oldest" ? "asc" : "desc",
       };
       const data = await mem0Api.getMemories(apiFilters, controller.signal);

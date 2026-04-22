@@ -40,7 +40,7 @@ let pollingRefCount = 0;
 let pollingTimer: ReturnType<typeof setTimeout> | null = null;
 
 // B4 P2-7: HMR 时重置轮询状态，避免开发模式下累积多个定时器
-if (typeof module !== "undefined" && (module as Record<string, unknown>).hot) {
+if (typeof module !== "undefined" && (module as unknown as Record<string, unknown>).hot) {
   pollingRefCount = 0;
   if (pollingTimer) {
     clearTimeout(pollingTimer);

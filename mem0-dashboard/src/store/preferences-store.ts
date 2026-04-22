@@ -6,7 +6,7 @@ export interface UserPreferences {
   /** 默认排序方式 */
   sortOrder: "newest" | "oldest";
   /** 主题模式 */
-  themeMode: "light" | "dark" | "system";
+  themeMode: "light" | "dark";
 }
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
@@ -30,7 +30,7 @@ export function normalizePreferences(raw: unknown): UserPreferences {
         ? parsed.pageSize
         : DEFAULT_PREFERENCES.pageSize,
     sortOrder: parsed.sortOrder === "oldest" ? "oldest" : "newest",
-    themeMode: parsed.themeMode === "dark" ? "dark" : parsed.themeMode === "system" ? "system" : "light",
+    themeMode: parsed.themeMode === "dark" ? "dark" : "light",
   };
 }
 
