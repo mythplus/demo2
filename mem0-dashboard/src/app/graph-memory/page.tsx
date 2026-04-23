@@ -98,16 +98,16 @@ ForceGraphViewer.displayName = "ForceGraphViewer";
 
 // ============ 颜色工具 ============
 
-// 为不同用户分配颜色
-const USER_COLORS = [
+// 图谱内节点颜色调色板（用于在同一用户的图谱内区分不同节点）
+const NODE_COLORS = [
   "#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6",
   "#ec4899", "#06b6d4", "#f97316", "#14b8a6", "#6366f1",
+  "#f43f5e", "#84cc16", "#22d3ee", "#a855f7", "#fb923c",
 ];
 
-function getUserColor(userId: string | undefined, userList: string[]): string {
-  if (!userId) return "#94a3b8";
-  const idx = userList.indexOf(userId);
-  return idx >= 0 ? USER_COLORS[idx % USER_COLORS.length] : "#94a3b8";
+/** 根据节点索引分配颜色，让图谱内不同节点呈现不同颜色 */
+function getNodeColor(index: number): string {
+  return NODE_COLORS[index % NODE_COLORS.length];
 }
 
 // ============ 统计卡片 ============
@@ -416,9 +416,9 @@ export default function GraphMemoryPage() {
   const graphDataForViz = useMemo(() => {
     if (!graphData) return { nodes: [], links: [] };
     return {
-      nodes: graphData.nodes.map((n) => ({
+      nodes: graphData.nodes.map((n, index) => ({
         ...n,
-        color: getUserColor(n.user_id, userList),
+        color: getNodeColor(index),
       })),
       // 过滤掉自环线（source 和 target 相同的关系）
       links: graphData.links
@@ -427,7 +427,7 @@ export default function GraphMemoryPage() {
           ...l,
         })),
     };
-  }, [graphData, userList]);
+  }, [graphData]);
 
   // ============ 连接断开提示 ============
 
@@ -535,13 +535,7 @@ export default function GraphMemoryPage() {
                 >
                   <Filter className="h-4 w-4 shrink-0 text-muted-foreground" />
                   {selectedUserId ? (
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <div
-                        className="h-2.5 w-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: getUserColor(selectedUserId, userList) }}
-                      />
-                      <span className="truncate">{selectedUserId}</span>
-                    </div>
+                    <span className="flex-1 text-left truncate">{selectedUserId}</span>
                   ) : (
                     <span className="flex-1 text-left text-muted-foreground">选择用户...</span>
                   )}
@@ -566,10 +560,6 @@ export default function GraphMemoryPage() {
                         >
                           <Check
                             className={`h-4 w-4 shrink-0 ${selectedUserId === uid ? "opacity-100" : "opacity-0"}`}
-                          />
-                          <div
-                            className="h-2.5 w-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: getUserColor(uid, userList) }}
                           />
                           <span className="truncate">{uid}</span>
                         </CommandItem>
@@ -755,13 +745,7 @@ export default function GraphMemoryPage() {
                         </TableCell>
                         <TableCell className="pl-8">
                           {entity.user_id ? (
-                            <div className="flex items-center gap-1.5">
-                              <div
-                                className="h-2 w-2 rounded-full"
-                                style={{ backgroundColor: getUserColor(entity.user_id, userList) }}
-                              />
-                              <span className="text-sm">{entity.user_id}</span>
-                            </div>
+                            <span className="text-sm">{entity.user_id}</span>
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}

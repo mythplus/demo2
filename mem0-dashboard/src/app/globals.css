@@ -159,8 +159,12 @@
 }
 
 /* ============================================================
- * 进度条动画
+ * 深色模式下 date input 日历图标变白
  * ============================================================ */
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+
 @keyframes progress-indeterminate {
   0% {
     transform: translateX(-100%);
