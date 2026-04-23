@@ -207,22 +207,51 @@ async def add_memory(request: AddMemoryRequest):
 
                 init_cats = current_meta.get("categories", [])
                 memory_text = item.get("memory", "") if isinstance(item, dict) else ""
-                # B3 P2-2: save_memory_audit_snapshot 内部已是队列投递（非阻塞），无需 to_thread
-                save_memory_audit_snapshot(mid, "ADD", memory_text, init_cats)
+                event_type = str(item.get("event", "ADD")).upper()
 
-                # 双写关系库（对齐 OpenMemory 架构，带重试）
-                await _retry_db_write(
-                    meta_service.create_memory_meta,
-                    memory_id=mid,
-                    user_id=user_id,
-                    content=memory_text,
-                    hash_value=item.get("hash", "") if isinstance(item, dict) else "",
-                    agent_id=request.agent_id or "",
-                    run_id=request.run_id or "",
-                    categories=init_cats,
-                    metadata=current_meta,
-                    desc=f"添加记忆 {mid} 关系库双写",
-                )
+                # 审计日志：记录实际事件类型（ADD / UPDATE）
+                save_memory_audit_snapshot(mid, event_type, memory_text, init_cats)
+
+                # 双写关系库：根据 Mem0 返回的 event 区分 INSERT / UPDATE
+                # Mem0 SDK 对语义相似的内容会复用已有 ID 并返回 event=UPDATE，
+                # 此时 PG 中该 ID 已存在，必须走 update 而非 insert，否则主键冲突。
+                if event_type == "UPDATE":
+                    update_result = await _retry_db_write(
+                        meta_service.update_memory_meta,
+                        memory_id=mid,
+                        content=memory_text,
+                        categories=init_cats,
+                        metadata=current_meta,
+                        desc=f"更新记忆 {mid} 关系库双写（Mem0 UPDATE 事件）",
+                    )
+                    # 兜底：如果 PG 中该记录不存在（之前双写失败过），fallback 到 create
+                    if update_result is None:
+                        logger.warning(f"Mem0 返回 UPDATE 事件但 PG 中无记录 {mid}，降级为 INSERT")
+                        await _retry_db_write(
+                            meta_service.create_memory_meta,
+                            memory_id=mid,
+                            user_id=user_id,
+                            content=memory_text,
+                            hash_value=item.get("hash", "") if isinstance(item, dict) else "",
+                            agent_id=request.agent_id or "",
+                            run_id=request.run_id or "",
+                            categories=init_cats,
+                            metadata=current_meta,
+                            desc=f"添加记忆 {mid} 关系库双写（UPDATE 降级 INSERT）",
+                        )
+                else:
+                    await _retry_db_write(
+                        meta_service.create_memory_meta,
+                        memory_id=mid,
+                        user_id=user_id,
+                        content=memory_text,
+                        hash_value=item.get("hash", "") if isinstance(item, dict) else "",
+                        agent_id=request.agent_id or "",
+                        run_id=request.run_id or "",
+                        categories=init_cats,
+                        metadata=current_meta,
+                        desc=f"添加记忆 {mid} 关系库双写",
+                    )
 
         invalidate_stats_cache()
 
