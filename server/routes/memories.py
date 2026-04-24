@@ -947,6 +947,35 @@ async def delete_all_memories(
             # B3 P0-3：无论成功/失败/中途异常，都刷新统计缓存
             invalidate_stats_cache()
         scope_label = f"用户 {user_id}" if user_id else "所有"
+
+        # 触发 Webhook 通知：带 user_id 视为"清空该用户"（user.hard_deleted），
+        # 否则是危险的全库清空（memory.batch_hard_deleted）。
+        # 与 hard_delete_user / 单条硬删 等路径保持事件语义一致，避免用户详情页
+        # 清空记忆时订阅"用户删除"的 Webhook 收不到通知。
+        try:
+            if user_id:
+                _wh_data = {
+                    "user_id": user_id,
+                    "memory": f"用户 {user_id} 的所有记忆已清空（共 {total_deleted} 条）",
+                    "event_detail": "delete_all_memories_by_user",
+                    "deleted_memories_count": total_deleted,
+                }
+                webhook_service.schedule_webhook_delivery(
+                    "user.hard_deleted", _wh_data, _mem_svc.http_client
+                )
+            else:
+                _wh_data = {
+                    "memory": f"全库记忆已永久清空（共 {total_deleted} 条）",
+                    "event_detail": "delete_all_memories_global",
+                    "deleted_memories_count": total_deleted,
+                }
+                webhook_service.schedule_webhook_delivery(
+                    "memory.batch_hard_deleted", _wh_data, _mem_svc.http_client
+                )
+        except Exception as wh_err:
+            # Webhook 属于旁路通知，失败不应影响主流程的删除结果
+            logger.warning(f"delete_all_memories Webhook 派发失败（不影响主流程）: {wh_err}")
+
         return {
             "message": f"{scope_label}的记忆已永久删除（共 {total_deleted} 条，不可恢复）",
             "deleted": total_deleted,
