@@ -169,7 +169,7 @@ export default function SettingsPage() {
       <div>
         <h2 className="text-xl font-bold tracking-tight">系统设置</h2>
         <p className="text-sm text-muted-foreground">
-          查看 API 连接信息、显示偏好
+          查看 API 连接状态、模型与服务配置、个性化显示偏好
         </p>
       </div>
 
