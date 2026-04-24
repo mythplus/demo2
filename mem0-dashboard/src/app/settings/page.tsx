@@ -47,7 +47,6 @@ export default function SettingsPage() {
   const [testStatus, setTestStatus] = useState<
     "idle" | "testing" | "success" | "error"
   >("idle");
-  const [apiInfo, setApiInfo] = useState<string>("");
 
   // 模型与服务配置
   const [configInfo, setConfigInfo] = useState<ConfigInfoResponse | null>(null);
@@ -146,18 +145,10 @@ export default function SettingsPage() {
   // 测试连接
   const handleTestConnection = async () => {
     setTestStatus("testing");
-    setApiInfo("");
     try {
       const isConnected = await mem0Api.healthCheck();
       if (isConnected) {
         setTestStatus("success");
-        // 尝试获取记忆数量作为额外信息
-        try {
-          const stats = await mem0Api.getStats();
-          setApiInfo(`当前共有 ${stats.total_memories} 条记忆数据`);
-        } catch {
-          setApiInfo("连接成功，但无法获取记忆数据");
-        }
       } else {
         setTestStatus("error");
       }
@@ -214,16 +205,9 @@ export default function SettingsPage() {
             </div>
 
             {testStatus === "success" && (
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-sm text-green-600">
-                  <CheckCircle className="h-4 w-4" />
-                  连接成功！API Server 运行正常
-                </div>
-                {apiInfo && (
-                  <p className="text-xs text-muted-foreground ml-6">
-                    {apiInfo}
-                  </p>
-                )}
+              <div className="flex items-center gap-2 text-sm text-green-600">
+                <CheckCircle className="h-4 w-4" />
+                连接成功！API Server 运行正常
               </div>
             )}
             {testStatus === "error" && (
@@ -242,10 +226,7 @@ export default function SettingsPage() {
               <code className="rounded bg-background px-1 py-0.5">
                 NEXT_PUBLIC_MEM0_API_URL
               </code>{" "}
-              控制。如需修改，请调整环境变量并重启前端服务。启动 Mem0 API Server：
-              <code className="ml-1 rounded bg-background px-1 py-0.5">
-                mem0 server start --port 8080
-              </code>
+              控制。如需修改，请调整环境变量并重启前端服务。
             </p>
           </div>
         </CardContent>
