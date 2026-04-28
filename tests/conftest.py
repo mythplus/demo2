@@ -172,7 +172,6 @@ def client(mock_memory, in_memory_db):
         stack.enter_context(patch("server.routes.memories.get_memory", return_value=mock_memory))
         stack.enter_context(patch("server.routes.search.get_memory", return_value=mock_memory))
         stack.enter_context(patch("server.routes.memories.get_all_memories_raw", return_value=_mock_memories_list))
-        stack.enter_context(patch("server.routes.stats.get_all_memories_raw", return_value=_mock_memories_list))
         # 日志服务 Mock
         stack.enter_context(patch("server.services.log_service._get_db_conn", return_value=in_memory_db))
         stack.enter_context(patch("server.routes.logs._get_db_conn", return_value=in_memory_db))
@@ -182,6 +181,7 @@ def client(mock_memory, in_memory_db):
         stack.enter_context(patch("server.services.log_service._enqueue_log"))
         stack.enter_context(patch("server.routes.memories.save_change_log"))
         stack.enter_context(patch("server.routes.memories.save_category_snapshot"))
+        stack.enter_context(patch("server.routes.memories.save_memory_audit_snapshot"))
         stack.enter_context(patch("server.routes.memories.log_access"))
         stack.enter_context(patch("server.routes.memories.get_change_logs", return_value=[]))
         # AI 分类 Mock
