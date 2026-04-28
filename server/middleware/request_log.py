@@ -73,6 +73,23 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
             payload_summary = summarize_payload(method, path, body)
             ts = datetime.now(timezone.utc).isoformat()
 
+            # 读取 RequestIdMiddleware 注入的 request_id（兜底生成空串，避免 AttributeError）
+            request_id = getattr(request.state, "request_id", "") or ""
+
+            # 结构化日志：通过 extra 透传 request_id，JsonLogFormatter 会自动写进 JSON 日志，
+            # 这样业务排障时可以基于 request_id 把中间件、路由、下游服务的日志串在一起
+            logger.info(
+                f"请求完成 [{method} {path}] status={status_code} latency={latency_ms:.1f}ms user={user_id}",
+                extra={
+                    "request_id": request_id,
+                    "method": method,
+                    "path": path,
+                    "status_code": status_code,
+                    "latency_ms": round(latency_ms, 2),
+                    "user_id": user_id,
+                },
+            )
+
             log_request(ts, method, path, request_type, user_id,
                         status_code, latency_ms, payload_summary, error_msg)
 

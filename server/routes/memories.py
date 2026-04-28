@@ -425,8 +425,27 @@ async def batch_import_memories(request: BatchImportRequest):
                 )
 
     # 并行执行所有导入任务
+    # 注意：使用 return_exceptions=True，保证即便 _process_single_item 未预期抛出异常
+    # （例如 TaskGroup 内的取消、KeyboardInterrupt 子类等），也不会让整个批量请求 500，
+    # 其它已成功的记忆依然能在响应中返回给前端。
     tasks = [_process_single_item(idx, item) for idx, item in enumerate(request.items)]
-    results = await asyncio.gather(*tasks)
+    raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # 把裸异常转换为 BatchImportResultItem，保持返回值类型一致
+    results: list[BatchImportResultItem] = []
+    for idx, r in enumerate(raw_results):
+        if isinstance(r, Exception):
+            logger.error(
+                f"批量导入第 {idx+1} 条出现未预期异常（已被 gather 捕获）: {r}",
+                exc_info=r,
+            )
+            results.append(
+                BatchImportResultItem(
+                    index=idx, success=False, error=_safe_error_detail(r)
+                )
+            )
+        else:
+            results.append(r)
 
     success_count = sum(1 for r in results if r.success)
     failed_count = len(results) - success_count
@@ -1414,10 +1433,10 @@ async def migrate_qdrant_to_db():
                             if updated_at.tzinfo is None:
                                 updated_at = updated_at.replace(tzinfo=timezone.utc)
                         except (ValueError, TypeError) as e:
-                            # 迷移场景：旧数据 updated_at 格式不规范时允许降级为 None，
-                            # 但必须留下 warning，避免迷移结果默默丢字段
+                            # 迁移场景：旧数据 updated_at 格式不规范时允许降级为 None，
+                            # 但必须留下 warning，避免迁移结果默默丢字段
                             logger.warning(
-                                f"迷移时解析 updated_at 失败 memory_id={mid}, value={memory.get('updated_at')!r}: {e}"
+                                f"迁移时解析 updated_at 失败 memory_id={mid}, value={memory.get('updated_at')!r}: {e}"
                             )
 
                     record = MemoryMeta(
