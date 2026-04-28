@@ -1,23 +1,24 @@
-# Mem0 Dashboard
+# Mem0 Dashboard — 后端服务
 
-> 基于 [Mem0](https://github.com/mem0ai/mem0) 的记忆管理平台 —— 为 AI 应用提供可视化、可审计、可治理的长期记忆基础设施。
+> 基于 [Mem0](https://github.com/mem0ai/mem0) 的记忆管理平台**后端仓库** —— 为 AI 应用提供可审计、可治理的长期记忆 API 基础设施。
 
-支持记忆的**增删改查、语义检索、图谱可视化、AI 对话、批量导入导出、Webhook 通知、访问审计**等全链路能力，开箱即用。
+提供记忆的**增删改查、语义检索、图谱管理、AI 对话、批量导入导出、Webhook 通知、访问审计**等全链路 RESTful API 能力。
+
+> ⚠️ **前端已拆分为独立仓库**，本仓库仅包含 FastAPI 后端服务。前端项目请参见对应的前端仓库。
 
 ## 📋 目录
 
-- [核心特性](#-核心特性)
-- [系统架构](#️-系统架构)
-- [目录结构](#-目录结构)
-- [快速开始](#-快速开始)
-  - [本地开发](#方式一本地开发推荐日常开发)
-  - [Docker 一键部署](#方式二docker-一键部署推荐生产)
-- [配置说明](#️-配置说明)
-- [功能模块](#-功能模块)
-- [API 接口](#-api-接口)
-- [安全机制](#-安全机制)
-- [测试](#-测试)
-- [常见问题](#-常见问题)
+1. [核心特性](#-核心特性)
+2. [系统架构](#️-系统架构)
+3. [目录结构](#-目录结构)
+4. [快速开始](#-快速开始)
+   - [本地开发](#方式一本地开发推荐日常开发)
+   - [Docker 部署](#方式二docker-部署推荐生产)
+5. [配置说明](#️-配置说明)
+6. [API 接口](#-api-接口)
+7. [安全机制](#-安全机制)
+8. [测试](#-测试)
+9. [常见问题](#-常见问题)
 
 ---
 
@@ -27,9 +28,9 @@
 |------|------|------|
 | 🧠 **记忆管理** | 增删改查 / 批量操作 / 分类标签 / 修改历史 | AI 自动分类（20 个分类）、软删除、审计日志 |
 | 🔍 **语义检索** | 向量相似度搜索 / 关联记忆推荐 | 基于 Qdrant + nomic-embed-text |
-| 💬 **Playground** | AI 对话 + 记忆增强 / SSE 流式输出 | 实时查看检索到的记忆和自动提取的新记忆 |
-| 🕸️ **图谱记忆** | 知识图谱可视化 / 实体与关系管理 | Neo4j 图数据库 + 力导向布局 |
-| 📊 **仪表盘** | 统计概览 / 趋势图表 / 分类分布 | 记忆/用户/请求三维统计 |
+| 💬 **Playground** | AI 对话 + 记忆增强 / SSE 流式输出 | 流式 API 端点，支持前端对接 |
+| 🕸️ **图谱记忆** | 实体与关系管理 / 图谱搜索 | Neo4j 图数据库 |
+| 📊 **统计接口** | 统计概览 / 趋势数据 / 分类分布 | 记忆/用户/请求三维统计 API |
 | 📥 **数据导入导出** | JSON / CSV 双向流转 / 筛选导出 | 支持用户/分类/时间多维筛选 |
 | 🪝 **Webhook** | 7 种事件通知 / 企业微信机器人 / Fernet 加密 | 防 SSRF、自动重试、签名验证 |
 | 📝 **审计日志** | 访问日志 / 请求日志 / 变更历史 / 速率限制 | PostgreSQL 统一存储，小时/天双粒度统计 |
@@ -41,27 +42,26 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        用户浏览器                                │
+│              前端应用（独立仓库）/ 其他 API 消费者                  │
 └──────────────────────────┬──────────────────────────────────────┘
-                           │ HTTPS
+                           │ HTTPS / HTTP
                  ┌─────────▼─────────┐
-                 │  Nginx 反向代理    │  ← SSL 终止 + 同源代理
+                 │  Nginx 反向代理    │  ← SSL 终止 + API 代理
                  │  (生产环境)        │
                  └─────────┬─────────┘
-           ┌───────────────┴───────────────┐
-           │                               │
-  ┌────────▼────────┐             ┌────────▼────────┐
-  │  Next.js 前端   │             │  FastAPI 后端    │
-  │  (Port 3000)    │             │  (Port 8080)    │
-  │                 │             │                 │
-  │ • App Router    │             │ • 中间件链：     │
-  │ • Zustand       │             │   Auth/Rate/Log │
-  │ • react-query   │             │ • 8 个路由模块   │
-  │ • recharts      │             │ • 异步任务队列   │
-  │ • Radix UI      │             │                 │
-  └─────────────────┘             └────────┬────────┘
-                                           │
-     ┌─────────────────┬───────────────────┼──────────────────────┐
+                           │
+                  ┌────────▼────────┐
+                  │  FastAPI 后端    │
+                  │  (Port 8080)    │
+                  │                 │
+                  │ • 中间件链：     │
+                  │   Auth/Rate/Log │
+                  │ • 8 个路由模块   │
+                  │ • 异步任务队列   │
+                  │                 │
+                  └────────┬────────┘
+                           │
+     ┌─────────────────┬───┴───────────────┬──────────────────────┐
      │                 │                   │                      │
 ┌────▼──────┐   ┌──────▼──────┐   ┌───────▼───────┐    ┌────────▼───────┐
 │ Qdrant    │   │   Ollama    │   │  PostgreSQL   │    │     Neo4j      │
@@ -79,13 +79,14 @@
 
 ```mermaid
 graph LR
-    A[用户输入] --> B[Mem0 SDK]
-    B --> C[Ollama LLM<br/>提取事实]
-    C --> D[Ollama Embedder<br/>向量化]
-    D --> E[Qdrant 远程<br/>向量存储]
-    B --> F[PostgreSQL<br/>元数据+变更日志]
-    B --> G[Neo4j<br/>实体关系]
-    E & F & G --> H[API 返回]
+    A[API 请求] --> B[FastAPI 中间件链<br/>Auth/Rate/Log]
+    B --> C[Mem0 SDK]
+    C --> D[Ollama LLM<br/>提取事实]
+    D --> E[Ollama Embedder<br/>向量化]
+    E --> F[Qdrant 远程<br/>向量存储]
+    C --> G[PostgreSQL<br/>元数据+变更日志]
+    C --> H[Neo4j<br/>实体关系]
+    F & G & H --> I[API 响应]
 ```
 
 ---
@@ -101,6 +102,7 @@ demo2/
 │   ├── middleware/               # 中间件
 │   │   ├── auth.py               # API Key 认证（Bearer / X-API-Key）
 │   │   ├── rate_limit.py         # 速率限制（SQLite 计数器）
+│   │   ├── request_id.py         # 请求 ID 追踪
 │   │   └── request_log.py        # 请求日志记录
 │   ├── models/                   # ORM 数据模型
 │   │   ├── database.py           # SQLAlchemy 引擎 + 会话（PostgreSQL）
@@ -127,50 +129,6 @@ demo2/
 │   └── scripts/
 │       └── migrate_to_relational_db.py  # 数据迁移脚本
 │
-├── mem0-dashboard/               # 前端 Next.js 应用
-│   ├── src/
-│   │   ├── app/                  # App Router 页面（10 个）
-│   │   │   ├── page.tsx                 # 仪表盘
-│   │   │   ├── playground/              # AI 对话
-│   │   │   ├── memories/                # 记忆管理
-│   │   │   ├── memory/[id]/             # 记忆详情
-│   │   │   ├── search/                  # 语义检索
-│   │   │   ├── users/                   # 用户管理
-│   │   │   ├── users/[userId]/          # 用户详情
-│   │   │   ├── requests/                # 请求日志
-│   │   │   ├── graph-memory/            # 图谱记忆
-│   │   │   ├── data-transfer/           # 数据导入导出
-│   │   │   ├── webhooks/                # Webhook 管理
-│   │   │   └── settings/                # 系统设置
-│   │   ├── components/
-│   │   │   ├── layout/           # 布局（Sidebar/Header）
-│   │   │   ├── dashboard/        # 仪表盘图表
-│   │   │   ├── memories/         # 记忆相关组件
-│   │   │   ├── graph/            # 力导向图组件
-│   │   │   ├── shared/           # 通用组件
-│   │   │   └── ui/               # Radix UI 原子组件
-│   │   ├── hooks/                # 自定义 Hook（6 个）
-│   │   │   ├── use-memories-page.ts    # 记忆列表页状态管理
-│   │   │   ├── use-playground-chat.ts  # Playground 对话逻辑
-│   │   │   ├── use-dashboard-data.ts   # 仪表盘数据
-│   │   │   ├── use-operation-records.ts # 操作记录
-│   │   │   ├── use-preferences.ts      # 用户偏好
-│   │   │   └── use-toast.ts            # Toast 通知
-│   │   ├── store/                # Zustand 全局状态
-│   │   └── lib/
-│   │       ├── api/              # API 客户端 + 类型定义
-│   │       ├── utils.ts          # 工具函数（含 UTC+8 时间格式化）
-│   │       ├── constants.ts      # 分类常量（英文→中文映射 + 归一化）
-│   │       ├── data-transfer.ts  # 导入导出核心逻辑
-│   │       ├── query-client.ts   # TanStack Query 客户端配置
-│   │       ├── import-task-registry.ts  # 导入任务注册表
-│   │       ├── operation-records-db.ts  # IndexedDB 操作记录
-│   │       └── playground-chat-db.ts    # IndexedDB 对话持久化
-│   ├── package.json
-│   ├── next.config.js
-│   ├── tailwind.config.js
-│   └── Dockerfile
-│
 ├── tests/                        # 后端测试（pytest）
 │   ├── conftest.py
 │   ├── test_memories_crud.py
@@ -191,12 +149,16 @@ demo2/
 │   ├── env.py                    # 迁移环境配置
 │   ├── versions/                 # 迁移版本脚本
 │   └── README.md                 # 迁移使用说明
+│
+├── .ci/                          # CI/CD 流水线配置
+│   └── stream.yml                # 蓝盾流水线配置
+│
 ├── access_logs.db                # SQLite 访问日志（轻量级，独立于 PG）
 ├── rate_limit.db                 # SQLite 速率限制
 ├── alembic.ini                   # Alembic 配置
 ├── config.yaml / .example        # 主配置文件
 ├── .env / .env.example           # 环境变量
-├── docker-compose.yml            # Docker 一键部署（开发）
+├── docker-compose.yml            # Docker 部署（开发）
 ├── docker-compose.prod.yml       # Docker 生产部署
 ├── Dockerfile                    # 后端镜像
 ├── requirements.txt              # Python 依赖
@@ -215,7 +177,6 @@ demo2/
 | 组件 | 版本 | 用途 |
 |------|------|------|
 | **Python** | 3.10+ | 后端运行时 |
-| **Node.js** | 18+ | 前端运行时 |
 | **PostgreSQL** | 14+ | 元数据 + 变更日志存储 |
 | **Ollama** | 最新版 | LLM + Embedder 推理服务 |
 | **Qdrant** | 1.7+ | 向量数据库（远程模式） |
@@ -237,29 +198,19 @@ ollama pull nomic-embed-text
 ```bash
 git clone <repo-url> demo2 && cd demo2
 
-# 后端
+# 创建虚拟环境并安装依赖
 python -m venv .venv
 .\.venv\Scripts\activate              # Windows
 # source .venv/bin/activate           # Linux / macOS
 pip install -r requirements.txt
-
-# 前端
-cd mem0-dashboard
-npm install
-cd ..
 ```
 
 #### 2. 准备配置文件
 
 ```bash
-# 后端配置
 copy .env.example .env                # Windows
 copy config.yaml.example config.yaml
 # 编辑 .env，填入 OLLAMA_BASE_URL / NEO4J_PASSWORD / MEM0_API_KEY
-
-# 前端配置
-copy mem0-dashboard\.env.example mem0-dashboard\.env.local
-# 编辑 .env.local，API Key 需与后端 MEM0_API_KEY 一致
 ```
 
 #### 3. 启动服务
@@ -267,30 +218,25 @@ copy mem0-dashboard\.env.example mem0-dashboard\.env.local
 **方案 A：一键启动（Windows）**
 
 ```bash
-.\start_server.bat       # 仅启动后端
-# 或使用项目提供的前后端联调脚本（如存在）
+.\.venv\Scripts\activate
+.\start_server.bat
 ```
 
-**方案 B：手动启动（双终端）**
+**方案 B：手动启动**
 
 ```bash
-# 终端 1：后端（端口 8080）
+# 启动后端（端口 8080）
 python -m uvicorn server.app:app --host 0.0.0.0 --port 8080 --reload
-
-# 终端 2：前端（端口 3000）
-cd mem0-dashboard
-npm run dev
 ```
 
 #### 4. 访问
 
-- 前端：http://localhost:3000
-- 后端 API 文档：http://localhost:8080/docs
+- API 文档：http://localhost:8080/docs
 - 健康检查：http://localhost:8080/
 
 ---
 
-### 方式二：Docker 一键部署（推荐生产）
+### 方式二：Docker 部署（推荐生产）
 
 #### 1. 配置环境变量
 
@@ -308,18 +254,17 @@ bash generate-cert.sh           # 生成 server.crt / server.key
 cd ../..
 ```
 
-#### 3. 启动全栈
+#### 3. 启动
 
 ```bash
 docker-compose up -d
 ```
 
-会启动 4 个容器：
+会启动以下容器：
 
 | 服务 | 端口 | 说明 |
 |------|------|------|
-| `mem0-nginx` | 80 / 443 | HTTPS 终止 + 同源反代 |
-| `mem0-frontend` | 3000（内网） | Next.js |
+| `mem0-nginx` | 80 / 443 | HTTPS 终止 + API 反代 |
 | `mem0-backend` | 8080（内网） | FastAPI |
 | `mem0-neo4j` | 7474 / 7687（内网） | 图数据库 |
 
@@ -331,7 +276,6 @@ docker-compose up -d
 
 ```bash
 docker-compose logs -f backend     # 查看后端日志
-docker-compose logs -f frontend    # 查看前端日志
 docker-compose restart backend     # 重启后端
 docker-compose down                # 停止全部
 docker-compose down -v             # 停止并清除数据卷
@@ -410,7 +354,9 @@ security:
   rate_limit: 60              # 每分钟请求数，0 表示不限
 ```
 
-### 3. 前端 `.env.local`
+### 3. 前端配置（独立仓库）
+
+前端已拆分为独立仓库，请参见前端仓库的 `.env.local` 配置说明。关键配置项：
 
 ```env
 NEXT_PUBLIC_MEM0_API_URL=http://localhost:8080
@@ -421,77 +367,59 @@ NEXT_PUBLIC_MEM0_API_KEY=mem0-xxx-yyy        # 必须与后端一致
 
 ---
 
-## 🎯 功能模块
+## 🎯 API 能力概览
 
-### 1️⃣ 仪表盘
+> 以下为后端提供的核心 API 能力，前端 UI 请参见前端独立仓库。
 
-- 四大概览卡片：记忆总数 / 用户总数 / 今日新增 / 系统状态
-- 新增记忆趋势图（30 天）
-- 请求趋势图（按类型分色，支持小时/天粒度）
-- 最近记忆 Top 5 / 活跃用户 Top 10
+### 1️⃣ 记忆 CRUD
 
-### 2️⃣ Playground — AI 对话
-
-- 实时 SSE 流式输出（支持 RAF 节流，逐 token 丝滑渲染）
-- **记忆增强**：对话前自动检索 Top-K 相关记忆作为上下文
-- **自动学习**：对话后提取关键信息存入记忆库
-- 侧边栏显示用户所有记忆，本轮引用高亮
-- IndexedDB 持久化对话历史
-- 流式期间暂停自动持久化，降低 IO 开销
-
-### 3️⃣ 记忆管理
-
-- 表格 / 列表双视图
+- 添加记忆（AI 自动分类，20 个分类）
+- 批量导入 / 批量删除
 - 多维筛选：搜索 / 用户 / 分类 / 日期 / 排序
-- 批量多选 / 全选 / 反选 / 批量删除
-- 添加记忆：AI 自动分类 或 手动选择分类
 - 编辑：支持重新分类、内容修改
-- 详情侧边栏：基本信息 + 修改历史对比
-- 20 个分类：个人/关系/偏好/健康/旅行/工作/教育/项目/AI技术/技术支持/财务/购物/法律/娱乐/消息/客户支持/产品反馈/新闻/组织/目标
+- 修改历史对比
+- 软删除 + 硬删除用户
 
-### 4️⃣ 语义检索
+### 2️⃣ 语义检索
 
 - 向量相似度搜索 + 相关度分数
 - 用户范围限定
-- 搜索历史（IndexedDB 持久化）
-- 单条记忆详情页可查看**关联记忆**
+- 关联记忆推荐
 
-### 5️⃣ 用户管理
+### 3️⃣ Playground — AI 对话
 
-- 用户列表 + 记忆数量 + 最后活跃时间
-- 用户详情页：筛选、排序、硬删除用户所有记忆
+- SSE 流式输出端点
+- 记忆增强：对话前自动检索 Top-K 相关记忆作为上下文
+- 自动学习：对话后提取关键信息存入记忆库
 
-### 6️⃣ 图谱记忆
+### 4️⃣ 图谱记忆
 
-- 力导向图可视化（react-force-graph-2d）
-- 实体/关系筛选：按用户、关系类型、关键词
+- 实体/关系 CRUD
+- 按用户、关系类型、关键词筛选
 - 关系类型分布统计
-- 实体 / 关系增删
 
-### 7️⃣ 请求日志
+### 5️⃣ 统计与日志
 
-- 按类型分标签页：概览 / 添加 / 搜索 / 更新 / 删除 / 对话
-- 柱状趋势图（24 小时按小时粒度，长时间按天粒度）
-- 类型、用户、事件、耗时、状态码展示
-- 快捷时间范围筛选
+- 全局统计：记忆总数 / 用户总数 / 今日新增
+- 请求日志：按类型分类（添加/搜索/更新/删除/对话）
+- 访问日志：单条记忆级别审计
+- 趋势数据：支持小时/天双粒度
 
-### 8️⃣ 数据导入导出
+### 6️⃣ 数据导入导出
 
-- **导出**：JSON（完整备份） / CSV（Excel 可读）
-- **分页导出**：每次拉取 200 条，实时进度显示，避免大数据量超时
-- **筛选导出**：用户 + 时间范围
-- **导入**：支持两种 JSON 格式（标准导出 / 简单数组）
-- 操作记录 IndexedDB 持久化，支持重新下载
+- 导出：JSON（完整备份） / CSV（Excel 可读）
+- 分页导出：每次拉取 200 条，避免大数据量超时
+- 筛选导出：用户 + 时间范围
+- 导入：支持两种 JSON 格式（标准导出 / 简单数组）
 
-### 9️⃣ Webhooks
+### 7️⃣ Webhooks
 
 - 7 种事件：记忆 ADD/UPDATE/DELETE/SEARCH、用户硬删除、批量导入/删除
-- 支持企业微信群机器人 URL 格式化
+- 支持企业微信群机器人 URL
 - Fernet 加密存储 Secret
-- SSRF 防护：拦截内网/元数据/本地回环 IP
-- 一键测试 / 启用禁用切换
+- SSRF 防护 + 一键测试
 
-### 🔟 系统设置
+### 8️⃣ 系统与健康
 
 - 测试 LLM / Embedder 连接
 - 查看完整配置信息（脱敏处理）
@@ -650,8 +578,6 @@ NEXT_PUBLIC_MEM0_API_KEY=mem0-xxx-yyy        # 必须与后端一致
 
 ## 🧪 测试
 
-### 后端测试
-
 ```bash
 # 运行全部测试
 pytest
@@ -665,15 +591,6 @@ pytest --cov=server --cov-report=html
 
 **测试覆盖模块**：CRUD / 搜索 / 图谱 / 中间件 / 访问日志 / 请求日志 / 统计 / 健康检查 / 配置
 
-### 前端测试
-
-```bash
-cd mem0-dashboard
-npm test                 # 运行 Jest 测试
-npm run test:watch       # 监听模式
-npm run test:coverage    # 覆盖率报告
-```
-
 ---
 
 ## ❓ 常见问题
@@ -684,7 +601,7 @@ npm run test:coverage    # 覆盖率报告
 检查：
 1. 后端是否在 8080 端口运行：`curl http://localhost:8080/`
 2. 前端 `.env.local` 中的 `NEXT_PUBLIC_MEM0_API_KEY` 是否与后端 `.env` 中的 `MEM0_API_KEY` 一致
-3. CORS 白名单是否包含前端地址
+3. CORS 白名单是否包含前端地址（后端 `.env` 中的 `CORS_ORIGINS`）
 
 </details>
 
@@ -736,8 +653,6 @@ docker-compose down -v
 
 ## 📝 技术栈
 
-### 后端
-
 - **Web 框架**：FastAPI 0.135 + Uvicorn 0.42
 - **记忆引擎**：Mem0 1.0.7
 - **向量存储**：Qdrant 1.17（远程模式）
@@ -747,22 +662,8 @@ docker-compose down -v
 - **ORM**：SQLAlchemy 2.0 + PostgreSQL + Alembic 迁移
 - **配置**：PyYAML 6.0 + python-dotenv 1.2
 - **加密**：cryptography 45.0
-
-### 前端
-
-- **框架**：Next.js 14（App Router）+ React 18
-- **语言**：TypeScript 5
-- **样式**：Tailwind CSS 3.4 + tailwindcss-animate
-- **组件**：Radix UI + cmdk + lucide-react
-- **状态**：Zustand 5 + TanStack React Query 5
-- **图表**：recharts 3.8 + react-force-graph-2d 1.29
-- **工具**：clsx / tailwind-merge / class-variance-authority
-
-### 部署
-
-- **Docker**：Docker Compose v3.8
-- **反向代理**：Nginx 1.25 (Alpine)
-- **测试**：pytest 9 + Jest 29 + Testing Library
+- **测试**：pytest 9
+- **部署**：Docker Compose v3.8 + Nginx 1.25 (Alpine)
 
 ---
 
@@ -779,4 +680,3 @@ docker-compose down -v
 - [Neo4j 文档](https://neo4j.com/docs/)
 - [Ollama](https://ollama.com/)
 - [FastAPI](https://fastapi.tiangolo.com/)
-- [Next.js](https://nextjs.org/)
