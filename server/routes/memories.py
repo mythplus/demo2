@@ -918,8 +918,13 @@ async def delete_all_memories(
                         old_memory_text = payload.get("data", "")
                         old_categories = (payload.get("metadata", {}) or {}).get("categories", [])
                         save_change_log(mid, "DELETE", old_memory_text, old_categories)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        # 非关键路径：记录 DELETE 审计日志失败不影响删除主流程，
+                        # 但必须留下 warning，方便后续排查“删除记录丢失”类问题（禁止静默失败）
+                        logger.warning(
+                            f"记录 DELETE 审计日志失败 memory_id={mid}: {e}",
+                            exc_info=True,
+                        )
 
                 # 物理删除 Qdrant 向量
                 try:
@@ -1319,8 +1324,13 @@ async def get_memory_history(memory_id: str):
             if points:
                 current_metadata = (points[0].payload or {}).get("metadata", {}) or {}
                 current_categories = current_metadata.get("categories", [])
-        except Exception:
-            pass
+        except Exception as e:
+            # 查询 Qdrant 当前分类失败属非关键路径（展示历史时有 categories 更好，
+            # 没有也不影响主流程），但必须记录 warning，避免静默失败
+            logger.warning(
+                f"获取记忆当前分类失败 memory_id={memory_id}: {e}",
+                exc_info=True,
+            )
 
         for item in history_list:
             if isinstance(item, dict):
@@ -1403,8 +1413,12 @@ async def migrate_qdrant_to_db():
                             updated_at = datetime.fromisoformat(str(memory["updated_at"]).replace("Z", "+00:00"))
                             if updated_at.tzinfo is None:
                                 updated_at = updated_at.replace(tzinfo=timezone.utc)
-                        except (ValueError, TypeError):
-                            pass
+                        except (ValueError, TypeError) as e:
+                            # 迷移场景：旧数据 updated_at 格式不规范时允许降级为 None，
+                            # 但必须留下 warning，避免迷移结果默默丢字段
+                            logger.warning(
+                                f"迷移时解析 updated_at 失败 memory_id={mid}, value={memory.get('updated_at')!r}: {e}"
+                            )
 
                     record = MemoryMeta(
                         id=mid,

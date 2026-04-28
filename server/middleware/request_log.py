@@ -45,12 +45,16 @@ class RequestLogMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # 读取请求体（不计入耗时）
+        # 失败时兜底空串，但必须记录 warning，方便排查请求日志为空的问题
         body = ""
         try:
             body_bytes = await request.body()
             body = body_bytes.decode("utf-8", errors="ignore")
-        except Exception:
-            body = ""
+        except Exception as e:
+            logger.warning(
+                f"读取请求体失败，payload 日志将为空 [{method} {path}]: {e}",
+                exc_info=True,
+            )
 
         # 执行请求（只计算业务处理耗时）
         start_time = time.time()

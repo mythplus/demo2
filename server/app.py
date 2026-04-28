@@ -29,6 +29,7 @@ from server.models.database import init_db, close_db
 from server.middleware.auth import ApiKeyAuthMiddleware
 from server.middleware.rate_limit import RateLimitMiddleware
 from server.middleware.request_log import RequestLogMiddleware
+from server.middleware.request_id import RequestIdMiddleware
 from server.routes import health, memories, search, stats, logs, graph, playground, webhooks
 
 
@@ -187,6 +188,12 @@ else:
 # 请求日志中间件
 app.add_middleware(RequestLogMiddleware)
 
+# 请求 ID 中间件（必须作为最外层，即最后 add_middleware）
+# FastAPI/Starlette 中间件执行顺序为逆序：后 add 的先进入 dispatch。
+# 将 RequestIdMiddleware 放在最后，保证在 CORS/认证/限流/日志任何中间件之前
+# 就已经把 request.state.request_id 准备好，全局异常处理器、业务代码、
+# 下游中间件均可通过同一 ID 串联同一请求的全部日志。
+app.add_middleware(RequestIdMiddleware)
 
 # ============ 路由注册 ============
 
