@@ -131,7 +131,7 @@ export const memoriesApi = {
   /** 检查 API 连接状态 */
   async healthCheck(): Promise<boolean> {
     try {
-      const data = await request<{ status: string }>("/", { timeout: 5000 });
+      const data = await request<{ status: string }>("", { timeout: 5000 });
       return data.status === "ok";
     } catch {
       return false;
