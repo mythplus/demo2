@@ -191,7 +191,7 @@ export default function SearchPage() {
       {/* 页面头部 */}
       <div>
         <h2 className="text-2xl font-bold tracking-tight">语义搜索</h2>
-        <p className="text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           使用自然语言搜索已存储的记忆，基于语义相似度智能匹配
         </p>
       </div>
@@ -252,7 +252,7 @@ export default function SearchPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="shrink-0 border-red-300 text-red-500 hover:bg-red-50 hover:text-red-600 dark:border-red-500/40 dark:text-red-400 dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                  className="shrink-0"
                   title="清除搜索"
                   onClick={() => {
                     setQuery("");

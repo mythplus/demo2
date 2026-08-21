@@ -35,7 +35,7 @@ interface StatsChartsProps {
   stats: StatsResponse;
 }
 
-export function StatsCharts({ stats }: StatsChartsProps) {
+export const StatsCharts = React.memo(function StatsCharts({ stats }: StatsChartsProps) {
   // 分类饼图数据
   const categoryData: Array<{ name: string; value: number; color: string }> = CATEGORY_LIST
     .map((cat) => ({
@@ -249,4 +249,4 @@ export function StatsCharts({ stats }: StatsChartsProps) {
       </Card>
     </div>
   );
-}
+});

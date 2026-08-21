@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -117,25 +117,29 @@ export default function MemoriesPage() {
   ) as string[]).sort((a, b) => a.localeCompare(b, "zh-CN", { numeric: true }));
 
   // 本地搜索过滤（在后端筛选结果上再做前端文本搜索）
-  const filteredMemories = memories
-    .filter((m) => {
-      if (!searchText.trim()) return true;
-      const keyword = searchText.trim().toLowerCase();
-      const memoryText = (m.memory || "").toLowerCase();
-      const userId = (m.user_id || "").toLowerCase();
-      const id = (m.id || "").toLowerCase();
-      return (
-        memoryText.includes(keyword) ||
-        userId.includes(keyword) ||
-        id.includes(keyword)
-      );
-    })
-    // 按偏好排序
-    .sort((a, b) => {
-      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
-      return sortOrder === "newest" ? timeB - timeA : timeA - timeB;
-    });
+  const filteredMemories = useMemo(
+    () =>
+      memories
+        .filter((m) => {
+          if (!searchText.trim()) return true;
+          const keyword = searchText.trim().toLowerCase();
+          const memoryText = (m.memory || "").toLowerCase();
+          const userId = (m.user_id || "").toLowerCase();
+          const id = (m.id || "").toLowerCase();
+          return (
+            memoryText.includes(keyword) ||
+            userId.includes(keyword) ||
+            id.includes(keyword)
+          );
+        })
+        // 按偏好排序
+        .sort((a, b) => {
+          const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return sortOrder === "newest" ? timeB - timeA : timeA - timeB;
+        }),
+    [memories, searchText, sortOrder]
+  );
 
   // 分页
   const totalPages = Math.ceil(filteredMemories.length / pageSize);
@@ -216,17 +220,13 @@ export default function MemoriesPage() {
     if (selectedIds.size === 0) return;
     setBatchDeleteLoading(true);
     try {
-      const deletePromises = Array.from(selectedIds).map((id) =>
-        mem0Api.deleteMemory(id).catch((err) => {
-          console.error(`删除记忆 ${id} 失败:`, err);
-          return null;
-        })
-      );
-      await Promise.all(deletePromises);
+      const ids = Array.from(selectedIds);
+      await mem0Api.batchDeleteMemories(ids);
       setBatchDeleteDialogOpen(false);
       setSelectedIds(new Set());
       setSelectionMode(false);
       fetchMemories();
+      toast({ title: "批量删除完成", description: `已删除 ${ids.length} 条记忆` });
     } catch (err) {
       console.error("批量删除失败:", err);
       toast({ title: "批量删除失败", description: err instanceof Error ? err.message : "未知错误", variant: "destructive" });
@@ -254,11 +254,13 @@ export default function MemoriesPage() {
   return (
     <div className="space-y-6">
       {/* 页面头部 */}
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">记忆管理</h2>
-        <p className="text-muted-foreground">
-          管理所有存储的记忆条目，支持添加、编辑、删除操作
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">记忆管理</h2>
+          <p className="text-sm text-muted-foreground">
+            管理所有存储的记忆条目，支持添加、编辑、删除操作
+          </p>
+        </div>
       </div>
 
       {/* 筛选栏 */}

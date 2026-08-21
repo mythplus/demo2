@@ -183,10 +183,10 @@ export default function MemoryDetailPage() {
         <div className="lg:col-span-2 space-y-3">
           {/* 记忆内容卡片 */}
           <Card>
-            <CardHeader className="px-4 py-3">
+            <CardHeader>
               <CardTitle>记忆内容</CardTitle>
             </CardHeader>
-            <CardContent className="px-4 pb-3 pt-0">
+            <CardContent>
               <div className="rounded-lg border bg-muted/50 p-3 overflow-hidden">
                 <p className="text-sm leading-relaxed whitespace-pre-wrap break-all">
                   {memory.memory}
@@ -198,10 +198,10 @@ export default function MemoryDetailPage() {
           {/* 分类标签 */}
           {memory.categories && memory.categories.length > 0 && (
             <Card>
-              <CardHeader className="px-4 py-3">
+              <CardHeader>
                 <CardTitle className="text-base">分类标签</CardTitle>
               </CardHeader>
-              <CardContent className="px-4 pb-3 pt-0">
+              <CardContent>
                 <CategoryBadges categories={memory.categories} />
               </CardContent>
             </Card>
@@ -216,10 +216,10 @@ export default function MemoryDetailPage() {
             );
             return Object.keys(filteredMetadata).length > 0 ? (
               <Card>
-                <CardHeader className="px-4 py-3">
+                <CardHeader>
                   <CardTitle className="text-base">元数据</CardTitle>
                 </CardHeader>
-                <CardContent className="px-4 pb-3 pt-0">
+                <CardContent>
                   <pre className="rounded-lg border bg-muted/50 p-3 text-xs overflow-x-auto font-mono">
                     {JSON.stringify(filteredMetadata, null, 2)}
                   </pre>
@@ -230,7 +230,7 @@ export default function MemoryDetailPage() {
 
           {/* 修改历史时间线 */}
           <Card>
-            <CardHeader className="px-4 py-3">
+            <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <History className="h-4 w-4" />
                 修改历史
@@ -239,7 +239,7 @@ export default function MemoryDetailPage() {
                 记录该记忆的所有变更操作
               </CardDescription>
             </CardHeader>
-            <CardContent className="px-4 pb-3 pt-0">
+            <CardContent>
               {loadingHistory ? (
                 <div className="space-y-3">
                   {[1, 2, 3].map((i) => (
@@ -402,10 +402,10 @@ export default function MemoryDetailPage() {
         <div className="space-y-3">
           {/* 元信息卡片 */}
           <Card>
-            <CardHeader className="px-4 py-3">
+            <CardHeader>
               <CardTitle className="text-base">基本信息</CardTitle>
             </CardHeader>
-            <CardContent className="px-4 pb-3 pt-0 space-y-3">
+            <CardContent className="space-y-3">
               {/* ID */}
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">
@@ -513,10 +513,10 @@ export default function MemoryDetailPage() {
 
           {/* 操作按钮 */}
           <Card>
-            <CardHeader className="px-4 py-3">
+            <CardHeader>
               <CardTitle className="text-base">操作</CardTitle>
             </CardHeader>
-            <CardContent className="px-4 pb-3 pt-0 space-y-2">
+            <CardContent className="space-y-2">
               <Button
                 variant="outline"
                 className="w-full justify-start"

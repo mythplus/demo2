@@ -1,0 +1,68 @@
+# ============================================
+# Mem0 Dashboard - 后端 Dockerfile
+# 多阶段构建：Python + FastAPI + Uvicorn
+# ============================================
+
+# ---------- 构建阶段 ----------
+FROM python:3.11-slim AS builder
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+# 安装系统编译依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# 复制依赖文件（利用缓存层）
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# ---------- 运行阶段 ----------
+FROM python:3.11-slim AS runner
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    MEM0_ENV=production \
+    MEM0_HOST=0.0.0.0 \
+    MEM0_PORT=8080
+
+WORKDIR /app
+
+# 安装运行时系统依赖（最小化）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# 从构建阶段复制已安装的 Python 包
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# 保留 requirements.txt 供参考和审计
+COPY requirements.txt ./requirements.txt
+
+# 创建非 root 用户
+RUN useradd -m -u 1001 appuser
+
+# 复制应用代码
+COPY --chown=appuser:appuser app/ ./app/
+COPY --chown=appuser:appuser server_new.py ./server.py
+COPY --chown=appuser:appuser config.yaml ./config.yaml
+COPY --chown=appuser:appuser config.yaml.example ./config.yaml.example
+
+# 创建数据目录
+RUN mkdir -p /app/qdrant_data /app/data && chown -R appuser:appuser /app/qdrant_data /app/data
+
+USER appuser
+
+EXPOSE 8080
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8080/ || exit 1
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

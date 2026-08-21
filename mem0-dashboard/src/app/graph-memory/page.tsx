@@ -342,12 +342,12 @@ export default function GraphMemoryPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">图谱记忆</h1>
-            <p className="text-muted-foreground">知识图谱可视化与管理</p>
+            <h2 className="text-2xl font-bold tracking-tight">图谱记忆</h2>
+            <p className="text-sm text-muted-foreground">知识图谱可视化与管理</p>
           </div>
         </div>
         <Card className="border-destructive">
-          <CardContent className="flex items-center gap-3 p-6">
+          <CardContent className="flex items-center gap-3 p-4">
             <AlertCircle className="h-5 w-5 text-destructive" />
             <div>
               <p className="font-medium text-destructive">Neo4j 图数据库未连接</p>
@@ -372,8 +372,8 @@ export default function GraphMemoryPage() {
       {/* 页面标题 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">图谱记忆</h1>
-          <p className="text-muted-foreground">知识图谱可视化与管理</p>
+          <h2 className="text-2xl font-bold tracking-tight">图谱记忆</h2>
+          <p className="text-sm text-muted-foreground">知识图谱可视化与管理</p>
         </div>
         <div className="flex items-center gap-2">
           {graphHealth?.status === "connected" && (
@@ -491,7 +491,7 @@ export default function GraphMemoryPage() {
           <div className="relative h-[500px] w-full border-t">
             {!selectedUserId ? (
               <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
-                <Users className="mb-3 h-12 w-12 opacity-50" />
+                <Users className="mb-3 h-16 w-16 opacity-30" />
                 <p className="text-sm font-medium">请先选择一个用户</p>
                 <p className="text-xs">在上方筛选栏中选择用户后，将加载该用户的知识图谱</p>
               </div>
@@ -506,7 +506,7 @@ export default function GraphMemoryPage() {
               />
             ) : (
               <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
-                <Network className="mb-3 h-12 w-12 opacity-50" />
+                <Network className="mb-3 h-16 w-16 opacity-30" />
                 <p className="text-sm">该用户暂无图谱数据</p>
                 <p className="text-xs">添加记忆后，系统会自动提取实体和关系</p>
               </div>
@@ -616,7 +616,7 @@ export default function GraphMemoryPage() {
                 </Table>
               ) : (
                 <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                  <CircleDot className="mb-2 h-8 w-8 opacity-50" />
+                  <CircleDot className="mb-2 h-10 w-10 opacity-30" />
                   <p className="text-sm">暂无实体数据</p>
                 </div>
               )}
@@ -691,7 +691,7 @@ export default function GraphMemoryPage() {
                 </Table>
               ) : (
                 <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                  <ArrowRightLeft className="mb-2 h-8 w-8 opacity-50" />
+                  <ArrowRightLeft className="mb-2 h-10 w-10 opacity-30" />
                   <p className="text-sm">暂无关系数据</p>
                 </div>
               )}
@@ -740,7 +740,7 @@ export default function GraphMemoryPage() {
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                  <Network className="mb-2 h-8 w-8 opacity-50" />
+                  <Network className="mb-2 h-10 w-10 opacity-30" />
                   <p className="text-sm">暂无关系类型数据</p>
                 </div>
               )}

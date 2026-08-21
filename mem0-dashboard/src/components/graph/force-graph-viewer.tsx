@@ -33,6 +33,12 @@ export default function ForceGraphViewer({ nodes, links, onNodeClick }: ForceGra
   const [dimensions, setDimensions] = useState({ width: 800, height: 500 });
   const [mounted, setMounted] = useState(false);
   const [isDark, setIsDark] = useState(false);
+  // 当数据变化时递增版本号，用于触发 ForceGraph2D 重新初始化力学模拟
+  const [dataVersion, setDataVersion] = useState(0);
+
+  useEffect(() => {
+    setDataVersion((v) => v + 1);
+  }, [nodes, links]);
 
   // 检测深色模式
   useEffect(() => {
@@ -153,6 +159,7 @@ export default function ForceGraphViewer({ nodes, links, onNodeClick }: ForceGra
   return (
     <div ref={containerRef} className="h-full w-full">
       <ForceGraph2D
+        key={dataVersion}
         ref={graphRef}
         graphData={{ nodes, links }}
         backgroundColor={bgColor}

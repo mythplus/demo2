@@ -1,0 +1,65 @@
+# ============================================
+# Mem0 Dashboard - 前端 Dockerfile
+# 多阶段构建：Node.js + Next.js
+# ============================================
+
+# ---------- 依赖安装阶段 ----------
+FROM node:20-alpine AS deps
+
+RUN apk add --no-cache libc6-compat
+
+WORKDIR /app
+
+COPY mem0-dashboard/package.json mem0-dashboard/package-lock.json* ./
+
+RUN npm ci
+
+# ---------- 构建阶段 ----------
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+ENV NEXT_TELEMETRY_DISABLED=1
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY mem0-dashboard/ ./
+
+# 构建时注入 API 地址（通过 ARG）
+ARG NEXT_PUBLIC_MEM0_API_URL=http://localhost:8080
+ENV NEXT_PUBLIC_MEM0_API_URL=${NEXT_PUBLIC_MEM0_API_URL}
+
+ARG NEXT_PUBLIC_MEM0_API_KEY=""
+ENV NEXT_PUBLIC_MEM0_API_KEY=${NEXT_PUBLIC_MEM0_API_KEY}
+
+RUN npm run build
+
+# ---------- 运行阶段 ----------
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
+
+# 创建非 root 用户
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+# 复制构建产物
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=nextjs:nodejs /app/next.config.js ./next.config.js
+
+USER nextjs
+
+EXPOSE 3000
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget -qO- http://localhost:3000/ || exit 1
+
+CMD ["npm", "start"]

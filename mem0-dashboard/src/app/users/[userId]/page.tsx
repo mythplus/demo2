@@ -140,7 +140,7 @@ export default function UserDetailPage() {
           </div>
           <div>
             <h2 className="text-2xl font-bold tracking-tight">{userId}</h2>
-            <p className="text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               共 {memories.length} 条记忆
             </p>
           </div>

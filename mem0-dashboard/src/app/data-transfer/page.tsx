@@ -297,18 +297,18 @@ export default function DataTransferPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* 页面头部 */}
       <div>
 <h2 className="text-2xl font-bold tracking-tight">数据导出</h2>
-        <p className="text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           导入和导出记忆数据，方便备份和迁移
         </p>
       </div>
 
       {/* 导出数据 */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Upload className="h-5 w-5" />
             导出数据
@@ -317,7 +317,7 @@ export default function DataTransferPage() {
             筛选并导出记忆数据为文件，支持 JSON 和 CSV 格式
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3 pt-0">
+        <CardContent className="space-y-3">
           {/* 筛选区域 */}
           <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
             <div className="flex items-center justify-between">
@@ -546,7 +546,7 @@ export default function DataTransferPage() {
 
       {/* 导入数据 */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Download className="h-5 w-5" />
             导入数据
@@ -555,7 +555,7 @@ export default function DataTransferPage() {
             从 JSON 文件批量导入记忆数据到系统中
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3 pt-0">
+        <CardContent className="space-y-3">
           <div className="flex gap-2 items-center">
             <Button
               variant="outline"
@@ -688,7 +688,7 @@ export default function DataTransferPage() {
         <CardContent>
           {operationRecords.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-              <ClipboardList className="h-10 w-10 mb-2 opacity-30" />
+              <ClipboardList className="h-16 w-16 mb-2 opacity-30" />
               <p className="text-sm">暂无操作记录</p>
               <p className="text-xs mt-1">执行导入或导出操作后，记录将显示在此处</p>
             </div>

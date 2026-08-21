@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import {
   Brain,
@@ -69,8 +69,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = useCallback(async (isRefresh = false) => {
+    if (!isRefresh) setLoading(true);
     try {
       const isConnected = await mem0Api.healthCheck();
       setConnectionStatus(isConnected ? "connected" : "disconnected");
@@ -89,60 +89,63 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
-  // 定时刷新（每 30 秒自动同步数据）
+  // 统一定时器：连接正常时 30s 刷新，断线时 10s 重试
   useEffect(() => {
-    if (connectionStatus !== "connected") return;
-    const interval = setInterval(fetchData, 30000);
-    return () => clearInterval(interval);
-  }, [connectionStatus]);
-
-  // 连接断开时自动重试
-  useEffect(() => {
-    if (connectionStatus !== "disconnected") return;
-    const retryInterval = setInterval(() => {
-      fetchData();
-    }, 10000);
-    return () => clearInterval(retryInterval);
-  }, [connectionStatus]);
+    if (connectionStatus === "checking") return;
+    const interval = connectionStatus === "connected" ? 30000 : 10000;
+    const timer = setInterval(() => fetchData(true), interval);
+    return () => clearInterval(timer);
+  }, [connectionStatus, fetchData]);
 
   // 排除已删除记忆，仪表盘只展示活跃记忆数据
-  const activeMemories = memories.filter((m) => m.state !== "deleted");
+  const activeMemories = useMemo(
+    () => memories.filter((m) => m.state !== "deleted"),
+    [memories]
+  );
 
   // 统计数据
   const totalMemories = stats?.total_memories ?? activeMemories.length;
-  const uniqueUserCount = stats?.total_users ?? new Set(activeMemories.map((m) => m.user_id).filter(Boolean)).size;
+  const uniqueUserCount = stats?.total_users ?? useMemo(
+    () => new Set(activeMemories.map((m) => m.user_id).filter(Boolean)).size,
+    [activeMemories]
+  );
 
   // 今日新增（从 stats.daily_trend 取今天的数据，避免时区问题）
   const todayStr = new Date().toISOString().slice(0, 10); // "2026-03-30"
   const todayCount = stats?.daily_trend?.find((d) => d.date === todayStr)?.count ?? 0;
 
   // 最近记忆（按时间排序，排除已删除记忆）
-  const recentMemories = [...activeMemories]
-    .sort((a, b) => {
-      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
-      return timeB - timeA;
-    })
-    .slice(0, 5);
+  const recentMemories = useMemo(
+    () =>
+      [...activeMemories]
+        .sort((a, b) => {
+          const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return timeB - timeA;
+        })
+        .slice(0, 5),
+    [activeMemories]
+  );
 
   // 用户记忆排行（排除已删除记忆）
-  const userMemoryCount = new Map<string, number>();
-  activeMemories.forEach((m) => {
-    if (m.user_id) {
-      userMemoryCount.set(
-        m.user_id,
-        (userMemoryCount.get(m.user_id) || 0) + 1
-      );
-    }
-  });
-  const topUsers = Array.from(userMemoryCount.entries())
-    .sort((a, b) => b[1] - a[1]);
+  const topUsers = useMemo(() => {
+    const userMemoryCount = new Map<string, number>();
+    activeMemories.forEach((m) => {
+      if (m.user_id) {
+        userMemoryCount.set(
+          m.user_id,
+          (userMemoryCount.get(m.user_id) || 0) + 1
+        );
+      }
+    });
+    return Array.from(userMemoryCount.entries()).sort((a, b) => b[1] - a[1]);
+  }, [activeMemories]);
 
   return (
     <div className="space-y-6">
@@ -282,7 +285,7 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-center">
-                <Brain className="mb-3 h-12 w-12 text-muted-foreground/50" />
+                <Brain className="mb-3 h-12 w-12 text-muted-foreground/30" />
                 <p className="text-sm text-muted-foreground">暂无记忆数据</p>
                 <p className="text-xs text-muted-foreground">
                   通过 API 添加记忆后，数据将显示在这里
@@ -336,7 +339,7 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-6 text-center">
-                <Users className="mb-2 h-8 w-8 text-muted-foreground/50" />
+                <Users className="mb-2 h-8 w-8 text-muted-foreground/30" />
                 <p className="text-xs text-muted-foreground">暂无用户数据</p>
               </div>
             )}

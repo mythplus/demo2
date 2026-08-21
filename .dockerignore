@@ -1,0 +1,65 @@
+# Version control
+.git
+.gitignore
+
+# Dependencies
+node_modules
+__pycache__
+*.pyc
+*.pyo
+
+# Build artifacts
+.next
+dist
+build
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+*.db
+*.db-shm
+*.db-wal
+server.log
+frontend.log
+
+# Test files
+tests
+**/*.test.js
+**/*.spec.js
+
+# Environment
+.env
+.env.local
+*.env
+
+# Data directories
+qdrant_data
+data
+
+# Documentation
+README.md
+docs
+
+# CI/CD
+.github
+.gitlab-ci.yml
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+
+# Misc
+coverage
+.cache
+tmp
+temp
+.workbuddy
+.knot

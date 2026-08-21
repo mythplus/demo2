@@ -1,0 +1,121 @@
+# ============================================
+# Mem0 Dashboard - docker-compose.yml
+# 一键部署前端 + 后端 + 依赖服务
+# ============================================
+# 使用方式:
+#   开发环境: docker compose up -d
+#   生产环境: docker compose --profile production up -d
+# ============================================
+
+services:
+  # ============ 后端 API 服务 ============
+  backend:
+    build:
+      context: .
+      dockerfile: .with/Dockerfile.backend
+    container_name: mem0-backend
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      - MEM0_ENV=production
+      - MEM0_HOST=0.0.0.0
+      - MEM0_PORT=8080
+    volumes:
+      # 持久化 Qdrant 向量数据
+      - qdrant_data:/app/qdrant_data
+      # 持久化 SQLite 日志数据库
+      - backend_data:/app/data
+      # 配置文件（可外部修改）
+      - ./config.yaml:/app/config.yaml:ro
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - mem0-net
+
+  # ============ 前端 Dashboard ============
+  frontend:
+    build:
+      context: .
+      dockerfile: .with/Dockerfile.frontend
+      args:
+        - NEXT_PUBLIC_MEM0_API_URL=${MEM0_DASHBOARD_API_URL:-http://localhost:8080}
+        - NEXT_PUBLIC_MEM0_API_KEY=${MEM0_API_KEY:-}
+    container_name: mem0-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_MEM0_API_URL=${MEM0_DASHBOARD_API_URL:-http://localhost:8080}
+      - NEXT_PUBLIC_MEM0_API_KEY=${MEM0_API_KEY:-}
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - mem0-net
+
+  # ============ Neo4j 图数据库 ============
+  neo4j:
+    image: neo4j:5-community
+    container_name: mem0-neo4j
+    ports:
+      - "7474:7474"  # HTTP Browser
+      - "7687:7687"  # Bolt
+    environment:
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-mem0_neo4j_2024}
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_memory_heap_max__size=512M
+      - NEO4J_dbms_memory_pagecache_size=256M
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - mem0-net
+
+# ============ 可选：Ollama LLM 服务 ============
+# 取消注释以在容器中运行 Ollama（需要 GPU 支持）
+#
+#  ollama:
+#    image: ollama/ollama:latest
+#    container_name: mem0-ollama
+#    ports:
+#      - "11434:11434"
+#    volumes:
+#      - ollama_data:/root/.ollama
+#    deploy:
+#      resources:
+#        reservations:
+#          devices:
+#            - driver: nvidia
+#              count: all
+#              capabilities: [gpu]
+#    restart: unless-stopped
+#    networks:
+#      - mem0-net
+
+# ============ 持久化卷 ============
+volumes:
+  qdrant_data:
+    driver: local
+  backend_data:
+    driver: local
+  neo4j_data:
+    driver: local
+  neo4j_logs:
+    driver: local
+  # ollama_data:
+  #   driver: local
+
+# ============ 网络 ============
+networks:
+  mem0-net:
+    driver: bridge

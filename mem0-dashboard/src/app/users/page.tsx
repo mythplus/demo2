@@ -133,12 +133,12 @@ export default function UsersPage() {
   const totalMemories = users.reduce((sum, u) => sum + u.memory_count, 0);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* 页面头部 */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">用户管理</h2>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             查看和管理所有拥有记忆的用户，数据从记忆中自动聚合
           </p>
         </div>
@@ -151,35 +151,35 @@ export default function UsersPage() {
       {/* 统计卡片 */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pt-3 pb-1">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">用户总数</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="px-4 pb-3 pt-0">
+          <CardContent>
             <div className="text-2xl font-bold">
               {loading ? "..." : users.length}
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pt-3 pb-1">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">记忆总数</CardTitle>
             <Brain className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="px-4 pb-3 pt-0">
+          <CardContent>
             <div className="text-2xl font-bold">
               {loading ? "..." : totalMemories}
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 pt-3 pb-1">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
               平均记忆数
             </CardTitle>
             <Brain className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="px-4 pb-3 pt-0">
+          <CardContent>
             <div className="text-2xl font-bold">
               {loading
                 ? "..."
@@ -192,24 +192,28 @@ export default function UsersPage() {
       </div>
 
       {/* 搜索栏 */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="搜索用户 ID..."
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          className="pl-9 pr-9"
-        />
-        {searchText && (
-          <button
-            type="button"
-            onClick={() => setSearchText("")}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-red-300 p-1 text-red-500 hover:bg-red-50 hover:text-red-600 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30 dark:hover:text-red-300 transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
-      </div>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="搜索用户 ID..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              className="pl-9 pr-9"
+            />
+            {searchText && (
+              <button
+                type="button"
+                onClick={() => setSearchText("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* 错误提示 */}
       {error && (
