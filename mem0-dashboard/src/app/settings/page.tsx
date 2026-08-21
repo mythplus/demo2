@@ -36,7 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { mem0Api } from "@/lib/api";
-import type { ConfigInfoResponse, ServiceTestResponse } from "@/lib/api";
+import type { ConfigInfoResponse, ServiceTestResponse, GraphHealthResponse } from "@/lib/api";
 import { usePreferences } from "@/hooks/use-preferences";
 
 export default function SettingsPage() {
@@ -56,6 +56,7 @@ export default function SettingsPage() {
   const [llmTestResult, setLlmTestResult] = useState<ServiceTestResponse | null>(null);
   const [embedderTestStatus, setEmbedderTestStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
   const [embedderTestResult, setEmbedderTestResult] = useState<ServiceTestResponse | null>(null);
+  const [graphHealth, setGraphHealth] = useState<GraphHealthResponse | null>(null);
 
   useEffect(() => {
     setApiUrl(preferences.apiUrl);
@@ -69,9 +70,17 @@ export default function SettingsPage() {
     setLlmTestResult(null);
     setEmbedderTestStatus("idle");
     setEmbedderTestResult(null);
+    setGraphHealth(null);
     try {
       const info = await mem0Api.getConfigInfo();
       setConfigInfo(info);
+      // 同步获取图数据库真实连接状态
+      try {
+        const health = await mem0Api.graphHealthCheck();
+        setGraphHealth(health);
+      } catch {
+        setGraphHealth(null);
+      }
     } catch {
       setConfigInfo(null);
     } finally {
@@ -386,10 +395,32 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-2">
                     <Network className="h-3.5 w-3.5 text-green-500" />
                     <span className="text-xs font-medium">图数据库</span>
+                    {/* 真实连接状态指示器 */}
+                    {graphHealth === null ? (
+                      <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        检测中
+                      </span>
+                    ) : graphHealth.status === "connected" ? (
+                      <span className="ml-auto flex items-center gap-1 text-[10px] text-green-600 dark:text-green-400">
+                        <CheckCircle className="h-3 w-3" />
+                        已连接
+                      </span>
+                    ) : (
+                      <span className="ml-auto flex items-center gap-1 text-[10px] text-red-600 dark:text-red-400" title={graphHealth.message}>
+                        <XCircle className="h-3 w-3" />
+                        未连接
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs space-y-0.5">
                     <p><span className="text-muted-foreground">类型：</span><Badge variant="secondary" className="font-mono text-[10px] px-1.5 py-0">{configInfo.graph_store.provider}</Badge></p>
                     <p className="truncate" title={configInfo.graph_store.url}><span className="text-muted-foreground">地址：</span><span className="font-mono">{configInfo.graph_store.url || "-"}</span></p>
+                    {graphHealth && graphHealth.status !== "connected" && (
+                      <p className="text-[10px] text-red-500 dark:text-red-400 break-all line-clamp-2" title={graphHealth.message}>
+                        {graphHealth.message}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
