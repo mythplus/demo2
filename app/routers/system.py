@@ -59,6 +59,7 @@ async def get_config():
                 graph_config = value.get("config", {})
                 safe_config[key] = {
                     "provider": value.get("provider"),
+                    "url": graph_config.get("url", ""),
                     "config": {
                         "url": graph_config.get("url", ""),
                         "username": graph_config.get("username", ""),
@@ -73,10 +74,22 @@ async def get_config():
                         safe_cfg[k] = "***" if v else ""
                     else:
                         safe_cfg[k] = v
-                safe_config[key] = {
+                section = {
                     "provider": value.get("provider"),
                     "config": safe_cfg,
                 }
+                # 扁平化关键字段到顶层，供前端直接读取
+                if key == "llm":
+                    section["model"] = raw_cfg.get("model", "")
+                    section["base_url"] = raw_cfg.get("ollama_base_url", raw_cfg.get("openai_base_url", ""))
+                    section["temperature"] = raw_cfg.get("temperature", 0)
+                elif key == "embedder":
+                    section["model"] = raw_cfg.get("model", "")
+                    section["base_url"] = raw_cfg.get("ollama_base_url", raw_cfg.get("openai_base_url", ""))
+                elif key == "vector_store":
+                    section["collection_name"] = raw_cfg.get("collection_name", "")
+                    section["embedding_model_dims"] = raw_cfg.get("embedding_model_dims", 0)
+                safe_config[key] = section
             else:
                 safe_config[key] = value
         safe_config["qdrant_data_path"] = MEM0_CONFIG.get("vector_store", {}).get("config", {}).get("path", "")
