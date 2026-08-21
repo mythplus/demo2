@@ -36,8 +36,10 @@ import type {
 } from "./types";
 
 // API 基础地址
-const API_BASE =
-  process.env.NEXT_PUBLIC_MEM0_API_URL || "http://localhost:8080";
+// 浏览器侧统一走 Next.js rewrite 代理（/api/mem0/:path* → 后端），
+// 避免浏览器直连 http://localhost:8080 在云环境/远程访问时不可达。
+// 后端真实地址由 next.config.js 中的 rewrite 规则在服务端读取 NEXT_PUBLIC_MEM0_API_URL 转发。
+const API_BASE = "/api/mem0";
 
 // API Key 认证（与后端 security.api_key 配置对应）
 const API_KEY = process.env.NEXT_PUBLIC_MEM0_API_KEY || "";
