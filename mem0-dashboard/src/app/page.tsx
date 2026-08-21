@@ -111,10 +111,11 @@ export default function DashboardPage() {
 
   // 统计数据
   const totalMemories = stats?.total_memories ?? activeMemories.length;
-  const uniqueUserCount = stats?.total_users ?? useMemo(
+  const uniqueUserSetSize = useMemo(
     () => new Set(activeMemories.map((m) => m.user_id).filter(Boolean)).size,
     [activeMemories]
   );
+  const uniqueUserCount = stats?.total_users ?? uniqueUserSetSize;
 
   // 今日新增（从 stats.daily_trend 取今天的数据，避免时区问题）
   const todayStr = new Date().toISOString().slice(0, 10); // "2026-03-30"
