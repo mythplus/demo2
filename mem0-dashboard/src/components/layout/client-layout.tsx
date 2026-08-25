@@ -37,11 +37,6 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     }
   }, [pathname, isAuthenticated, router]);
 
-  // 如果在登录页，不渲染主布局
-  if (pathname === "/login") {
-    return <>{children}</>;
-  }
-
   // 根据主题模式应用 dark class
   useEffect(() => {
     if (!loaded) return;
@@ -66,6 +61,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
   // 窗口宽度变小时自动收起侧边栏，变大时自动展开
   useEffect(() => {
+    if (pathname === "/login") return;
     const mql = window.matchMedia("(max-width: 768px)");
     const handleChange = (e: MediaQueryListEvent | MediaQueryList) => {
       setSidebarCollapsed(e.matches);
@@ -74,13 +70,18 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     handleChange(mql);
     mql.addEventListener("change", handleChange);
     return () => mql.removeEventListener("change", handleChange);
-  }, []);
+  }, [pathname]);
 
   // 主题模式切换（在 header 中切换：light <-> dark）
   const handleCycleTheme = () => {
     const nextMode = preferences.themeMode === "light" ? "dark" : "light";
     savePreferences({ themeMode: nextMode });
   };
+
+  // 如果在登录页，不渲染主布局（放在所有 hooks 之后，避免 hooks 数量不一致）
+  if (pathname === "/login") {
+    return <>{children}</>;
+  }
 
   return (
     <div className="flex h-screen overflow-hidden">
