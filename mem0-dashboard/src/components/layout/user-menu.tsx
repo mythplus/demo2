@@ -51,9 +51,6 @@ export function UserMenu() {
           <div className="flex flex-col space-y-0.5">
             <span className="text-sm font-medium">{user.username}</span>
             <span className="text-xs text-muted-foreground">
-              {user.tenant_display_name || user.tenant_name}
-            </span>
-            <span className="text-xs text-muted-foreground">
               角色: {user.role}
             </span>
           </div>

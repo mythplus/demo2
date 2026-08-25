@@ -10,12 +10,12 @@ import { UserMenu } from "./user-menu";
 
 // 路径到标题的映射
 const pageTitles: Record<string, string> = {
-"/": "仪表盘",
+  "/": "仪表盘",
   "/memories": "记忆管理",
   "/search": "语义搜索",
   "/users": "用户管理",
-"/requests": "请求日志",
-"/data-transfer": "数据导出",
+  "/requests": "请求日志",
+  "/data-transfer": "数据导出",
   "/settings": "系统设置",
 };
 
@@ -23,6 +23,7 @@ function getPageTitle(pathname: string): string {
   if (pageTitles[pathname]) return pageTitles[pathname];
   if (pathname.startsWith("/memory/")) return "记忆详情";
   if (pathname.startsWith("/users/")) return "用户详情";
+  if (pathname.startsWith("/graph-memory")) return "图谱记忆";
   return "mem0-dashboard";
 }
 

@@ -20,7 +20,6 @@ import { toast } from "@/hooks/use-toast";
 export default function LoginPage() {
   const router = useRouter();
   const { isAuthenticated, setAuth } = useAuthStore();
-  const [tenantName, setTenantName] = useState("default");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -39,7 +38,7 @@ export default function LoginPage() {
     }
     setLoading(true);
     try {
-      const res = await loginApi({ tenant_name: tenantName, username, password });
+      const res = await loginApi({ tenant_name: "default", username, password });
       setAuth({
         access_token: res.access_token,
         refresh_token: res.refresh_token,
@@ -73,19 +72,10 @@ export default function LoginPage() {
             <Brain className="h-8 w-8" />
           </div>
           <CardTitle className="text-2xl">mem0-dashboard</CardTitle>
-          <CardDescription>多租户记忆管理系统</CardDescription>
+          <CardDescription>记忆管理系统</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="tenant">租户名称</Label>
-              <Input
-                id="tenant"
-                value={tenantName}
-                onChange={(e) => setTenantName(e.target.value)}
-                placeholder="default"
-              />
-            </div>
             <div className="space-y-2">
               <Label htmlFor="username">用户名</Label>
               <Input
