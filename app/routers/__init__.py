@@ -7,6 +7,8 @@ from app.routers.logs import router as logs_router
 from app.routers.graph import router as graph_router
 from app.routers.users import router as users_router
 from app.routers.system import router as system_router
+from app.routers.auth import router as auth_router
+from app.routers.tenants import router as tenants_router
 
 __all__ = [
     "memories_router",
@@ -15,4 +17,6 @@ __all__ = [
     "graph_router",
     "users_router",
     "system_router",
+    "auth_router",
+    "tenants_router",
 ]

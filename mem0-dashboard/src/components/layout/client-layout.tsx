@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { Toaster } from "@/components/ui/toaster";
 import { usePreferences } from "@/hooks/use-preferences";
+import { useAuthStore } from "@/store/auth-store";
 
 /**
  * 根据主题模式计算实际是否应用深色
@@ -14,8 +16,31 @@ function resolveTheme(themeMode: "light" | "dark"): boolean {
 }
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { preferences, loaded, savePreferences } = usePreferences();
+  const { isAuthenticated } = useAuthStore();
+
+  // 认证守卫：未登录时跳转登录页（但登录页自身不拦截）
+  useEffect(() => {
+    // 登录页不需要认证
+    if (pathname === "/login") return;
+    // 从 localStorage 检查（persist 中间件可能尚未 hydrate）
+    try {
+      const stored = localStorage.getItem("mem0-auth");
+      if (!stored && !isAuthenticated) {
+        router.replace("/login");
+      }
+    } catch {
+      // ignore
+    }
+  }, [pathname, isAuthenticated, router]);
+
+  // 如果在登录页，不渲染主布局
+  if (pathname === "/login") {
+    return <>{children}</>;
+  }
 
   // 根据主题模式应用 dark class
   useEffect(() => {

@@ -136,11 +136,17 @@ def init_access_log_db():
             memory_id TEXT NOT NULL,
             action TEXT NOT NULL,
             memory_preview TEXT,
+            tenant_id TEXT NOT NULL DEFAULT 'default',
             timestamp TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_memory_id ON access_logs(memory_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_access_logs_timestamp ON access_logs(timestamp)")
+    # 兼容已存在的表：添加 tenant_id 列
+    try:
+        conn.execute("ALTER TABLE access_logs ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'")
+    except Exception:
+        pass
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS request_logs (
@@ -150,6 +156,7 @@ def init_access_log_db():
             path TEXT NOT NULL,
             request_type TEXT,
             user_id TEXT,
+            tenant_id TEXT NOT NULL DEFAULT 'default',
             status_code INTEGER,
             latency_ms REAL,
             payload_summary TEXT,
@@ -158,6 +165,10 @@ def init_access_log_db():
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_timestamp ON request_logs(timestamp)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_request_logs_type ON request_logs(request_type)")
+    try:
+        conn.execute("ALTER TABLE request_logs ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'")
+    except Exception:
+        pass
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS memory_change_logs (
@@ -302,16 +313,17 @@ def get_access_logs(memory_id: str = None, limit: int = 50, offset: int = 0) -> 
 def log_request(method: str, path: str, request_type: str,
                 status_code: int, latency_ms: float,
                 timestamp: str = "", user_id: str = "",
-                payload_summary: str = "", error: str = ""):
+                payload_summary: str = "", error: str = "",
+                tenant_id: str = "default"):
     """记录一条请求日志"""
     ts = timestamp or datetime.now().isoformat()
     try:
         _enqueue_log(
             "request_logs",
             """INSERT INTO request_logs
-               (timestamp, method, path, request_type, user_id, status_code, latency_ms, payload_summary, error)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (ts, method, path, request_type, user_id, status_code,
+               (timestamp, method, path, request_type, user_id, tenant_id, status_code, latency_ms, payload_summary, error)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (ts, method, path, request_type, user_id, tenant_id, status_code,
              round(latency_ms, 2), payload_summary[:500], error[:500]),
         )
     except Exception as e:
@@ -321,7 +333,8 @@ def log_request(method: str, path: str, request_type: str,
 async def log_request_async(method: str, path: str, request_type: str,
                             status_code: int, latency_ms: float,
                             error: str = "", user_id: str = "",
-                            payload_summary: str = ""):
+                            payload_summary: str = "",
+                            tenant_id: str = "default"):
     """异步记录请求日志（供 FastAPI 中间件调用，自动填充 timestamp）"""
     log_request(
         method=method,
@@ -333,6 +346,7 @@ async def log_request_async(method: str, path: str, request_type: str,
         user_id=user_id,
         payload_summary=payload_summary,
         error=error or "",
+        tenant_id=tenant_id,
     )
 
 

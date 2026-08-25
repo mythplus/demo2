@@ -6,7 +6,7 @@ import asyncio
 import logging
 from typing import Optional, List, Dict, Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 import httpx
 
 from app.config import MEM0_CONFIG, VALID_CATEGORIES, VALID_STATES, _safe_error_detail
@@ -23,6 +23,7 @@ from app.categorizer import auto_categorize_memory
 from app.database import (
     log_access, save_category_snapshot, save_change_log, get_change_logs,
 )
+from app.tenant_db import increment_memory_count
 
 logger = logging.getLogger(__name__)
 
@@ -59,33 +60,36 @@ async def _write_metadata_to_qdrant(memory_ids: list, metadata_updates: dict):
 # ============ 记忆 CRUD ============
 
 @router.post("/")
-async def add_memory(request: AddMemoryRequest):
+async def add_memory(request: Request, body: AddMemoryRequest):
     """添加记忆"""
     try:
+        tenant_id = getattr(request.state, "tenant_id", "default")
         m = get_memory()
-        messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
+        messages = [{"role": msg.role, "content": msg.content} for msg in body.messages]
 
-        if not request.user_id or not request.user_id.strip():
+        if not body.user_id or not body.user_id.strip():
             raise HTTPException(status_code=400, detail="user_id 为必填项")
 
-        kwargs = {"user_id": request.user_id.strip()}
-        if request.agent_id:
-            kwargs["agent_id"] = request.agent_id
-        if request.run_id:
-            kwargs["run_id"] = request.run_id
+        kwargs = {"user_id": body.user_id.strip()}
+        if body.agent_id:
+            kwargs["agent_id"] = body.agent_id
+        if body.run_id:
+            kwargs["run_id"] = body.run_id
 
-        final_metadata = dict(request.metadata or {})
+        final_metadata = dict(body.metadata or {})
+        # 注入 tenant_id 到 metadata
+        final_metadata["tenant_id"] = tenant_id
         user_selected_categories = False
-        if request.categories:
-            valid_cats = [c for c in request.categories if c in VALID_CATEGORIES]
+        if body.categories:
+            valid_cats = [c for c in body.categories if c in VALID_CATEGORIES]
             if valid_cats:
                 final_metadata["categories"] = valid_cats
                 user_selected_categories = True
-        if request.state and request.state in VALID_STATES:
-            final_metadata["state"] = request.state
+        if body.state and body.state in VALID_STATES:
+            final_metadata["state"] = body.state
 
-        if not user_selected_categories and request.auto_categorize:
-            memory_text = " ".join(msg.content for msg in request.messages)
+        if not user_selected_categories and body.auto_categorize:
+            memory_text = " ".join(msg.content for msg in body.messages)
             ai_categories = await auto_categorize_memory(memory_text)
             if ai_categories:
                 final_metadata["categories"] = ai_categories
@@ -94,7 +98,13 @@ async def add_memory(request: AddMemoryRequest):
         if final_metadata:
             kwargs["metadata"] = final_metadata
 
-        result = m.add(messages=messages, infer=request.infer, **kwargs)
+        result = m.add(messages=messages, infer=body.infer, **kwargs)
+
+        # 递增租户记忆计数
+        try:
+            increment_memory_count(tenant_id)
+        except Exception:
+            pass
 
         try:
             added_ids = []
@@ -122,8 +132,14 @@ async def add_memory(request: AddMemoryRequest):
                         continue
                     try:
                         current_meta = dict((point.payload or {}).get("metadata", {}) or {})
+                        # 确保 tenant_id 写入 payload 顶层
+                        qdrant_client.set_payload(
+                            collection_name=collection_name,
+                            payload={"tenant_id": tenant_id},
+                            points=[mid],
+                        )
 
-                        if not user_selected_categories and request.auto_categorize and request.infer:
+                        if not user_selected_categories and body.auto_categorize and body.infer:
                             memory_content = item.get("memory", "") if isinstance(item, dict) else ""
                             if memory_content:
                                 per_item_cats = await auto_categorize_memory(memory_content)
@@ -160,11 +176,12 @@ async def add_memory(request: AddMemoryRequest):
 
 
 @router.post("/batch")
-async def batch_import_memories(request: BatchImportRequest):
+async def batch_import_memories(request: Request, body: BatchImportRequest):
     """批量导入记忆"""
-    if not request.items:
+    if not body.items:
         raise HTTPException(status_code=400, detail="items 不能为空")
 
+    tenant_id = getattr(request.state, "tenant_id", "default")
     m = get_memory()
     collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
     qdrant_client = m.vector_store.client
@@ -175,9 +192,10 @@ async def batch_import_memories(request: BatchImportRequest):
     async def _process_single_item(idx: int, item: BatchImportItem) -> BatchImportResultItem:
         async with _semaphore:
             try:
-                uid = (request.default_user_id or "").strip() or (item.user_id or "").strip() or "default"
+                uid = (body.default_user_id or "").strip() or (item.user_id or "").strip() or "default"
 
                 final_metadata: Dict[str, Any] = dict(item.metadata or {})
+                final_metadata["tenant_id"] = tenant_id
                 user_selected_categories = False
 
                 if item.categories:
@@ -188,7 +206,7 @@ async def batch_import_memories(request: BatchImportRequest):
 
                 final_metadata["state"] = "active"
 
-                if not user_selected_categories and request.auto_categorize:
+                if not user_selected_categories and body.auto_categorize:
                     ai_categories = await auto_categorize_memory(item.content)
                     if ai_categories:
                         final_metadata["categories"] = ai_categories
@@ -199,7 +217,7 @@ async def batch_import_memories(request: BatchImportRequest):
 
                 messages = [{"role": "user", "content": item.content}]
                 result = await asyncio.to_thread(
-                    m.add, messages=messages, infer=request.infer, **kwargs
+                    m.add, messages=messages, infer=body.infer, **kwargs
                 )
 
                 try:
@@ -226,7 +244,7 @@ async def batch_import_memories(request: BatchImportRequest):
                                         current_meta["state"] = final_metadata["state"]
                                     qdrant_client.set_payload(
                                         collection_name=collection_name,
-                                        payload={"metadata": current_meta},
+                                        payload={"metadata": current_meta, "tenant_id": tenant_id},
                                         points=[mid],
                                     )
                                     init_cats = current_meta.get("categories", [])
@@ -236,6 +254,12 @@ async def batch_import_memories(request: BatchImportRequest):
                                     save_change_log(mid, "ADD", memory_text, init_cats)
                             except Exception:
                                 pass
+                except Exception:
+                    pass
+
+                # 递增租户记忆计数
+                try:
+                    increment_memory_count(tenant_id)
                 except Exception:
                     pass
 
@@ -250,7 +274,7 @@ async def batch_import_memories(request: BatchImportRequest):
                 logger.warning(f"批量导入第 {idx+1} 条失败: {e}")
                 return BatchImportResultItem(index=idx, success=False, error=str(e))
 
-    tasks = [_process_single_item(idx, item) for idx, item in enumerate(request.items)]
+    tasks = [_process_single_item(idx, item) for idx, item in enumerate(body.items)]
     results = await asyncio.gather(*tasks)
 
     invalidate_stats_cache()
@@ -259,7 +283,7 @@ async def batch_import_memories(request: BatchImportRequest):
     failed_count = len(results) - success_count
 
     return BatchImportResponse(
-        total=len(request.items),
+        total=len(body.items),
         success=success_count,
         failed=failed_count,
         results=list(results),
@@ -268,6 +292,7 @@ async def batch_import_memories(request: BatchImportRequest):
 
 @router.get("/")
 async def get_memories(
+    request: Request,
     user_id: Optional[str] = Query(None),
     categories: Optional[str] = Query(None, description="逗号分隔的分类列表"),
     state: Optional[str] = Query(None),
@@ -277,7 +302,8 @@ async def get_memories(
 ):
     """获取所有记忆（支持多维筛选）"""
     try:
-        all_memories = get_all_memories_raw()
+        tenant_id = getattr(request.state, "tenant_id", None)
+        all_memories = get_all_memories_raw(tenant_id=tenant_id)
 
         if user_id:
             all_memories = [m for m in all_memories if m.get("user_id") == user_id]
@@ -596,19 +622,20 @@ async def batch_delete_memories(request: BatchDeleteRequest):
 
 
 @router.post("/search/")
-async def search_memories(request: SearchMemoryRequest):
+async def search_memories(request: Request, body: SearchMemoryRequest):
     """语义搜索记忆"""
     try:
+        tenant_id = getattr(request.state, "tenant_id", None)
         m = get_memory()
-        kwargs = {"query": request.query}
-        if request.user_id:
-            kwargs["user_id"] = request.user_id
-        if request.agent_id:
-            kwargs["agent_id"] = request.agent_id
-        if request.run_id:
-            kwargs["run_id"] = request.run_id
-        if request.limit:
-            kwargs["limit"] = request.limit
+        kwargs = {"query": body.query}
+        if body.user_id:
+            kwargs["user_id"] = body.user_id
+        if body.agent_id:
+            kwargs["agent_id"] = body.agent_id
+        if body.run_id:
+            kwargs["run_id"] = body.run_id
+        if body.limit:
+            kwargs["limit"] = body.limit
 
         result = m.search(**kwargs)
 

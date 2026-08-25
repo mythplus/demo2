@@ -6,6 +6,7 @@ import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { mem0Api } from "@/lib/api";
 import type { ConnectionStatus } from "@/lib/api";
+import { UserMenu } from "./user-menu";
 
 // 路径到标题的映射
 const pageTitles: Record<string, string> = {
@@ -81,7 +82,7 @@ export function Header({ themeMode, onCycleTheme }: HeaderProps) {
         </Button>
 
         {/* 连接状态指示器 */}
-        <div className="flex items-center gap-2 rounded-full border px-3 py-1 text-xs">
+        <div className="hidden sm:flex items-center gap-2 rounded-full border px-3 py-1 text-xs">
           <div
             className={`h-2 w-2 rounded-full ${
               connectionStatus === "connected"
@@ -99,6 +100,9 @@ export function Header({ themeMode, onCycleTheme }: HeaderProps) {
               : "API 离线"}
           </span>
         </div>
+
+        {/* 用户菜单 */}
+        <UserMenu />
       </div>
     </header>
   );

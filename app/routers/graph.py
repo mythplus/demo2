@@ -4,7 +4,7 @@ Mem0 Dashboard 后端 - 图谱记忆路由（Neo4j）
 import logging
 from typing import Optional, Dict
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.config import MEM0_CONFIG, _safe_error_detail
 from app.models import GraphSearchRequest
@@ -72,24 +72,36 @@ async def _neo4j_query_async(cypher: str, params: dict = None) -> list:
 
 
 @router.get("/stats")
-async def get_graph_stats():
+async def get_graph_stats(request: Request):
     """获取图谱统计信息"""
     try:
-        entity_count_result = await _neo4j_query_async("MATCH (n) RETURN count(n) as count")
+        tenant_id = getattr(request.state, "tenant_id", None)
+        tenant_filter = "WHERE n.tenant_id = $tenant_id" if tenant_id else ""
+
+        entity_count_result = await _neo4j_query_async(
+            f"MATCH (n) {tenant_filter} RETURN count(n) as count",
+            {"tenant_id": tenant_id} if tenant_id else None,
+        )
         entity_count = entity_count_result[0]["count"] if entity_count_result else 0
 
-        relation_count_result = await _neo4j_query_async("MATCH ()-[r]->() RETURN count(r) as count")
+        rel_tenant_filter = "WHERE a.tenant_id = $tenant_id OR b.tenant_id = $tenant_id" if tenant_id else ""
+        relation_count_result = await _neo4j_query_async(
+            f"MATCH ()-[r]->() {rel_tenant_filter} RETURN count(r) as count",
+            {"tenant_id": tenant_id} if tenant_id else None,
+        )
         relation_count = relation_count_result[0]["count"] if relation_count_result else 0
 
         relation_types_result = await _neo4j_query_async(
-            "MATCH ()-[r]->() RETURN type(r) as relation_type, count(r) as count ORDER BY count DESC"
+            f"MATCH ()-[r]->() {rel_tenant_filter} RETURN type(r) as relation_type, count(r) as count ORDER BY count DESC",
+            {"tenant_id": tenant_id} if tenant_id else None,
         )
         relation_type_distribution = {
             item["relation_type"]: item["count"] for item in relation_types_result
         }
 
         user_entity_result = await _neo4j_query_async(
-            "MATCH (n) WHERE n.user_id IS NOT NULL RETURN n.user_id as user_id, count(n) as count ORDER BY count DESC LIMIT 20"
+            f"MATCH (n) {tenant_filter} AND n.user_id IS NOT NULL RETURN n.user_id as user_id, count(n) as count ORDER BY count DESC LIMIT 20",
+            {"tenant_id": tenant_id} if tenant_id else None,
         )
         user_entity_distribution = {
             item["user_id"]: item["count"] for item in user_entity_result
@@ -108,6 +120,7 @@ async def get_graph_stats():
 
 @router.get("/entities")
 async def get_graph_entities(
+    request: Request,
     user_id: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
@@ -115,9 +128,13 @@ async def get_graph_entities(
 ):
     """获取实体列表"""
     try:
+        tenant_id = getattr(request.state, "tenant_id", None)
         where_clauses = []
         params: Dict[str, object] = {"limit": limit, "offset": offset}
 
+        if tenant_id:
+            where_clauses.append("n.tenant_id = $tenant_id")
+            params["tenant_id"] = tenant_id
         if user_id:
             where_clauses.append("n.user_id = $user_id")
             params["user_id"] = user_id
@@ -150,6 +167,7 @@ async def get_graph_entities(
 
 @router.get("/relations")
 async def get_graph_relations(
+    request: Request,
     user_id: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
@@ -157,9 +175,13 @@ async def get_graph_relations(
 ):
     """获取关系三元组列表"""
     try:
+        tenant_id = getattr(request.state, "tenant_id", None)
         where_clauses = []
         params: Dict[str, object] = {"limit": limit, "offset": offset}
 
+        if tenant_id:
+            where_clauses.append("(a.tenant_id = $tenant_id OR b.tenant_id = $tenant_id)")
+            params["tenant_id"] = tenant_id
         if user_id:
             where_clauses.append("(a.user_id = $user_id OR b.user_id = $user_id)")
             params["user_id"] = user_id
@@ -193,29 +215,37 @@ async def get_graph_relations(
 
 
 @router.post("/search")
-async def search_graph(request: GraphSearchRequest):
+async def search_graph(request: Request, body: GraphSearchRequest):
     """基于图谱的搜索"""
     try:
-        params: Dict[str, object] = {"query": request.query.lower(), "limit": request.limit or 20}
+        tenant_id = getattr(request.state, "tenant_id", None)
+        params: Dict[str, object] = {"query": body.query.lower(), "limit": body.limit or 20}
         user_filter = ""
-        if request.user_id:
+        tenant_filter = ""
+        if body.user_id:
             user_filter = "AND (a.user_id = $user_id OR b.user_id = $user_id)"
-            params["user_id"] = request.user_id
+            params["user_id"] = body.user_id
+        if tenant_id:
+            tenant_filter = "AND (a.tenant_id = $tenant_id OR b.tenant_id = $tenant_id)"
+            params["tenant_id"] = tenant_id
 
         cypher = f"""
             MATCH (a)-[r]->(b)
             WHERE (toLower(a.name) CONTAINS $query OR toLower(b.name) CONTAINS $query)
             {user_filter}
+            {tenant_filter}
             RETURN a.name as source, type(r) as relation, b.name as target,
                    a.user_id as source_user_id, b.user_id as target_user_id
             LIMIT $limit
         """
         results = await _neo4j_query_async(cypher, params)
 
+        entity_tenant_filter = f"AND n.tenant_id = $tenant_id" if tenant_id else ""
         entity_cypher = f"""
             MATCH (n)
             WHERE toLower(n.name) CONTAINS $query
-            {"AND n.user_id = $user_id" if request.user_id else ""}
+            {"AND n.user_id = $user_id" if body.user_id else ""}
+            {entity_tenant_filter}
             AND NOT (n)-[]-()
             RETURN n.name as name, n.user_id as user_id, labels(n) as labels
             LIMIT $limit
@@ -301,17 +331,24 @@ async def get_user_graph(user_id: str, limit: int = Query(200, ge=1, le=1000)):
 
 
 @router.get("/all")
-async def get_all_graph(limit: int = Query(300, ge=1, le=2000)):
+async def get_all_graph(request: Request, limit: int = Query(300, ge=1, le=2000)):
     """获取全部图谱数据"""
     try:
-        cypher = """
+        tenant_id = getattr(request.state, "tenant_id", None)
+        tenant_filter = "WHERE a.tenant_id = $tenant_id OR b.tenant_id = $tenant_id" if tenant_id else ""
+        params = {"limit": limit}
+        if tenant_id:
+            params["tenant_id"] = tenant_id
+
+        cypher = f"""
             MATCH (a)-[r]->(b)
+            {tenant_filter}
             RETURN a.name as source, a.user_id as source_user_id, labels(a) as source_labels,
                    type(r) as relation,
                    b.name as target, b.user_id as target_user_id, labels(b) as target_labels
             LIMIT $limit
         """
-        relations = await _neo4j_query_async(cypher, {"limit": limit})
+        relations = await _neo4j_query_async(cypher, params)
 
         nodes_map: Dict[str, dict] = {}
         links = []

@@ -4,7 +4,7 @@ Mem0 Dashboard 后端 - 用户管理路由
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.config import MEM0_CONFIG, _safe_error_detail
 from app.memory_engine import get_all_memories_raw, apply_filters
@@ -16,13 +16,15 @@ router = APIRouter(prefix="/v1/users", tags=["users"])
 
 @router.get("/")
 async def get_users(
+    request: Request,
     search: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
     """获取用户列表（从记忆数据中聚合）"""
     try:
-        all_memories = get_all_memories_raw()
+        tenant_id = getattr(request.state, "tenant_id", None)
+        all_memories = get_all_memories_raw(tenant_id=tenant_id)
 
         user_map: dict = {}
         for m in all_memories:
@@ -69,10 +71,11 @@ async def get_users(
 
 
 @router.get("/{user_id}/")
-async def get_user_detail(user_id: str):
+async def get_user_detail(request: Request, user_id: str):
     """获取用户详情"""
     try:
-        all_memories = get_all_memories_raw()
+        tenant_id = getattr(request.state, "tenant_id", None)
+        all_memories = get_all_memories_raw(tenant_id=tenant_id)
         user_memories = [m for m in all_memories if m.get("user_id") == user_id]
 
         if not user_memories:
@@ -111,6 +114,7 @@ async def get_user_detail(user_id: str):
 
 @router.get("/{user_id}/memories/")
 async def get_user_memories(
+    request: Request,
     user_id: str,
     categories: Optional[str] = Query(None),
     state: Optional[str] = Query(None),
@@ -120,7 +124,8 @@ async def get_user_memories(
 ):
     """获取用户的所有记忆"""
     try:
-        all_memories = get_all_memories_raw()
+        tenant_id = getattr(request.state, "tenant_id", None)
+        all_memories = get_all_memories_raw(tenant_id=tenant_id)
         user_memories = [m for m in all_memories if m.get("user_id") == user_id]
 
         cat_list = [c.strip() for c in categories.split(",") if c.strip()] if categories else None

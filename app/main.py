@@ -16,6 +16,8 @@ from fastapi.responses import JSONResponse
 
 from app.config import IS_PRODUCTION, MEM0_CONFIG, _safe_error_detail
 from app.database import init_db, start_log_writer, stop_log_writer, log_request_async
+from app.tenant_db import init_tenant_db, ensure_default_tenant
+from app.middleware.auth import auth_middleware
 from app.routers import (
     memories_router,
     stats_router,
@@ -23,6 +25,8 @@ from app.routers import (
     graph_router,
     users_router,
     system_router,
+    auth_router,
+    tenants_router,
 )
 
 # ============ 日志配置 ============
@@ -50,6 +54,13 @@ async def lifespan(app: FastAPI):
     """应用生命周期：启动时初始化，关闭时清理"""
     # --- 启动 ---
     init_db()
+    init_tenant_db()
+    # 初始化默认租户和管理员
+    auth_config = MEM0_CONFIG.get("auth", {})
+    ensure_default_tenant(
+        admin_username=auth_config.get("default_admin_username", "admin"),
+        admin_password=auth_config.get("default_admin_password", "admin123456"),
+    )
     start_log_writer()
     logger.info(f"Mem0 Dashboard API 启动完成 (模式: {'生产' if IS_PRODUCTION else '开发'})")
     yield
@@ -111,6 +122,7 @@ async def request_logging_middleware(request: Request, call_next):
         )
     finally:
         latency_ms = (time.time() - start_time) * 1000
+        tenant_id = getattr(request.state, "tenant_id", "default") if hasattr(request, "state") else "default"
         await log_request_async(
             method=request.method,
             path=request.url.path,
@@ -118,6 +130,7 @@ async def request_logging_middleware(request: Request, call_next):
             status_code=status_code,
             latency_ms=latency_ms,
             error=error_msg,
+            tenant_id=tenant_id,
         )
 
 
@@ -140,27 +153,12 @@ def _classify_request_type(path: str) -> str:
     return "other"
 
 
-# ============ API Key 认证中间件（可选） ============
-API_KEY = MEM0_CONFIG.get("security", {}).get("api_key", "")
-
+# ============ 认证中间件 ============
 
 @app.middleware("http")
-async def api_key_auth_middleware(request: Request, call_next):
-    """API Key 认证中间件（配置了 api_key 时启用）"""
-    if not API_KEY:
-        return await call_next(request)
-
-    # 健康检查和文档不需要认证
-    if request.url.path in ("/", "/docs", "/redoc", "/openapi.json", "/v1/health/"):
-        return await call_next(request)
-
-    provided_key = request.headers.get("X-API-Key", "")
-    if provided_key != API_KEY:
-        return JSONResponse(
-            status_code=401,
-            content={"detail": "无效的 API Key"},
-        )
-    return await call_next(request)
+async def authentication_middleware(request: Request, call_next):
+    """统一认证中间件：JWT / API Key / 开发模式"""
+    return await auth_middleware(request, call_next)
 
 
 # ============ 注册路由 ============
@@ -170,6 +168,8 @@ app.include_router(stats_router)
 app.include_router(logs_router)
 app.include_router(graph_router)
 app.include_router(users_router)
+app.include_router(auth_router)
+app.include_router(tenants_router)
 
 
 # ============ 根路由 ============

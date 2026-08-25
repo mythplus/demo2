@@ -5,7 +5,7 @@ import logging
 from collections import Counter
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from app.config import VALID_CATEGORIES, VALID_STATES, _safe_error_detail
 from app.memory_engine import get_all_memories_raw
@@ -17,15 +17,18 @@ router = APIRouter(prefix="/v1/stats", tags=["stats"])
 
 
 @router.get("/")
-async def get_stats():
+async def get_stats(request: Request):
     """获取统计数据"""
     try:
-        # 检查缓存
-        cached = get_cached_stats()
+        tenant_id = getattr(request.state, "tenant_id", None)
+
+        # 检查缓存（租户级缓存 key）
+        cache_key = f"stats:{tenant_id}" if tenant_id else "stats:default"
+        cached = get_cached_stats(cache_key)
         if cached is not None:
             return cached
 
-        all_memories = get_all_memories_raw()
+        all_memories = get_all_memories_raw(tenant_id=tenant_id)
 
         total_memories = 0
         user_set: set = set()
@@ -80,7 +83,7 @@ async def get_stats():
             "daily_trend": daily_trend,
         }
 
-        set_cached_stats(result)
+        set_cached_stats(result, cache_key)
         return result
     except Exception as e:
         logger.error(f"获取统计数据失败: {e}")

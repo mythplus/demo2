@@ -7,3 +7,10 @@ pyyaml>=6.0
 mem0ai>=0.1.30
 qdrant-client>=1.9
 neo4j>=5.20
+
+# 多租户系统依赖
+PyJWT>=2.8
+bcrypt>=4.1
+python-multipart>=0.0.9
+redis>=5.0
+alembic>=1.13

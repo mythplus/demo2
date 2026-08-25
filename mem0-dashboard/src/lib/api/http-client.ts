@@ -1,7 +1,7 @@
 /**
  * Mem0 API - 核心请求封装
  *
- * 提供通用的 HTTP 请求方法，支持超时控制和 API Key 认证。
+ * 提供通用的 HTTP 请求方法，支持超时控制、JWT Bearer Token 认证和 401 自动跳转。
  * 各资源 API 模块（memories-api、graph-api 等）基于此模块构建。
  */
 
@@ -10,14 +10,29 @@
 // 避免浏览器直连 http://localhost:8080 在云环境/远程访问时不可达。
 const API_BASE = "/api/mem0";
 
-// API Key 认证（与后端 security.api_key 配置对应）
+// API Key 认证（与后端 security.api_key 配置对应，向后兼容）
 const API_KEY = process.env.NEXT_PUBLIC_MEM0_API_KEY || "";
 
 // 全局请求超时（毫秒）
 const DEFAULT_TIMEOUT = 30000;
 
+// 从 localStorage 获取 JWT token（避免在模块加载时引入 store 循环依赖）
+function getAccessToken(): string | null {
+  try {
+    const stored = localStorage.getItem("mem0-auth");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed?.state?.accessToken || null;
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
 /**
  * 构建带认证的请求头
+ * 优先使用 JWT Bearer Token，其次使用 API Key
  */
 export function buildAuthHeaders(
   extra?: Record<string, string>
@@ -25,9 +40,14 @@ export function buildAuthHeaders(
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  if (API_KEY) {
+
+  const token = getAccessToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  } else if (API_KEY) {
     headers["X-API-Key"] = API_KEY;
   }
+
   if (extra) {
     Object.assign(headers, extra);
   }
@@ -35,7 +55,7 @@ export function buildAuthHeaders(
 }
 
 /**
- * 通用请求方法（带全局超时控制）
+ * 通用请求方法（带全局超时控制 + 401 拦截）
  */
 export async function request<T>(
   endpoint: string,
@@ -58,6 +78,19 @@ export async function request<T>(
       headers,
       signal: controller.signal,
     });
+
+    // 401 拦截：清除认证状态并跳转登录页
+    if (response.status === 401) {
+      // 避免在登录页自身触发循环跳转
+      if (!window.location.pathname.startsWith("/login")) {
+        localStorage.removeItem("mem0-auth");
+        window.location.href = "/login";
+      }
+      const error = await response.json().catch(() => ({
+        detail: "认证失败，请重新登录",
+      }));
+      throw new Error(error.detail || "认证失败，请重新登录");
+    }
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({

@@ -14,6 +14,7 @@ import {
   Activity,
   Database,
   Network,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -24,11 +25,12 @@ import {
   TooltipProvider,
 } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
+import { useAuthStore } from "@/store/auth-store";
 
-// 导航菜单配置
+// 基础导航菜单配置
 const navItems = [
   {
-title: "仪表盘",
+    title: "仪表盘",
     href: "/",
     icon: LayoutDashboard,
   },
@@ -48,7 +50,7 @@ title: "仪表盘",
     icon: Users,
   },
   {
-title: "请求日志",
+    title: "请求日志",
     href: "/requests",
     icon: Activity,
   },
@@ -58,7 +60,7 @@ title: "请求日志",
     icon: Network,
   },
   {
-title: "数据导出",
+    title: "数据导出",
     href: "/data-transfer",
     icon: Database,
   },
@@ -79,6 +81,13 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === "admin" || !user; // 未登录（开发模式）也显示
+
+  // 合并管理员菜单
+  const allNavItems = isAdmin
+    ? [...navItems, { title: "租户管理", href: "/tenants", icon: Building2 }]
+    : navItems;
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -102,7 +111,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
         {/* 主导航 */}
         <nav className="flex-1 space-y-1 p-2">
-          {navItems.map((item) => {
+          {allNavItems.map((item) => {
             const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             const navLink = (
               <Link

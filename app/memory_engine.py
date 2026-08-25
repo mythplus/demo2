@@ -68,8 +68,8 @@ def format_mem0_result(item: dict) -> dict:
     }
 
 
-def get_all_memories_raw(max_results: int = None) -> list:
-    """获取所有记忆（完整分页滚动，可选限制最大数量）"""
+def get_all_memories_raw(max_results: int = None, tenant_id: str = None) -> list:
+    """获取所有记忆（完整分页滚动，可选限制最大数量，可选按租户过滤）"""
     m = get_memory()
     try:
         collection_name = MEM0_CONFIG["vector_store"]["config"]["collection_name"]
@@ -78,6 +78,14 @@ def get_all_memories_raw(max_results: int = None) -> list:
         offset = None
         batch_size = 256  # 增大批次减少往返次数
 
+        # 构建租户过滤条件
+        from qdrant_client.models import ScrollRequest, Filter, FieldCondition, MatchValue
+        scroll_filter = None
+        if tenant_id:
+            scroll_filter = Filter(must=[
+                FieldCondition(key="tenant_id", match=MatchValue(value=tenant_id))
+            ])
+
         while True:
             records, next_offset = qdrant_client.scroll(
                 collection_name=collection_name,
@@ -85,6 +93,7 @@ def get_all_memories_raw(max_results: int = None) -> list:
                 offset=offset,
                 with_payload=True,
                 with_vectors=False,
+                scroll_filter=scroll_filter,
             )
             all_records.extend(records)
             if next_offset is None or not records:

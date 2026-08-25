@@ -45,5 +45,49 @@ security:
   # 速率限制（每分钟最大请求数，0 表示不限制）
   rate_limit: 60
 
+# ============================================
+# 多租户系统配置
+# ============================================
+
+# 认证配置
+auth:
+  # 是否启用认证（false 时跳过所有认证中间件，方便开发调试）
+  enabled: false
+  # JWT 密钥（生产环境务必修改为随机长字符串）
+  jwt_secret: "mem0-dashboard-jwt-secret-change-in-production-2026"
+  # JWT 访问令牌有效期（小时）
+  access_token_expire_hours: 24
+  # JWT 刷新令牌有效期（天）
+  refresh_token_expire_days: 7
+  # 默认管理员账号（首次启动时自动创建）
+  default_admin_username: "admin"
+  default_admin_password: "admin123456"
+
+# Redis 配置（速率限制 + 配额计数）
+redis:
+  host: "9.134.231.238"
+  port: 6379
+  db: 0
+  password: ""
+  # 连接超时（秒）
+  socket_timeout: 5
+
+# 配额管理
+quota:
+  # 默认配额上限（新创建租户的初始值）
+  default_max_memories: 10000
+  default_max_api_calls_per_day: 5000
+  # 是否启用配额检查
+  enabled: true
+
+# 速率限制（多租户级，覆盖 security.rate_limit）
+rate_limit:
+  # 是否启用租户级速率限制
+  enabled: true
+  # 每分钟最大请求数（按租户）
+  per_minute: 120
+  # 每小时最大请求数（按租户）
+  per_hour: 3600
+
 # 版本号
-version: "v1.1"
+version: "v2.0"
