@@ -7,6 +7,8 @@ config.yaml
 
 # SQLite 数据库文件
 access_logs.db
+access_logs.db-shm
+access_logs.db-wal
 
 # Qdrant 向量数据库本地存储
 qdrant_data/
