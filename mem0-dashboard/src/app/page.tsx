@@ -26,6 +26,7 @@ import { mem0Api } from "@/lib/api";
 import type { Memory, ConnectionStatus, StatsResponse } from "@/lib/api";
 import { StatsCharts } from "@/components/dashboard/stats-charts";
 import { StatsCardSkeleton } from "@/components/ui/skeleton";
+import { QuotaDashboard } from "@/components/dashboard/quota-dashboard";
 
 // 统计卡片组件
 function StatsCard({
@@ -150,6 +151,9 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* 配额监控 */}
+      <QuotaDashboard />
+
       {/* 连接状态提示 */}
       {connectionStatus === "disconnected" && (
         <Card className="border-destructive">

@@ -511,3 +511,119 @@ def ensure_default_tenant(admin_username: str, admin_password: str):
         logger.info(f"已创建管理员账号: {admin_username}")
     else:
         logger.info(f"管理员账号已存在: {admin_username}")
+
+
+# ============ 租户级配置覆盖 ============
+
+def get_tenant_config(tenant_id: str) -> Optional[dict]:
+    """获取租户配置覆盖（LLM/Embedder/自定义分类）"""
+    conn = _get_tenant_db_conn()
+    row = conn.execute(
+        "SELECT * FROM tenant_configs WHERE tenant_id = ?",
+        (tenant_id,),
+    ).fetchone()
+    if not row:
+        return None
+    result = dict(row)
+    # 反序列化 JSON 字段
+    for field in ("llm_config", "embedder_config", "custom_categories"):
+        if result.get(field):
+            try:
+                result[field] = json.loads(result[field])
+            except (json.JSONDecodeError, TypeError):
+                pass
+    return result
+
+
+def upsert_tenant_config(tenant_id: str, llm_config: dict = None,
+                         embedder_config: dict = None,
+                         custom_categories: list = None) -> dict:
+    """创建或更新租户配置覆盖"""
+    conn = _get_tenant_db_conn()
+
+    # 序列化 JSON 字段
+    llm_json = json.dumps(llm_config, ensure_ascii=False) if llm_config is not None else None
+    embedder_json = json.dumps(embedder_config, ensure_ascii=False) if embedder_config is not None else None
+    categories_json = json.dumps(custom_categories, ensure_ascii=False) if custom_categories is not None else None
+
+    # 检查是否已存在
+    existing = conn.execute(
+        "SELECT tenant_id FROM tenant_configs WHERE tenant_id = ?",
+        (tenant_id,),
+    ).fetchone()
+
+    if existing:
+        # 动态构建 UPDATE（只更新提供的字段）
+        sets = ["updated_at = ?"]
+        params = [datetime.now().isoformat()]
+        if llm_config is not None:
+            sets.append("llm_config = ?")
+            params.append(llm_json)
+        if embedder_config is not None:
+            sets.append("embedder_config = ?")
+            params.append(embedder_json)
+        if custom_categories is not None:
+            sets.append("custom_categories = ?")
+            params.append(categories_json)
+        params.append(tenant_id)
+        conn.execute(
+            f"UPDATE tenant_configs SET {', '.join(sets)} WHERE tenant_id = ?",
+            params,
+        )
+    else:
+        conn.execute(
+            """INSERT INTO tenant_configs (tenant_id, llm_config, embedder_config, custom_categories)
+               VALUES (?, ?, ?, ?)""",
+            (tenant_id, llm_json, embedder_json, categories_json),
+        )
+
+    conn.commit()
+    return get_tenant_config(tenant_id)
+
+
+def delete_tenant_config(tenant_id: str):
+    """删除租户配置覆盖（恢复为全局默认）"""
+    conn = _get_tenant_db_conn()
+    conn.execute("DELETE FROM tenant_configs WHERE tenant_id = ?", (tenant_id,))
+    conn.commit()
+
+
+# ============ 租户级 Memory 实例管理 ============
+
+_tenant_memory_instances: dict = {}  # tenant_id → Memory instance
+
+
+def get_tenant_memory_config(tenant_id: str) -> dict:
+    """
+    构建租户级 Mem0 配置：
+    1. 以全局 MEM0_CONFIG 为基础
+    2. 如果租户有 llm_config / embedder_config 覆盖，则合并替换
+    返回完整的 Mem0 配置字典
+    """
+    from app.config import MEM0_CONFIG
+
+    # 深拷贝全局配置
+    import copy
+    config = copy.deepcopy(MEM0_CONFIG)
+
+    tenant_cfg = get_tenant_config(tenant_id)
+    if not tenant_cfg:
+        return config
+
+    # 覆盖 LLM 配置
+    if tenant_cfg.get("llm_config"):
+        llm_override = tenant_cfg["llm_config"]
+        if "provider" in llm_override:
+            config["llm"]["provider"] = llm_override["provider"]
+        if "config" in llm_override:
+            config["llm"]["config"].update(llm_override["config"])
+
+    # 覆盖 Embedder 配置
+    if tenant_cfg.get("embedder_config"):
+        embedder_override = tenant_cfg["embedder_config"]
+        if "provider" in embedder_override:
+            config["embedder"]["provider"] = embedder_override["provider"]
+        if "config" in embedder_override:
+            config["embedder"]["config"].update(embedder_override["config"])
+
+    return config

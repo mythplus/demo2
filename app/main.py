@@ -18,6 +18,7 @@ from app.config import IS_PRODUCTION, MEM0_CONFIG, _safe_error_detail
 from app.database import init_db, start_log_writer, stop_log_writer, log_request_async
 from app.tenant_db import init_tenant_db, ensure_default_tenant
 from app.middleware.auth import auth_middleware
+from app.middleware.quota import quota_rate_limit_middleware
 from app.routers import (
     memories_router,
     stats_router,
@@ -27,6 +28,8 @@ from app.routers import (
     system_router,
     auth_router,
     tenants_router,
+    tenant_config_router,
+    quota_router,
 )
 
 # ============ 日志配置 ============
@@ -161,6 +164,14 @@ async def authentication_middleware(request: Request, call_next):
     return await auth_middleware(request, call_next)
 
 
+# ============ 配额与速率限制中间件 ============
+
+@app.middleware("http")
+async def quota_rate_limit(request: Request, call_next):
+    """配额 + 速率限制中间件（认证之后执行）"""
+    return await quota_rate_limit_middleware(request, call_next)
+
+
 # ============ 注册路由 ============
 app.include_router(system_router)
 app.include_router(memories_router)
@@ -170,6 +181,8 @@ app.include_router(graph_router)
 app.include_router(users_router)
 app.include_router(auth_router)
 app.include_router(tenants_router)
+app.include_router(tenant_config_router)
+app.include_router(quota_router)
 
 
 # ============ 根路由 ============

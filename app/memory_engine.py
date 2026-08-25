@@ -14,7 +14,7 @@ memory_instance = None
 
 
 def get_memory():
-    """获取 Mem0 Memory 实例（延迟初始化）"""
+    """获取全局 Mem0 Memory 实例（延迟初始化，使用默认配置）"""
     global memory_instance
     if memory_instance is None:
         from mem0 import Memory
@@ -22,6 +22,54 @@ def get_memory():
         memory_instance = Memory.from_config(MEM0_CONFIG)
         logger.info("Mem0 初始化完成")
     return memory_instance
+
+
+# ============ 租户级 Memory 实例 ============
+_tenant_memory_cache: dict = {}  # tenant_id → Memory instance
+
+
+def get_tenant_memory(tenant_id: str):
+    """
+    获取租户级 Memory 实例。
+
+    - 如果租户有自定义 LLM/Embedder 配置，则创建独立实例。
+    - 如果租户无自定义配置，则复用全局实例（节省资源）。
+    - 实例按 tenant_id 缓存，配置变更后需调用 invalidate_tenant_memory() 清除。
+    """
+    global memory_instance
+
+    from app.tenant_db import get_tenant_config, get_tenant_memory_config
+
+    tenant_cfg = get_tenant_config(tenant_id)
+    if not tenant_cfg or (not tenant_cfg.get("llm_config") and not tenant_cfg.get("embedder_config")):
+        # 无自定义配置，复用全局实例
+        return get_memory()
+
+    # 有自定义配置，检查缓存
+    if tenant_id in _tenant_memory_cache:
+        return _tenant_memory_cache[tenant_id]
+
+    from mem0 import Memory
+    tenant_config = get_tenant_memory_config(tenant_id)
+    logger.info(f"正在初始化租户 {tenant_id} 的独立 Memory 实例")
+    instance = Memory.from_config(tenant_config)
+    _tenant_memory_cache[tenant_id] = instance
+    logger.info(f"租户 {tenant_id} Memory 实例初始化完成")
+    return instance
+
+
+def invalidate_tenant_memory(tenant_id: str = None):
+    """
+    清除租户 Memory 实例缓存。
+    tenant_id=None 时清除所有租户缓存（配置全局变更时使用）。
+    """
+    global _tenant_memory_cache
+    if tenant_id:
+        _tenant_memory_cache.pop(tenant_id, None)
+        logger.info(f"已清除租户 {tenant_id} 的 Memory 实例缓存")
+    else:
+        _tenant_memory_cache.clear()
+        logger.info("已清除所有租户 Memory 实例缓存")
 
 
 def extract_memory_fields(payload: dict) -> dict:

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, Key, Users as UsersIcon } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Key, Users as UsersIcon, Settings2 } from "lucide-react";
 import {
   getTenantApi,
   listTenantUsersApi,
@@ -39,6 +39,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
+import { TenantConfigPanel } from "@/components/tenant-config-panel";
 
 export default function TenantDetailPage() {
   const params = useParams();
@@ -222,6 +223,10 @@ export default function TenantDetailPage() {
           <TabsTrigger value="keys">
             <Key className="mr-2 h-4 w-4" />
             API Key
+          </TabsTrigger>
+          <TabsTrigger value="config">
+            <Settings2 className="mr-2 h-4 w-4" />
+            配置覆盖
           </TabsTrigger>
         </TabsList>
 
@@ -411,6 +416,11 @@ export default function TenantDetailPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* 配置覆盖 Tab */}
+        <TabsContent value="config">
+          <TenantConfigPanel tenantId={tenant.id} />
         </TabsContent>
       </Tabs>
     </div>

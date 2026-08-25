@@ -9,6 +9,8 @@ from app.routers.users import router as users_router
 from app.routers.system import router as system_router
 from app.routers.auth import router as auth_router
 from app.routers.tenants import router as tenants_router
+from app.routers.tenant_config import router as tenant_config_router
+from app.routers.quota import router as quota_router
 
 __all__ = [
     "memories_router",
@@ -19,4 +21,6 @@ __all__ = [
     "system_router",
     "auth_router",
     "tenants_router",
+    "tenant_config_router",
+    "quota_router",
 ]
